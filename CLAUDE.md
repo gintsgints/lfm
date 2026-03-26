@@ -34,6 +34,17 @@ cargo check          # Fast type/syntax check without producing a binary
 
 - **zip** — browse ZIP archive contents directly in the file list panel (treat the archive as a directory)
 
+## Development Workflow
+
+- Development is iterative — make small, focused changes.
+- Before committing, every change must pass all three checks in order:
+  ```bash
+  cargo fmt       # Format code
+  cargo clippy    # Lint — fix all warnings before proceeding
+  cargo test      # All tests must pass
+  ```
+- Each functional change must end with its own git commit. Do not bundle unrelated changes into a single commit.
+
 ## Architecture
 
 This is a Rust binary crate (`lfm`). Currently early-stage with a single entry point at [src/main.rs](src/main.rs).
