@@ -20,13 +20,19 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<()> {
         terminal.draw(|frame| {
             let area = frame.area();
 
-            let chunks = Layout::default()
+            let vertical = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([Constraint::Min(0), Constraint::Length(3)])
                 .split(area);
 
-            ui::file_panel::render(frame, chunks[0]);
-            ui::command_prompt::render(frame, chunks[1]);
+            let top = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(30), Constraint::Min(0)])
+                .split(vertical[0]);
+
+            ui::dir_panel::render(frame, top[0]);
+            ui::file_panel::render(frame, top[1]);
+            ui::command_prompt::render(frame, vertical[1]);
         })?;
 
         if let Event::Key(key) = event::read()?
