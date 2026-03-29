@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState},
 };
 
-use crate::app::Entry;
+use crate::model::Entry;
 
 pub fn render<'a>(
     frame: &mut Frame,

@@ -33,7 +33,7 @@ pub struct Entry {
     pub is_dir: bool,
 }
 
-pub struct App {
+pub struct Model {
     #[allow(dead_code)]
     pub current_dir: PathBuf,
     pub entries: Vec<Entry>,
@@ -42,8 +42,8 @@ pub struct App {
     pub file_selection: usize,
 }
 
-impl App {
-    pub fn new() -> io::Result<Self> {
+impl Model {
+    pub fn init() -> io::Result<Self> {
         let current_dir = std::env::current_dir()?;
         let entries = read_entries(&current_dir)?;
         Ok(Self {
@@ -69,32 +69,6 @@ impl App {
 
     pub fn file_count(&self) -> usize {
         self.entries.iter().filter(|e| !e.is_dir).count()
-    }
-
-    pub fn select_up(&mut self) {
-        match self.active_panel {
-            ActivePanel::Dirs => self.dir_selection = self.dir_selection.saturating_sub(1),
-            ActivePanel::Files => self.file_selection = self.file_selection.saturating_sub(1),
-            ActivePanel::Command => {}
-        }
-    }
-
-    pub fn select_down(&mut self) {
-        match self.active_panel {
-            ActivePanel::Dirs => {
-                let count = self.dir_count();
-                if count > 0 {
-                    self.dir_selection = (self.dir_selection + 1).min(count - 1);
-                }
-            }
-            ActivePanel::Files => {
-                let count = self.file_count();
-                if count > 0 {
-                    self.file_selection = (self.file_selection + 1).min(count - 1);
-                }
-            }
-            ActivePanel::Command => {}
-        }
     }
 }
 
