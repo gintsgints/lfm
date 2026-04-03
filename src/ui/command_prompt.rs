@@ -6,7 +6,15 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
 };
 
-pub fn render(frame: &mut Frame, area: Rect, active: bool) {
+use crate::message::Message;
+
+pub struct Model {}
+
+pub fn update(model: Model, _msg: Message) -> Model {
+    model
+}
+
+pub fn render(frame: &mut Frame, area: Rect, _model: &Model, active: bool) {
     let border_style = if active {
         Style::default().fg(Color::Yellow)
     } else {

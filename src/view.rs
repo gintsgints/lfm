@@ -17,13 +17,13 @@ pub fn view(model: &Model, frame: &mut Frame) {
     ui::file_panel::render(
         frame,
         vertical[0],
-        model.entries.iter(),
+        &model.file_panel,
         model.active_panel == ActivePanel::Files,
-        model.selection,
     );
     ui::command_prompt::render(
         frame,
         vertical[1],
+        &model.command_prompt,
         model.active_panel == ActivePanel::Command,
     );
 }
