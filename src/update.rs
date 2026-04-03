@@ -20,8 +20,11 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
         }
         msg => {
             match model.active_panel {
-                ActivePanel::Files => {
-                    model.file_panel = file_panel::update(model.file_panel, msg);
+                ActivePanel::LeftFiles => {
+                    model.left_files = file_panel::update(model.left_files, msg);
+                }
+                ActivePanel::RightFiles => {
+                    model.right_files = file_panel::update(model.right_files, msg);
                 }
                 ActivePanel::Command => {
                     model.command_prompt = command_prompt::update(model.command_prompt, msg);

@@ -14,11 +14,22 @@ pub fn view(model: &Model, frame: &mut Frame) {
         .constraints([Constraint::Min(0), Constraint::Length(3)])
         .split(area);
 
+    let top = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(vertical[0]);
+
     ui::file_panel::render(
         frame,
-        vertical[0],
-        &model.file_panel,
-        model.active_panel == ActivePanel::Files,
+        top[0],
+        &model.left_files,
+        model.active_panel == ActivePanel::LeftFiles,
+    );
+    ui::file_panel::render(
+        frame,
+        top[1],
+        &model.right_files,
+        model.active_panel == ActivePanel::RightFiles,
     );
     ui::command_prompt::render(
         frame,
