@@ -18,7 +18,6 @@ pub struct Entry {
 }
 
 pub struct Model {
-    #[allow(dead_code)]
     pub current_dir: PathBuf,
     pub entries: Vec<Entry>,
     pub selection: usize,
@@ -38,6 +37,14 @@ impl Model {
     fn entry_count(&self) -> usize {
         self.entries.len()
     }
+
+    fn navigate_to(&mut self, path: PathBuf) {
+        if let Ok(entries) = read_entries(&path) {
+            self.current_dir = path;
+            self.entries = entries;
+            self.selection = 0;
+        }
+    }
 }
 
 pub fn update(mut model: Model, msg: Message) -> Model {
@@ -49,6 +56,19 @@ pub fn update(mut model: Model, msg: Message) -> Model {
             let count = model.entry_count();
             if count > 0 {
                 model.selection = (model.selection + 1).min(count - 1);
+            }
+        }
+        Message::DirUp => {
+            if let Some(parent) = model.current_dir.parent().map(Path::to_path_buf) {
+                model.navigate_to(parent);
+            }
+        }
+        Message::DirEnter => {
+            if let Some(entry) = model.entries.get(model.selection)
+                && entry.is_dir
+            {
+                let path = model.current_dir.join(&entry.name);
+                model.navigate_to(path);
             }
         }
         _ => {}
@@ -63,8 +83,9 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model, active: bool) {
         Style::default().fg(Color::White)
     };
 
+    let title = format!(" {} ", model.current_dir.display());
     let block = Block::default()
-        .title(" Files ")
+        .title(title)
         .borders(Borders::ALL)
         .style(border_style);
 

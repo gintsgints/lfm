@@ -5,4 +5,6 @@ pub enum Message {
     PrevPanel,
     SelectUp,
     SelectDown,
+    DirUp,
+    DirEnter,
 }
