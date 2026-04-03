@@ -5,7 +5,6 @@ use std::{
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum ActivePanel {
-    Dirs,
     Files,
     Command,
 }
@@ -13,16 +12,14 @@ pub enum ActivePanel {
 impl ActivePanel {
     pub fn next(self) -> Self {
         match self {
-            ActivePanel::Dirs => ActivePanel::Files,
             ActivePanel::Files => ActivePanel::Command,
-            ActivePanel::Command => ActivePanel::Dirs,
+            ActivePanel::Command => ActivePanel::Files,
         }
     }
 
     pub fn prev(self) -> Self {
         match self {
-            ActivePanel::Dirs => ActivePanel::Command,
-            ActivePanel::Files => ActivePanel::Dirs,
+            ActivePanel::Files => ActivePanel::Command,
             ActivePanel::Command => ActivePanel::Files,
         }
     }
@@ -38,8 +35,7 @@ pub struct Model {
     pub current_dir: PathBuf,
     pub entries: Vec<Entry>,
     pub active_panel: ActivePanel,
-    pub dir_selection: usize,
-    pub file_selection: usize,
+    pub selection: usize,
 }
 
 impl Model {
@@ -49,26 +45,13 @@ impl Model {
         Ok(Self {
             current_dir,
             entries,
-            active_panel: ActivePanel::Dirs,
-            dir_selection: 0,
-            file_selection: 0,
+            active_panel: ActivePanel::Files,
+            selection: 0,
         })
     }
 
-    pub fn dirs(&self) -> impl Iterator<Item = &Entry> {
-        self.entries.iter().filter(|e| e.is_dir)
-    }
-
-    pub fn files(&self) -> impl Iterator<Item = &Entry> {
-        self.entries.iter().filter(|e| !e.is_dir)
-    }
-
-    pub fn dir_count(&self) -> usize {
-        self.entries.iter().filter(|e| e.is_dir).count()
-    }
-
-    pub fn file_count(&self) -> usize {
-        self.entries.iter().filter(|e| !e.is_dir).count()
+    pub fn entry_count(&self) -> usize {
+        self.entries.len()
     }
 }
 

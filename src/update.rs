@@ -18,32 +18,17 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
             (model, Effect::None)
         }
         Message::SelectUp => {
-            match model.active_panel {
-                ActivePanel::Dirs => {
-                    model.dir_selection = model.dir_selection.saturating_sub(1);
-                }
-                ActivePanel::Files => {
-                    model.file_selection = model.file_selection.saturating_sub(1);
-                }
-                ActivePanel::Command => {}
+            if model.active_panel == ActivePanel::Files {
+                model.selection = model.selection.saturating_sub(1);
             }
             (model, Effect::None)
         }
         Message::SelectDown => {
-            match model.active_panel {
-                ActivePanel::Dirs => {
-                    let count = model.dir_count();
-                    if count > 0 {
-                        model.dir_selection = (model.dir_selection + 1).min(count - 1);
-                    }
+            if model.active_panel == ActivePanel::Files {
+                let count = model.entry_count();
+                if count > 0 {
+                    model.selection = (model.selection + 1).min(count - 1);
                 }
-                ActivePanel::Files => {
-                    let count = model.file_count();
-                    if count > 0 {
-                        model.file_selection = (model.file_selection + 1).min(count - 1);
-                    }
-                }
-                ActivePanel::Command => {}
             }
             (model, Effect::None)
         }

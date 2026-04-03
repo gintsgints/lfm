@@ -10,7 +10,7 @@ use crate::model::Entry;
 pub fn render<'a>(
     frame: &mut Frame,
     area: Rect,
-    files: impl Iterator<Item = &'a Entry>,
+    entries: impl Iterator<Item = &'a Entry>,
     active: bool,
     selected: usize,
 ) {
@@ -25,7 +25,16 @@ pub fn render<'a>(
         .borders(Borders::ALL)
         .style(border_style);
 
-    let items: Vec<ListItem> = files.map(|e| ListItem::new(e.name.clone())).collect();
+    let items: Vec<ListItem> = entries
+        .map(|e| {
+            let name = if e.is_dir {
+                format!("{}/", e.name)
+            } else {
+                e.name.clone()
+            };
+            ListItem::new(name)
+        })
+        .collect();
 
     let list = List::new(items)
         .block(block)
