@@ -45,8 +45,8 @@ fn to_message(event: Event) -> Option<Message> {
             KeyCode::Char('q') => Some(Message::Quit),
             KeyCode::Tab => Some(Message::NextPanel),
             KeyCode::BackTab => Some(Message::PrevPanel),
-            KeyCode::Up => Some(Message::SelectUp),
-            KeyCode::Down => Some(Message::SelectDown),
+            KeyCode::Up | KeyCode::Char('k') => Some(Message::SelectUp),
+            KeyCode::Down | KeyCode::Char('j') => Some(Message::SelectDown),
             _ => None,
         }
     } else {
