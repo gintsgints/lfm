@@ -38,7 +38,7 @@ impl Model {
         self.entries.len()
     }
 
-    fn navigate_to(&mut self, path: PathBuf) {
+    pub fn navigate_to(&mut self, path: PathBuf) {
         if let Ok(entries) = read_entries(&path) {
             self.current_dir = path;
             self.entries = entries;

@@ -26,4 +26,8 @@ pub fn view(model: &Model, frame: &mut Frame) {
         &model.right_files,
         model.active_panel == ActivePanel::RightFiles,
     );
+
+    if model.active_panel == ActivePanel::Pinned {
+        ui::pinned_panel::render(frame, area, &model.pinned_panel);
+    }
 }

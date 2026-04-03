@@ -12,7 +12,7 @@ mod update;
 mod view;
 
 use message::Message;
-use model::Model;
+use model::{ActivePanel, Model};
 use update::{Effect, update};
 use view::view;
 
@@ -29,7 +29,7 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<()> {
     loop {
         terminal.draw(|frame| view(&model, frame))?;
 
-        if let Some(msg) = to_message(&event::read()?) {
+        if let Some(msg) = to_message(&event::read()?, model.active_panel) {
             let (next_model, effect) = update(model, msg);
             model = next_model;
             if matches!(effect, Effect::Quit) {
@@ -39,7 +39,7 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<()> {
     }
 }
 
-fn to_message(event: &Event) -> Option<Message> {
+fn to_message(event: &Event, active_panel: ActivePanel) -> Option<Message> {
     if let Event::Key(key) = event {
         match key.code {
             KeyCode::Char('q') => Some(Message::Quit),
@@ -49,6 +49,14 @@ fn to_message(event: &Event) -> Option<Message> {
             KeyCode::Down | KeyCode::Char('j') => Some(Message::SelectDown),
             KeyCode::Left | KeyCode::Char('h') => Some(Message::DirUp),
             KeyCode::Right | KeyCode::Char('l') => Some(Message::DirEnter),
+            KeyCode::Char('p') if active_panel == ActivePanel::Pinned => {
+                Some(Message::PinCurrentDir)
+            }
+            KeyCode::Char('p') => Some(Message::TogglePinnedPanel),
+            KeyCode::Enter | KeyCode::Char(' ') if active_panel == ActivePanel::Pinned => {
+                Some(Message::SelectPinnedDir)
+            }
+            KeyCode::Esc if active_panel == ActivePanel::Pinned => Some(Message::TogglePinnedPanel),
             _ => None,
         }
     } else {
