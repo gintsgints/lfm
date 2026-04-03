@@ -86,7 +86,9 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model, active: bool) {
         .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
 
     let mut state = ListState::default();
-    state.select(Some(model.selection));
+    if active {
+        state.select(Some(model.selection));
+    }
 
     frame.render_stateful_widget(list, area, &mut state);
 }
