@@ -1,6 +1,6 @@
 use crate::message::Message;
 use crate::model::{ActivePanel, Model};
-use crate::ui::{command_prompt, file_panel};
+use crate::ui::file_panel;
 
 pub enum Effect {
     None,
@@ -25,9 +25,6 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
                 }
                 ActivePanel::RightFiles => {
                     model.right_files = file_panel::update(model.right_files, msg);
-                }
-                ActivePanel::Command => {
-                    model.command_prompt = command_prompt::update(model.command_prompt, msg);
                 }
             }
             (model, Effect::None)
