@@ -29,7 +29,7 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<()> {
     loop {
         terminal.draw(|frame| view(&model, frame))?;
 
-        if let Some(msg) = to_message(event::read()?) {
+        if let Some(msg) = to_message(&event::read()?) {
             let (next_model, effect) = update(model, msg);
             model = next_model;
             if matches!(effect, Effect::Quit) {
@@ -39,7 +39,7 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<()> {
     }
 }
 
-fn to_message(event: Event) -> Option<Message> {
+fn to_message(event: &Event) -> Option<Message> {
     if let Event::Key(key) = event {
         match key.code {
             KeyCode::Char('q') => Some(Message::Quit),

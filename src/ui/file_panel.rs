@@ -95,7 +95,7 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model, active: bool) {
 
 fn read_entries(path: &Path) -> io::Result<Vec<Entry>> {
     let mut entries: Vec<Entry> = std::fs::read_dir(path)?
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
         .map(|e| Entry {
             name: e.file_name().to_string_lossy().into_owned(),
             is_dir: e.file_type().map(|t| t.is_dir()).unwrap_or(false),

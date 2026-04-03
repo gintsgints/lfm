@@ -9,7 +9,7 @@ cargo build          # Compile
 cargo run            # Compile and run
 cargo test           # Run all tests
 cargo test <name>    # Run a single test by name
-cargo clippy         # Lint
+cargo clippy -- -D warnings -W clippy::pedantic   # Lint (hard mode)
 cargo fmt            # Format code
 cargo check          # Fast type/syntax check without producing a binary
 ```
@@ -40,7 +40,7 @@ cargo check          # Fast type/syntax check without producing a binary
 - Before committing, every change must pass all three checks in order:
   ```bash
   cargo fmt       # Format code
-  cargo clippy    # Lint — fix all warnings before proceeding
+  cargo clippy -- -D warnings -W clippy::pedantic   # Lint — fix all warnings before proceeding
   cargo test      # All tests must pass
   ```
 - Each functional change must end with its own git commit. Do not bundle unrelated changes into a single commit.
