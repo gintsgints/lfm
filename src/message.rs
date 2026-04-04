@@ -7,6 +7,8 @@ pub enum Message {
     SelectDown,
     DirUp,
     DirEnter,
+    MarkSelectUp,
+    MarkSelectDown,
     TogglePinnedPanel,
     PinCurrentDir,
     SelectPinnedDir,

@@ -10,3 +10,4 @@ pub const POPUP_BORDER: Color = Color::Rgb(116, 199, 236); // #74c7ec  Sapphire
 pub const HIGHLIGHT_BG: Color = SURFACE;
 pub const HIGHLIGHT_FG: Color = TEXT;
 pub const DIR_FG: Color = Color::Rgb(137, 180, 250); // #89b4fa  Blue
+pub const SELECTED_FG: Color = Color::Rgb(166, 227, 161); // #a6e3a1  Green

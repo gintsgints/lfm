@@ -2,7 +2,7 @@ use std::io;
 
 use ratatui::{
     DefaultTerminal,
-    crossterm::event::{self, Event, KeyCode},
+    crossterm::event::{self, Event, KeyCode, KeyModifiers},
 };
 
 mod message;
@@ -46,6 +46,14 @@ fn to_message(event: &Event, active_panel: ActivePanel) -> Option<Message> {
             KeyCode::Char('q') => Some(Message::Quit),
             KeyCode::Tab => Some(Message::NextPanel),
             KeyCode::BackTab => Some(Message::PrevPanel),
+            KeyCode::Up if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                Some(Message::MarkSelectUp)
+            }
+            KeyCode::Down if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                Some(Message::MarkSelectDown)
+            }
+            KeyCode::Char('K') => Some(Message::MarkSelectUp),
+            KeyCode::Char('J') => Some(Message::MarkSelectDown),
             KeyCode::Up | KeyCode::Char('k') => Some(Message::SelectUp),
             KeyCode::Down | KeyCode::Char('j') => Some(Message::SelectDown),
             KeyCode::Left | KeyCode::Char('h') => Some(Message::DirUp),

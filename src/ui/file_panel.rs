@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeSet,
     io,
     path::{Path, PathBuf},
 };
@@ -23,6 +24,7 @@ pub struct Model {
     pub current_dir: PathBuf,
     pub entries: Vec<Entry>,
     pub selection: usize,
+    pub selected: BTreeSet<usize>,
 }
 
 impl Model {
@@ -33,6 +35,7 @@ impl Model {
             current_dir,
             entries,
             selection: 0,
+            selected: BTreeSet::new(),
         })
     }
 
@@ -45,6 +48,13 @@ impl Model {
             self.current_dir = path;
             self.entries = entries;
             self.selection = 0;
+            self.selected.clear();
+        }
+    }
+
+    fn toggle_selected(&mut self, index: usize) {
+        if !self.selected.remove(&index) {
+            self.selected.insert(index);
         }
     }
 }
@@ -55,6 +65,17 @@ pub fn update(mut model: Model, msg: Message) -> Model {
             model.selection = model.selection.saturating_sub(1);
         }
         Message::SelectDown => {
+            let count = model.entry_count();
+            if count > 0 {
+                model.selection = (model.selection + 1).min(count - 1);
+            }
+        }
+        Message::MarkSelectUp => {
+            model.toggle_selected(model.selection);
+            model.selection = model.selection.saturating_sub(1);
+        }
+        Message::MarkSelectDown => {
+            model.toggle_selected(model.selection);
             let count = model.entry_count();
             if count > 0 {
                 model.selection = (model.selection + 1).min(count - 1);
@@ -94,18 +115,22 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model, active: bool) {
     let items: Vec<ListItem> = model
         .entries
         .iter()
-        .map(|e| {
-            if e.is_dir {
-                ListItem::new(Span::styled(
-                    format!("{}/", e.name),
-                    Style::default().fg(theme::DIR_FG),
-                ))
+        .enumerate()
+        .map(|(i, e)| {
+            let is_selected = model.selected.contains(&i);
+            let fg = if is_selected {
+                theme::SELECTED_FG
+            } else if e.is_dir {
+                theme::DIR_FG
             } else {
-                ListItem::new(Span::styled(
-                    e.name.clone(),
-                    Style::default().fg(theme::TEXT),
-                ))
-            }
+                theme::TEXT
+            };
+            let name = if e.is_dir {
+                format!("{}/", e.name)
+            } else {
+                e.name.clone()
+            };
+            ListItem::new(Span::styled(name, Style::default().fg(fg)))
         })
         .collect();
 
