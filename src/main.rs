@@ -69,9 +69,19 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
         if let Some(msg) = to_message(&event::read()?, model.active_panel, &mode) {
             let (next_model, effect) = update(model, msg);
             model = next_model;
-            if matches!(effect, Effect::Quit) {
-                let _ = state::save(&model.to_persisted());
-                return Ok(model.left_files.current_dir.clone());
+            match effect {
+                Effect::Quit => {
+                    let _ = state::save(&model.to_persisted());
+                    return Ok(model.left_files.current_dir.clone());
+                }
+                Effect::OpenEditor(path) => {
+                    if let Some(editor) = std::env::var_os("EDITOR") {
+                        ratatui::restore();
+                        let _ = std::process::Command::new(editor).arg(&path).status();
+                        terminal = ratatui::init();
+                    }
+                }
+                Effect::None => {}
             }
         }
     }
@@ -150,6 +160,7 @@ fn to_message(event: &Event, active_panel: ActivePanel, mode: &InputMode) -> Opt
             KeyCode::Char('/') => Some(Message::EnterFilter),
             KeyCode::Char('n') => Some(Message::NewPath),
             KeyCode::Char('?') => Some(Message::ToggleHelp),
+            KeyCode::Char('e') if active_panel != ActivePanel::Pinned => Some(Message::OpenEditor),
             KeyCode::Char('c') if active_panel != ActivePanel::Pinned => Some(Message::StartCopy),
             KeyCode::Char('d') if active_panel != ActivePanel::Pinned => Some(Message::DeleteFiles),
             KeyCode::Char('p') if active_panel == ActivePanel::Pinned => {

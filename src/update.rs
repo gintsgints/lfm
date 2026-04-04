@@ -7,6 +7,7 @@ use crate::ui::{file_panel, pinned_panel};
 pub enum Effect {
     None,
     Quit,
+    OpenEditor(std::path::PathBuf),
 }
 
 pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
@@ -78,6 +79,18 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
         Message::ToggleHelp => {
             model.show_help = !model.show_help;
             (model, Effect::None)
+        }
+        Message::OpenEditor => {
+            let panel = match model.active_panel {
+                ActivePanel::LeftFiles => &model.left_files,
+                ActivePanel::RightFiles => &model.right_files,
+                ActivePanel::Pinned => return (model, Effect::None),
+            };
+            let path = panel.visible_entries().nth(panel.selection).map_or_else(
+                || panel.current_dir.clone(),
+                |(_, e)| panel.current_dir.join(&e.name),
+            );
+            (model, Effect::OpenEditor(path))
         }
         Message::StartCopy | Message::CancelCopy | Message::ConfirmCopy => {
             (update_copy(model, msg), Effect::None)

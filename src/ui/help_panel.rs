@@ -26,6 +26,7 @@ const KEYBINDINGS: &[(&str, &str)] = &[
     ("n", "Create file or directory"),
     ("d", "Delete selected or current item"),
     ("c", "Copy selected or current item"),
+    ("e", "Open selected item in $EDITOR"),
     ("", ""),
     ("Filter", ""),
     ("/", "Enter filter mode"),

@@ -100,7 +100,7 @@ impl Model {
         }
     }
 
-    fn visible_entries(&self) -> impl Iterator<Item = (usize, &Entry)> {
+    pub fn visible_entries(&self) -> impl Iterator<Item = (usize, &Entry)> {
         let filter = self.search.text.to_lowercase();
         self.entries
             .iter()

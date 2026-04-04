@@ -31,4 +31,5 @@ pub enum Message {
     ConfirmCopy,
     CancelCopy,
     ToggleHelp,
+    OpenEditor,
 }
