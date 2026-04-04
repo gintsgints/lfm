@@ -41,4 +41,21 @@ pub fn view(model: &Model, frame: &mut Frame) {
     {
         ui::input_box::render(frame, area, input, "New path (end with / for directory)");
     }
+
+    let active_file_panel = match model.active_panel {
+        ActivePanel::LeftFiles => Some(&model.left_files),
+        ActivePanel::RightFiles => Some(&model.right_files),
+        ActivePanel::Pinned => None,
+    };
+    if let Some(fp) = active_file_panel
+        && fp.delete_confirm
+    {
+        let count = fp.delete_targets.len();
+        let msg = if count == 1 {
+            format!("Delete '{}'?", fp.delete_targets[0].name)
+        } else {
+            format!("Delete {count} items?")
+        };
+        ui::confirm_box::render(frame, area, &msg);
+    }
 }

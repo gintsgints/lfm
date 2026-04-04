@@ -41,8 +41,19 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<()> {
             ActivePanel::RightFiles => model.right_files.new_path_input.active,
             ActivePanel::Pinned => false,
         };
+        let in_delete_confirm = match model.active_panel {
+            ActivePanel::LeftFiles => model.left_files.delete_confirm,
+            ActivePanel::RightFiles => model.right_files.delete_confirm,
+            ActivePanel::Pinned => false,
+        };
 
-        if let Some(msg) = to_message(&event::read()?, model.active_panel, in_filter, in_new_path) {
+        if let Some(msg) = to_message(
+            &event::read()?,
+            model.active_panel,
+            in_filter,
+            in_new_path,
+            in_delete_confirm,
+        ) {
             let (next_model, effect) = update(model, msg);
             model = next_model;
             if matches!(effect, Effect::Quit) {
@@ -58,8 +69,17 @@ fn to_message(
     active_panel: ActivePanel,
     in_filter: bool,
     in_new_path: bool,
+    in_delete_confirm: bool,
 ) -> Option<Message> {
     if let Event::Key(key) = event {
+        if in_delete_confirm {
+            return match key.code {
+                KeyCode::Enter => Some(Message::DeleteConfirm),
+                KeyCode::Esc => Some(Message::DeleteCancel),
+                _ => None,
+            };
+        }
+
         if in_new_path {
             return match key.code {
                 KeyCode::Esc => Some(Message::NewPathCancel),
@@ -98,6 +118,7 @@ fn to_message(
             KeyCode::Right | KeyCode::Char('l') => Some(Message::DirEnter),
             KeyCode::Char('/') => Some(Message::EnterFilter),
             KeyCode::Char('n') => Some(Message::NewPath),
+            KeyCode::Char('d') if active_panel != ActivePanel::Pinned => Some(Message::DeleteFiles),
             KeyCode::Char('p') if active_panel == ActivePanel::Pinned => {
                 Some(Message::PinCurrentDir)
             }

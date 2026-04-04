@@ -24,4 +24,7 @@ pub enum Message {
     NewPathBackspace,
     NewPathConfirm,
     NewPathCancel,
+    DeleteFiles,
+    DeleteConfirm,
+    DeleteCancel,
 }

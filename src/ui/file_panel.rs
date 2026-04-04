@@ -16,6 +16,12 @@ use crate::message::Message;
 use crate::theme;
 use crate::ui::{input_box, search_box};
 
+pub struct DeleteTarget {
+    pub name: String,
+    pub path: PathBuf,
+    pub is_dir: bool,
+}
+
 pub struct Entry {
     pub name: String,
     pub is_dir: bool,
@@ -28,6 +34,8 @@ pub struct Model {
     pub selected: BTreeSet<usize>,
     pub search: search_box::Model,
     pub new_path_input: input_box::Model,
+    pub delete_confirm: bool,
+    pub delete_targets: Vec<DeleteTarget>,
 }
 
 impl Model {
@@ -41,6 +49,8 @@ impl Model {
             selected: BTreeSet::new(),
             search: search_box::Model::new(),
             new_path_input: input_box::Model::new(),
+            delete_confirm: false,
+            delete_targets: Vec::new(),
         })
     }
 
@@ -56,6 +66,31 @@ impl Model {
             self.selected.clear();
             self.search.clear();
             self.new_path_input.close();
+            self.delete_confirm = false;
+            self.delete_targets.clear();
+        }
+    }
+
+    fn targets_for_deletion(&self) -> Vec<DeleteTarget> {
+        if self.selected.is_empty() {
+            self.visible_entries()
+                .nth(self.selection)
+                .map(|(_, e)| DeleteTarget {
+                    name: e.name.clone(),
+                    path: self.current_dir.join(&e.name),
+                    is_dir: e.is_dir,
+                })
+                .into_iter()
+                .collect()
+        } else {
+            self.visible_entries()
+                .filter(|(i, _)| self.selected.contains(i))
+                .map(|(_, e)| DeleteTarget {
+                    name: e.name.clone(),
+                    path: self.current_dir.join(&e.name),
+                    is_dir: e.is_dir,
+                })
+                .collect()
         }
     }
 
@@ -87,6 +122,16 @@ pub fn update(mut model: Model, msg: Message) -> Model {
                 model.selection = 0;
             }
         }
+        Message::NewPath
+        | Message::NewPathChar(_)
+        | Message::NewPathBackspace
+        | Message::NewPathCancel
+        | Message::NewPathConfirm => {
+            model = update_new_path(model, msg);
+        }
+        Message::DeleteFiles | Message::DeleteCancel | Message::DeleteConfirm => {
+            model = update_delete(model, msg);
+        }
         Message::SelectUp => {
             model.selection = model.selection.saturating_sub(1);
         }
@@ -110,6 +155,28 @@ pub fn update(mut model: Model, msg: Message) -> Model {
         Message::ClearSelection => {
             model.selected.clear();
         }
+        Message::DirUp => {
+            if let Some(parent) = model.current_dir.parent().map(Path::to_path_buf) {
+                model.navigate_to(parent);
+            }
+        }
+        Message::DirEnter => {
+            let target = model
+                .visible_entries()
+                .nth(model.selection)
+                .filter(|(_, e)| e.is_dir)
+                .map(|(_, e)| model.current_dir.join(&e.name));
+            if let Some(path) = target {
+                model.navigate_to(path);
+            }
+        }
+        _ => {}
+    }
+    model
+}
+
+fn update_new_path(mut model: Model, msg: Message) -> Model {
+    match msg {
         Message::NewPath => {
             model.new_path_input.open();
         }
@@ -143,20 +210,37 @@ pub fn update(mut model: Model, msg: Message) -> Model {
                 }
             }
         }
-        Message::DirUp => {
-            if let Some(parent) = model.current_dir.parent().map(Path::to_path_buf) {
-                model.navigate_to(parent);
+        _ => {}
+    }
+    model
+}
+
+fn update_delete(mut model: Model, msg: Message) -> Model {
+    match msg {
+        Message::DeleteFiles => {
+            let targets = model.targets_for_deletion();
+            if !targets.is_empty() {
+                model.delete_targets = targets;
+                model.delete_confirm = true;
             }
         }
-        Message::DirEnter => {
-            let target = model
-                .visible_entries()
-                .nth(model.selection)
-                .filter(|(_, e)| e.is_dir)
-                .map(|(_, e)| model.current_dir.join(&e.name));
-            if let Some(path) = target {
-                model.navigate_to(path);
+        Message::DeleteCancel => {
+            model.delete_confirm = false;
+            model.delete_targets.clear();
+        }
+        Message::DeleteConfirm => {
+            model.delete_confirm = false;
+            for target in &model.delete_targets {
+                if target.is_dir {
+                    std::fs::remove_dir_all(&target.path).ok();
+                } else {
+                    std::fs::remove_file(&target.path).ok();
+                }
             }
+            model.delete_targets.clear();
+            model.selected.clear();
+            let dir = model.current_dir.clone();
+            model.navigate_to(dir);
         }
         _ => {}
     }
