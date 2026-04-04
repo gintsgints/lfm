@@ -44,6 +44,19 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
             model.active_panel = model.origin_panel;
             (model, Effect::None)
         }
+        Message::DeletePinnedDir => {
+            let sel = model.pinned_panel.selection;
+            if sel < model.pinned_panel.pins.len() {
+                model.pinned_panel.pins.remove(sel);
+                let count = model.pinned_panel.pins.len();
+                if count > 0 {
+                    model.pinned_panel.selection = sel.min(count - 1);
+                } else {
+                    model.pinned_panel.selection = 0;
+                }
+            }
+            (model, Effect::None)
+        }
         Message::SelectPinnedDir => {
             if let Some(dir) = model
                 .pinned_panel

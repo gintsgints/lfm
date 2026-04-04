@@ -51,7 +51,7 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model) {
 
     let block = Block::default()
         .title(Span::styled(
-            " Pinned Directories  [p] pin  [Enter/Space] go  [Esc] close ",
+            " Pinned Directories  [p] pin  [Enter/Space] go  [d] delete  [Esc] close ",
             Style::default().fg(theme::TEXT),
         ))
         .borders(Borders::ALL)
