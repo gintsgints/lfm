@@ -35,6 +35,7 @@ pub struct Model {
     pub left_files: file_panel::Model,
     pub right_files: file_panel::Model,
     pub pinned_panel: pinned_panel::Model,
+    pub copy_mode: bool,
 }
 
 impl Model {
@@ -43,23 +44,19 @@ impl Model {
         if let Some(dir) = persisted.left_dir {
             left_files.navigate_to(dir);
         }
-        let mut right_files = file_panel::Model::init()?;
-        if let Some(dir) = persisted.right_dir {
-            right_files.navigate_to(dir);
-        }
         Ok(Self {
             active_panel: ActivePanel::LeftFiles,
             origin_panel: ActivePanel::LeftFiles,
             left_files,
-            right_files,
+            right_files: file_panel::Model::init()?,
             pinned_panel: pinned_panel::Model::with_pins(persisted.pins),
+            copy_mode: false,
         })
     }
 
     pub fn to_persisted(&self) -> PersistedState {
         PersistedState {
             left_dir: Some(self.left_files.current_dir.clone()),
-            right_dir: Some(self.right_files.current_dir.clone()),
             pins: self.pinned_panel.pins.clone(),
         }
     }
