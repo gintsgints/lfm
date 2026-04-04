@@ -18,11 +18,8 @@ pub struct Model {
 }
 
 impl Model {
-    pub fn new() -> Self {
-        Self {
-            pins: Vec::new(),
-            selection: 0,
-        }
+    pub fn with_pins(pins: Vec<PathBuf>) -> Self {
+        Self { pins, selection: 0 }
     }
 
     fn pin_count(&self) -> usize {

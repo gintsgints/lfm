@@ -1,5 +1,6 @@
 use std::io;
 
+use crate::state::PersistedState;
 use crate::ui::{file_panel, pinned_panel};
 
 #[derive(Clone, Copy, PartialEq)]
@@ -37,13 +38,29 @@ pub struct Model {
 }
 
 impl Model {
-    pub fn init() -> io::Result<Self> {
+    pub fn init(persisted: PersistedState) -> io::Result<Self> {
+        let mut left_files = file_panel::Model::init()?;
+        if let Some(dir) = persisted.left_dir {
+            left_files.navigate_to(dir);
+        }
+        let mut right_files = file_panel::Model::init()?;
+        if let Some(dir) = persisted.right_dir {
+            right_files.navigate_to(dir);
+        }
         Ok(Self {
             active_panel: ActivePanel::LeftFiles,
             origin_panel: ActivePanel::LeftFiles,
-            left_files: file_panel::Model::init()?,
-            right_files: file_panel::Model::init()?,
-            pinned_panel: pinned_panel::Model::new(),
+            left_files,
+            right_files,
+            pinned_panel: pinned_panel::Model::with_pins(persisted.pins),
         })
+    }
+
+    pub fn to_persisted(&self) -> PersistedState {
+        PersistedState {
+            left_dir: Some(self.left_files.current_dir.clone()),
+            right_dir: Some(self.right_files.current_dir.clone()),
+            pins: self.pinned_panel.pins.clone(),
+        }
     }
 }

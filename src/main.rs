@@ -7,6 +7,7 @@ use ratatui::{
 
 mod message;
 mod model;
+mod state;
 mod theme;
 mod ui;
 mod update;
@@ -25,7 +26,7 @@ fn main() -> io::Result<()> {
 }
 
 fn run(mut terminal: DefaultTerminal) -> io::Result<()> {
-    let mut model = Model::init()?;
+    let mut model = Model::init(state::load())?;
 
     loop {
         terminal.draw(|frame| view(&model, frame))?;
@@ -34,6 +35,7 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<()> {
             let (next_model, effect) = update(model, msg);
             model = next_model;
             if matches!(effect, Effect::Quit) {
+                let _ = state::save(&model.to_persisted());
                 return Ok(());
             }
         }
