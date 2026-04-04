@@ -14,6 +14,7 @@ use ratatui::{
 
 use crate::message::Message;
 use crate::theme;
+use crate::ui::search_box;
 
 pub struct Entry {
     pub name: String,
@@ -25,6 +26,7 @@ pub struct Model {
     pub entries: Vec<Entry>,
     pub selection: usize,
     pub selected: BTreeSet<usize>,
+    pub search: search_box::Model,
 }
 
 impl Model {
@@ -36,11 +38,12 @@ impl Model {
             entries,
             selection: 0,
             selected: BTreeSet::new(),
+            search: search_box::Model::new(),
         })
     }
 
     fn entry_count(&self) -> usize {
-        self.entries.len()
+        self.visible_entries().count()
     }
 
     pub fn navigate_to(&mut self, path: PathBuf) {
@@ -49,6 +52,7 @@ impl Model {
             self.entries = entries;
             self.selection = 0;
             self.selected.clear();
+            self.search.clear();
         }
     }
 
@@ -57,10 +61,29 @@ impl Model {
             self.selected.insert(index);
         }
     }
+
+    fn visible_entries(&self) -> impl Iterator<Item = (usize, &Entry)> {
+        let filter = self.search.text.to_lowercase();
+        self.entries
+            .iter()
+            .enumerate()
+            .filter(move |(_, e)| filter.is_empty() || e.name.to_lowercase().contains(&filter))
+    }
 }
 
 pub fn update(mut model: Model, msg: Message) -> Model {
     match msg {
+        Message::EnterFilter
+        | Message::FilterChar(_)
+        | Message::FilterBackspace
+        | Message::ConfirmFilter
+        | Message::ExitFilter => {
+            let (search, reset) = search_box::update(model.search, msg);
+            model.search = search;
+            if reset {
+                model.selection = 0;
+            }
+        }
         Message::SelectUp => {
             model.selection = model.selection.saturating_sub(1);
         }
@@ -90,10 +113,12 @@ pub fn update(mut model: Model, msg: Message) -> Model {
             }
         }
         Message::DirEnter => {
-            if let Some(entry) = model.entries.get(model.selection)
-                && entry.is_dir
-            {
-                let path = model.current_dir.join(&entry.name);
+            let target = model
+                .visible_entries()
+                .nth(model.selection)
+                .filter(|(_, e)| e.is_dir)
+                .map(|(_, e)| model.current_dir.join(&e.name));
+            if let Some(path) = target {
                 model.navigate_to(path);
             }
         }
@@ -109,16 +134,14 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model, active: bool) {
         Style::default().fg(theme::INACTIVE_BORDER)
     };
 
-    let title = format!(" {} ", model.current_dir.display());
+    let title = search_box::title(&model.search, &model.current_dir.display().to_string());
     let block = Block::default()
-        .title(Span::styled(title, Style::default().fg(theme::TEXT)))
+        .title(title)
         .borders(Borders::ALL)
         .style(border_style);
 
     let items: Vec<ListItem> = model
-        .entries
-        .iter()
-        .enumerate()
+        .visible_entries()
         .map(|(i, e)| {
             let is_selected = model.selected.contains(&i);
             let fg = if is_selected {

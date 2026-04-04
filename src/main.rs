@@ -31,7 +31,13 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<()> {
     loop {
         terminal.draw(|frame| view(&model, frame))?;
 
-        if let Some(msg) = to_message(&event::read()?, model.active_panel) {
+        let in_filter = match model.active_panel {
+            ActivePanel::LeftFiles => model.left_files.search.active,
+            ActivePanel::RightFiles => model.right_files.search.active,
+            ActivePanel::Pinned => false,
+        };
+
+        if let Some(msg) = to_message(&event::read()?, model.active_panel, in_filter) {
             let (next_model, effect) = update(model, msg);
             model = next_model;
             if matches!(effect, Effect::Quit) {
@@ -42,8 +48,18 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<()> {
     }
 }
 
-fn to_message(event: &Event, active_panel: ActivePanel) -> Option<Message> {
+fn to_message(event: &Event, active_panel: ActivePanel, in_filter: bool) -> Option<Message> {
     if let Event::Key(key) = event {
+        if in_filter {
+            return match key.code {
+                KeyCode::Esc => Some(Message::ExitFilter),
+                KeyCode::Enter => Some(Message::ConfirmFilter),
+                KeyCode::Backspace => Some(Message::FilterBackspace),
+                KeyCode::Char(c) => Some(Message::FilterChar(c)),
+                _ => None,
+            };
+        }
+
         match key.code {
             KeyCode::Char('q') => Some(Message::Quit),
             KeyCode::Tab => Some(Message::NextPanel),
@@ -60,6 +76,7 @@ fn to_message(event: &Event, active_panel: ActivePanel) -> Option<Message> {
             KeyCode::Down | KeyCode::Char('j') => Some(Message::SelectDown),
             KeyCode::Left | KeyCode::Char('h') => Some(Message::DirUp),
             KeyCode::Right | KeyCode::Char('l') => Some(Message::DirEnter),
+            KeyCode::Char('/') => Some(Message::EnterFilter),
             KeyCode::Char('p') if active_panel == ActivePanel::Pinned => {
                 Some(Message::PinCurrentDir)
             }

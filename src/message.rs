@@ -14,4 +14,9 @@ pub enum Message {
     PinCurrentDir,
     SelectPinnedDir,
     DeletePinnedDir,
+    EnterFilter,
+    FilterChar(char),
+    FilterBackspace,
+    ConfirmFilter,
+    ExitFilter,
 }
