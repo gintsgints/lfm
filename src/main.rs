@@ -1,4 +1,4 @@
-use std::io;
+use std::{io, path::PathBuf};
 
 use ratatui::{
     DefaultTerminal,
@@ -19,13 +19,18 @@ use update::{Effect, update};
 use view::view;
 
 fn main() -> io::Result<()> {
+    let choosedir = std::env::var_os("LFM_CHOOSEDIR").map(PathBuf::from);
     let terminal = ratatui::init();
     let result = run(terminal);
     ratatui::restore();
-    result
+    let dir = result?;
+    if let Some(path) = choosedir {
+        let _ = std::fs::write(path, dir.display().to_string());
+    }
+    Ok(())
 }
 
-fn run(mut terminal: DefaultTerminal) -> io::Result<()> {
+fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
     let mut model = Model::init(state::load())?;
 
     loop {
@@ -64,7 +69,7 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<()> {
             model = next_model;
             if matches!(effect, Effect::Quit) {
                 let _ = state::save(&model.to_persisted());
-                return Ok(());
+                return Ok(model.left_files.current_dir.clone());
             }
         }
     }
