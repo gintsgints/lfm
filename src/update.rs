@@ -1,3 +1,5 @@
+use std::{io, path::Path};
+
 use crate::message::Message;
 use crate::model::{ActivePanel, Model};
 use crate::ui::{file_panel, pinned_panel};
@@ -73,6 +75,9 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
             model.active_panel = model.origin_panel;
             (model, Effect::None)
         }
+        Message::StartCopy | Message::CancelCopy | Message::ConfirmCopy => {
+            (update_copy(model, msg), Effect::None)
+        }
         msg => {
             match model.active_panel {
                 ActivePanel::LeftFiles => {
@@ -88,6 +93,59 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
             (model, Effect::None)
         }
     }
+}
+
+fn update_copy(mut model: Model, msg: Message) -> Model {
+    match msg {
+        Message::StartCopy => {
+            let start_dir = model.left_files.current_dir.clone();
+            model.right_files.navigate_to(start_dir);
+            model.copy_mode = true;
+            model.active_panel = ActivePanel::RightFiles;
+        }
+        Message::CancelCopy => {
+            model.copy_mode = false;
+            model.active_panel = ActivePanel::LeftFiles;
+        }
+        Message::ConfirmCopy => {
+            let dst = model.right_files.current_dir.clone();
+            let sources = model.left_files.action_targets();
+            for target in &sources {
+                copy_entry(&target.path, &dst).ok();
+            }
+            model.copy_mode = false;
+            model.active_panel = ActivePanel::LeftFiles;
+            let left_dir = model.left_files.current_dir.clone();
+            model.left_files.navigate_to(left_dir);
+        }
+        _ => {}
+    }
+    model
+}
+
+fn copy_entry(src: &Path, dst_dir: &Path) -> io::Result<()> {
+    let name = src
+        .file_name()
+        .ok_or_else(|| io::Error::other("no file name"))?;
+    let dst = dst_dir.join(name);
+    if src.is_dir() {
+        copy_dir_recursive(src, &dst)
+    } else {
+        std::fs::copy(src, &dst).map(|_| ())
+    }
+}
+
+fn copy_dir_recursive(src: &Path, dst: &Path) -> io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)?.filter_map(std::result::Result::ok) {
+        let dst_path = dst.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_dir_recursive(&entry.path(), &dst_path)?;
+        } else {
+            std::fs::copy(entry.path(), &dst_path)?;
+        }
+    }
+    Ok(())
 }
 
 fn origin_file_panel(model: &Model) -> &file_panel::Model {

@@ -27,4 +27,7 @@ pub enum Message {
     DeleteFiles,
     DeleteConfirm,
     DeleteCancel,
+    StartCopy,
+    ConfirmCopy,
+    CancelCopy,
 }

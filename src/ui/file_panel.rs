@@ -71,7 +71,7 @@ impl Model {
         }
     }
 
-    fn targets_for_deletion(&self) -> Vec<DeleteTarget> {
+    pub fn action_targets(&self) -> Vec<DeleteTarget> {
         if self.selected.is_empty() {
             self.visible_entries()
                 .nth(self.selection)
@@ -218,7 +218,7 @@ fn update_new_path(mut model: Model, msg: Message) -> Model {
 fn update_delete(mut model: Model, msg: Message) -> Model {
     match msg {
         Message::DeleteFiles => {
-            let targets = model.targets_for_deletion();
+            let targets = model.action_targets();
             if !targets.is_empty() {
                 model.delete_targets = targets;
                 model.delete_confirm = true;
@@ -247,14 +247,21 @@ fn update_delete(mut model: Model, msg: Message) -> Model {
     model
 }
 
-pub fn render(frame: &mut Frame, area: Rect, model: &Model, active: bool) {
-    let border_style = if active {
+pub fn render(frame: &mut Frame, area: Rect, model: &Model, active: bool, is_copy_target: bool) {
+    let border_style = if is_copy_target {
+        Style::default().fg(theme::COPY_TARGET_BORDER)
+    } else if active {
         Style::default().fg(theme::ACTIVE_BORDER)
     } else {
         Style::default().fg(theme::INACTIVE_BORDER)
     };
 
-    let title = search_box::title(&model.search, &model.current_dir.display().to_string());
+    let path_label = if is_copy_target {
+        format!("→  {}", model.current_dir.display())
+    } else {
+        model.current_dir.display().to_string()
+    };
+    let title = search_box::title(&model.search, &path_label);
     let block = Block::default()
         .title(title)
         .borders(Borders::ALL)

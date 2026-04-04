@@ -47,13 +47,19 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<()> {
             ActivePanel::Pinned => false,
         };
 
-        if let Some(msg) = to_message(
-            &event::read()?,
-            model.active_panel,
-            in_filter,
-            in_new_path,
-            in_delete_confirm,
-        ) {
+        let mode = if in_delete_confirm {
+            InputMode::DeleteConfirm
+        } else if in_new_path {
+            InputMode::NewPath
+        } else if model.copy_mode {
+            InputMode::Copy
+        } else if in_filter {
+            InputMode::Filter
+        } else {
+            InputMode::Normal
+        };
+
+        if let Some(msg) = to_message(&event::read()?, model.active_panel, &mode) {
             let (next_model, effect) = update(model, msg);
             model = next_model;
             if matches!(effect, Effect::Quit) {
@@ -64,40 +70,51 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<()> {
     }
 }
 
-fn to_message(
-    event: &Event,
-    active_panel: ActivePanel,
-    in_filter: bool,
-    in_new_path: bool,
-    in_delete_confirm: bool,
-) -> Option<Message> {
+enum InputMode {
+    Normal,
+    Filter,
+    NewPath,
+    DeleteConfirm,
+    Copy,
+}
+
+fn to_message(event: &Event, active_panel: ActivePanel, mode: &InputMode) -> Option<Message> {
     if let Event::Key(key) = event {
-        if in_delete_confirm {
-            return match key.code {
-                KeyCode::Enter => Some(Message::DeleteConfirm),
-                KeyCode::Esc => Some(Message::DeleteCancel),
-                _ => None,
-            };
-        }
-
-        if in_new_path {
-            return match key.code {
-                KeyCode::Esc => Some(Message::NewPathCancel),
-                KeyCode::Enter => Some(Message::NewPathConfirm),
-                KeyCode::Backspace => Some(Message::NewPathBackspace),
-                KeyCode::Char(c) => Some(Message::NewPathChar(c)),
-                _ => None,
-            };
-        }
-
-        if in_filter {
-            return match key.code {
-                KeyCode::Esc => Some(Message::ExitFilter),
-                KeyCode::Enter => Some(Message::ConfirmFilter),
-                KeyCode::Backspace => Some(Message::FilterBackspace),
-                KeyCode::Char(c) => Some(Message::FilterChar(c)),
-                _ => None,
-            };
+        match mode {
+            InputMode::DeleteConfirm => {
+                return match key.code {
+                    KeyCode::Enter => Some(Message::DeleteConfirm),
+                    KeyCode::Esc => Some(Message::DeleteCancel),
+                    _ => None,
+                };
+            }
+            InputMode::NewPath => {
+                return match key.code {
+                    KeyCode::Esc => Some(Message::NewPathCancel),
+                    KeyCode::Enter => Some(Message::NewPathConfirm),
+                    KeyCode::Backspace => Some(Message::NewPathBackspace),
+                    KeyCode::Char(c) => Some(Message::NewPathChar(c)),
+                    _ => None,
+                };
+            }
+            InputMode::Copy => {
+                if key.code == KeyCode::Esc {
+                    return Some(Message::CancelCopy);
+                }
+                if key.code == KeyCode::Enter && active_panel == ActivePanel::RightFiles {
+                    return Some(Message::ConfirmCopy);
+                }
+            }
+            InputMode::Filter => {
+                return match key.code {
+                    KeyCode::Esc => Some(Message::ExitFilter),
+                    KeyCode::Enter => Some(Message::ConfirmFilter),
+                    KeyCode::Backspace => Some(Message::FilterBackspace),
+                    KeyCode::Char(c) => Some(Message::FilterChar(c)),
+                    _ => None,
+                };
+            }
+            InputMode::Normal => {}
         }
 
         match key.code {
@@ -118,6 +135,7 @@ fn to_message(
             KeyCode::Right | KeyCode::Char('l') => Some(Message::DirEnter),
             KeyCode::Char('/') => Some(Message::EnterFilter),
             KeyCode::Char('n') => Some(Message::NewPath),
+            KeyCode::Char('c') if active_panel != ActivePanel::Pinned => Some(Message::StartCopy),
             KeyCode::Char('d') if active_panel != ActivePanel::Pinned => Some(Message::DeleteFiles),
             KeyCode::Char('p') if active_panel == ActivePanel::Pinned => {
                 Some(Message::PinCurrentDir)
