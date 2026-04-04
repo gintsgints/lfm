@@ -157,7 +157,16 @@ pub fn update(mut model: Model, msg: Message) -> Model {
         }
         Message::DirUp => {
             if let Some(parent) = model.current_dir.parent().map(Path::to_path_buf) {
+                let came_from = model
+                    .current_dir
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned());
                 model.navigate_to(parent);
+                if let Some(name) = came_from
+                    && let Some(idx) = model.entries.iter().position(|e| e.name == name)
+                {
+                    model.selection = idx;
+                }
             }
         }
         Message::DirEnter => {
