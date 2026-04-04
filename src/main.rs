@@ -52,7 +52,9 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
             ActivePanel::Pinned => false,
         };
 
-        let mode = if in_delete_confirm {
+        let mode = if model.show_help {
+            InputMode::Help
+        } else if in_delete_confirm {
             InputMode::DeleteConfirm
         } else if in_new_path {
             InputMode::NewPath
@@ -81,11 +83,18 @@ enum InputMode {
     NewPath,
     DeleteConfirm,
     Copy,
+    Help,
 }
 
 fn to_message(event: &Event, active_panel: ActivePanel, mode: &InputMode) -> Option<Message> {
     if let Event::Key(key) = event {
         match mode {
+            InputMode::Help => {
+                return match key.code {
+                    KeyCode::Esc | KeyCode::Char('?') => Some(Message::ToggleHelp),
+                    _ => None,
+                };
+            }
             InputMode::DeleteConfirm => {
                 return match key.code {
                     KeyCode::Enter => Some(Message::DeleteConfirm),
@@ -140,6 +149,7 @@ fn to_message(event: &Event, active_panel: ActivePanel, mode: &InputMode) -> Opt
             KeyCode::Right | KeyCode::Char('l') => Some(Message::DirEnter),
             KeyCode::Char('/') => Some(Message::EnterFilter),
             KeyCode::Char('n') => Some(Message::NewPath),
+            KeyCode::Char('?') => Some(Message::ToggleHelp),
             KeyCode::Char('c') if active_panel != ActivePanel::Pinned => Some(Message::StartCopy),
             KeyCode::Char('d') if active_panel != ActivePanel::Pinned => Some(Message::DeleteFiles),
             KeyCode::Char('p') if active_panel == ActivePanel::Pinned => {

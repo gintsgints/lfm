@@ -75,6 +75,10 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
             model.active_panel = model.origin_panel;
             (model, Effect::None)
         }
+        Message::ToggleHelp => {
+            model.show_help = !model.show_help;
+            (model, Effect::None)
+        }
         Message::StartCopy | Message::CancelCopy | Message::ConfirmCopy => {
             (update_copy(model, msg), Effect::None)
         }

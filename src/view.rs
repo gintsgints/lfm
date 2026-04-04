@@ -53,6 +53,10 @@ pub fn view(model: &Model, frame: &mut Frame) {
         ActivePanel::RightFiles => Some(&model.right_files),
         ActivePanel::Pinned => None,
     };
+    if model.show_help {
+        ui::help_panel::render(frame, area);
+    }
+
     if let Some(fp) = active_file_panel
         && fp.delete_confirm
     {

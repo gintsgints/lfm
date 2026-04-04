@@ -30,4 +30,5 @@ pub enum Message {
     StartCopy,
     ConfirmCopy,
     CancelCopy,
+    ToggleHelp,
 }
