@@ -116,10 +116,11 @@ pub fn update(mut model: Model, msg: Message) -> Model {
         | Message::FilterBackspace
         | Message::ConfirmFilter
         | Message::ExitFilter => {
+            let raw_idx = model.visible_entries().nth(model.selection).map(|(i, _)| i);
             let (search, reset) = search_box::update(model.search, msg);
             model.search = search;
             if reset {
-                model.selection = 0;
+                model.selection = raw_idx.unwrap_or(0);
             }
         }
         Message::NewPath
