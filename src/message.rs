@@ -19,4 +19,9 @@ pub enum Message {
     FilterBackspace,
     ConfirmFilter,
     ExitFilter,
+    NewPath,
+    NewPathChar(char),
+    NewPathBackspace,
+    NewPathConfirm,
+    NewPathCancel,
 }

@@ -14,7 +14,7 @@ use ratatui::{
 
 use crate::message::Message;
 use crate::theme;
-use crate::ui::search_box;
+use crate::ui::{input_box, search_box};
 
 pub struct Entry {
     pub name: String,
@@ -27,6 +27,7 @@ pub struct Model {
     pub selection: usize,
     pub selected: BTreeSet<usize>,
     pub search: search_box::Model,
+    pub new_path_input: input_box::Model,
 }
 
 impl Model {
@@ -39,6 +40,7 @@ impl Model {
             selection: 0,
             selected: BTreeSet::new(),
             search: search_box::Model::new(),
+            new_path_input: input_box::Model::new(),
         })
     }
 
@@ -53,6 +55,7 @@ impl Model {
             self.selection = 0;
             self.selected.clear();
             self.search.clear();
+            self.new_path_input.close();
         }
     }
 
@@ -106,6 +109,39 @@ pub fn update(mut model: Model, msg: Message) -> Model {
         }
         Message::ClearSelection => {
             model.selected.clear();
+        }
+        Message::NewPath => {
+            model.new_path_input.open();
+        }
+        Message::NewPathChar(c) => {
+            let (input, _) = input_box::update(model.new_path_input, Some(c), false, false, false);
+            model.new_path_input = input;
+        }
+        Message::NewPathBackspace => {
+            let (input, _) = input_box::update(model.new_path_input, None, true, false, false);
+            model.new_path_input = input;
+        }
+        Message::NewPathCancel => {
+            model.new_path_input.close();
+        }
+        Message::NewPathConfirm => {
+            let text = model.new_path_input.text.clone();
+            model.new_path_input.close();
+            if !text.is_empty() {
+                let target = model.current_dir.join(&text);
+                let created = if text.ends_with('/') {
+                    std::fs::create_dir_all(&target)
+                } else {
+                    if let Some(parent) = target.parent() {
+                        std::fs::create_dir_all(parent).ok();
+                    }
+                    std::fs::File::create(&target).map(|_| ())
+                };
+                if created.is_ok() {
+                    let dir = model.current_dir.clone();
+                    model.navigate_to(dir);
+                }
+            }
         }
         Message::DirUp => {
             if let Some(parent) = model.current_dir.parent().map(Path::to_path_buf) {

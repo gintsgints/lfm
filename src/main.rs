@@ -36,8 +36,13 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<()> {
             ActivePanel::RightFiles => model.right_files.search.active,
             ActivePanel::Pinned => false,
         };
+        let in_new_path = match model.active_panel {
+            ActivePanel::LeftFiles => model.left_files.new_path_input.active,
+            ActivePanel::RightFiles => model.right_files.new_path_input.active,
+            ActivePanel::Pinned => false,
+        };
 
-        if let Some(msg) = to_message(&event::read()?, model.active_panel, in_filter) {
+        if let Some(msg) = to_message(&event::read()?, model.active_panel, in_filter, in_new_path) {
             let (next_model, effect) = update(model, msg);
             model = next_model;
             if matches!(effect, Effect::Quit) {
@@ -48,8 +53,23 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<()> {
     }
 }
 
-fn to_message(event: &Event, active_panel: ActivePanel, in_filter: bool) -> Option<Message> {
+fn to_message(
+    event: &Event,
+    active_panel: ActivePanel,
+    in_filter: bool,
+    in_new_path: bool,
+) -> Option<Message> {
     if let Event::Key(key) = event {
+        if in_new_path {
+            return match key.code {
+                KeyCode::Esc => Some(Message::NewPathCancel),
+                KeyCode::Enter => Some(Message::NewPathConfirm),
+                KeyCode::Backspace => Some(Message::NewPathBackspace),
+                KeyCode::Char(c) => Some(Message::NewPathChar(c)),
+                _ => None,
+            };
+        }
+
         if in_filter {
             return match key.code {
                 KeyCode::Esc => Some(Message::ExitFilter),
@@ -77,6 +97,7 @@ fn to_message(event: &Event, active_panel: ActivePanel, in_filter: bool) -> Opti
             KeyCode::Left | KeyCode::Char('h') => Some(Message::DirUp),
             KeyCode::Right | KeyCode::Char('l') => Some(Message::DirEnter),
             KeyCode::Char('/') => Some(Message::EnterFilter),
+            KeyCode::Char('n') => Some(Message::NewPath),
             KeyCode::Char('p') if active_panel == ActivePanel::Pinned => {
                 Some(Message::PinCurrentDir)
             }

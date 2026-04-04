@@ -30,4 +30,15 @@ pub fn view(model: &Model, frame: &mut Frame) {
     if model.active_panel == ActivePanel::Pinned {
         ui::pinned_panel::render(frame, area, &model.pinned_panel);
     }
+
+    let active_input = match model.active_panel {
+        ActivePanel::LeftFiles => Some(&model.left_files.new_path_input),
+        ActivePanel::RightFiles => Some(&model.right_files.new_path_input),
+        ActivePanel::Pinned => None,
+    };
+    if let Some(input) = active_input
+        && input.active
+    {
+        ui::input_box::render(frame, area, input, "New path (end with / for directory)");
+    }
 }
