@@ -6,11 +6,13 @@ use std::{
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
+    text::Span,
     widgets::{Block, Borders, List, ListItem, ListState},
 };
 
 use crate::message::Message;
+use crate::theme;
 
 pub struct Entry {
     pub name: String,
@@ -78,14 +80,14 @@ pub fn update(mut model: Model, msg: Message) -> Model {
 
 pub fn render(frame: &mut Frame, area: Rect, model: &Model, active: bool) {
     let border_style = if active {
-        Style::default().fg(Color::Yellow)
+        Style::default().fg(theme::ACTIVE_BORDER)
     } else {
-        Style::default().fg(Color::White)
+        Style::default().fg(theme::INACTIVE_BORDER)
     };
 
     let title = format!(" {} ", model.current_dir.display());
     let block = Block::default()
-        .title(title)
+        .title(Span::styled(title, Style::default().fg(theme::TEXT)))
         .borders(Borders::ALL)
         .style(border_style);
 
@@ -93,18 +95,26 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model, active: bool) {
         .entries
         .iter()
         .map(|e| {
-            let name = if e.is_dir {
-                format!("{}/", e.name)
+            if e.is_dir {
+                ListItem::new(Span::styled(
+                    format!("{}/", e.name),
+                    Style::default().fg(theme::DIR_FG),
+                ))
             } else {
-                e.name.clone()
-            };
-            ListItem::new(name)
+                ListItem::new(Span::styled(
+                    e.name.clone(),
+                    Style::default().fg(theme::TEXT),
+                ))
+            }
         })
         .collect();
 
-    let list = List::new(items)
-        .block(block)
-        .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+    let list = List::new(items).block(block).highlight_style(
+        Style::default()
+            .bg(theme::HIGHLIGHT_BG)
+            .fg(theme::HIGHLIGHT_FG)
+            .add_modifier(Modifier::BOLD),
+    );
 
     let mut state = ListState::default();
     if active {

@@ -7,6 +7,7 @@ use ratatui::{
 
 mod message;
 mod model;
+mod theme;
 mod ui;
 mod update;
 mod view;

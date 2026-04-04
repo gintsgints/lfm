@@ -3,9 +3,12 @@ use std::path::PathBuf;
 use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
+    text::Span,
     widgets::{Block, Borders, Clear, List, ListItem, ListState},
 };
+
+use crate::theme;
 
 use crate::message::Message;
 
@@ -47,19 +50,30 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model) {
     let popup_area = centered_rect(50, 60, area);
 
     let block = Block::default()
-        .title(" Pinned Directories  [p] pin  [Enter/Space] go  [Esc] close ")
+        .title(Span::styled(
+            " Pinned Directories  [p] pin  [Enter/Space] go  [Esc] close ",
+            Style::default().fg(theme::TEXT),
+        ))
         .borders(Borders::ALL)
-        .style(Style::default().fg(Color::Cyan));
+        .style(Style::default().fg(theme::POPUP_BORDER));
 
     let items: Vec<ListItem> = model
         .pins
         .iter()
-        .map(|p| ListItem::new(p.display().to_string()))
+        .map(|p| {
+            ListItem::new(Span::styled(
+                p.display().to_string(),
+                Style::default().fg(theme::DIR_FG),
+            ))
+        })
         .collect();
 
-    let list = List::new(items)
-        .block(block)
-        .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
+    let list = List::new(items).block(block).highlight_style(
+        Style::default()
+            .bg(theme::HIGHLIGHT_BG)
+            .fg(theme::HIGHLIGHT_FG)
+            .add_modifier(Modifier::BOLD),
+    );
 
     let mut state = ListState::default();
     if !model.pins.is_empty() {
