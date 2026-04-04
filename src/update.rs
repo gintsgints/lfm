@@ -108,7 +108,13 @@ fn update_copy(mut model: Model, msg: Message) -> Model {
             model.active_panel = ActivePanel::LeftFiles;
         }
         Message::ConfirmCopy => {
-            let dst = model.right_files.current_dir.clone();
+            let dst = {
+                let rf = &model.right_files;
+                match rf.entries.get(rf.selection) {
+                    Some(e) if e.is_dir => rf.current_dir.join(&e.name),
+                    _ => rf.current_dir.clone(),
+                }
+            };
             let sources = model.left_files.action_targets();
             for target in &sources {
                 copy_entry(&target.path, &dst).ok();
