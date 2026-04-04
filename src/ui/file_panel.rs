@@ -81,6 +81,9 @@ pub fn update(mut model: Model, msg: Message) -> Model {
                 model.selection = (model.selection + 1).min(count - 1);
             }
         }
+        Message::ClearSelection => {
+            model.selected.clear();
+        }
         Message::DirUp => {
             if let Some(parent) = model.current_dir.parent().map(Path::to_path_buf) {
                 model.navigate_to(parent);

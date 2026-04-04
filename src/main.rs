@@ -61,11 +61,15 @@ fn to_message(event: &Event, active_panel: ActivePanel) -> Option<Message> {
             KeyCode::Char('p') if active_panel == ActivePanel::Pinned => {
                 Some(Message::PinCurrentDir)
             }
+            KeyCode::Char('d') if active_panel == ActivePanel::Pinned => {
+                Some(Message::DeletePinnedDir)
+            }
             KeyCode::Char('p') => Some(Message::TogglePinnedPanel),
             KeyCode::Enter | KeyCode::Char(' ') if active_panel == ActivePanel::Pinned => {
                 Some(Message::SelectPinnedDir)
             }
             KeyCode::Esc if active_panel == ActivePanel::Pinned => Some(Message::TogglePinnedPanel),
+            KeyCode::Esc => Some(Message::ClearSelection),
             _ => None,
         }
     } else {

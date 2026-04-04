@@ -9,7 +9,9 @@ pub enum Message {
     DirEnter,
     MarkSelectUp,
     MarkSelectDown,
+    ClearSelection,
     TogglePinnedPanel,
     PinCurrentDir,
     SelectPinnedDir,
+    DeletePinnedDir,
 }
