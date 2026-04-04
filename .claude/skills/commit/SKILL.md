@@ -1,6 +1,3 @@
-# Commit Skill
-
-Commit staged and unstaged changes following this project's conventions.
 
 ## Steps
 
@@ -12,7 +9,7 @@ Commit staged and unstaged changes following this project's conventions.
 4. For each commit:
    a. Stage only the files that belong to that commit.
    b. Run `cargo fmt && cargo clippy -- -D warnings -W clippy::pedantic && cargo test` — fix any failures before proceeding.
-   c. **Ask the user for confirmation** before running `git commit`.
+   c. Commit immediately — do NOT ask for confirmation. Invoking `/commit` is the confirmation.
    d. Commit with a message in this format:
 
 ```
@@ -45,4 +42,3 @@ EOF
 - Never use `--no-verify` or `--amend` unless the user explicitly asks.
 - Never `git add -A` or `git add .` — stage specific files by name.
 - Never push unless the user explicitly asks.
-- Always ask the user before committing.
