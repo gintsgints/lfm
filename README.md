@@ -16,6 +16,24 @@ A fast, keyboard-driven TUI file manager built in Rust, inspired by two-panel fi
 - Persists current directory and pinned list across sessions
 - Exits to the active directory via a shell wrapper
 
+## Requirements
+
+lfm uses [Nerd Font](https://www.nerdfonts.com/) icons in the file list. Your terminal must use a Nerd Font patched typeface, otherwise icons render as placeholder boxes.
+
+**Install a Nerd Font:**
+
+- **macOS (Homebrew):**
+  ```bash
+  brew install --cask font-jetbrains-mono-nerd-font
+  ```
+  Then set your terminal font to *JetBrainsMono Nerd Font* (or whichever you installed).
+
+- **Linux:**  
+  Download a font from [nerdfonts.com/font-downloads](https://www.nerdfonts.com/font-downloads), unzip into `~/.local/share/fonts/`, then run `fc-cache -fv`.
+
+- **Windows:**  
+  Download and install from [nerdfonts.com/font-downloads](https://www.nerdfonts.com/font-downloads), then select the font in your terminal emulator settings.
+
 ## Installation
 
 ```bash
