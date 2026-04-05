@@ -11,7 +11,10 @@ A fast, keyboard-driven TUI file manager built in Rust, inspired by two-panel fi
 - Pinned directories for quick access
 - Create files and directories with full path support (`test/a/b.txt`)
 - Delete files and directories with confirmation
-- Open items in `$EDITOR`
+- Open items in `$EDITOR` or with the default application
+- Sort by name, date modified, extension, or size
+- Zip selected items; extract `.zip` and `.tar.gz` archives
+- Nerd Font icons in the file list
 - Catppuccin Mocha colour theme
 - Persists current directory and pinned list across sessions
 - Exits to the active directory via a shell wrapper
@@ -86,6 +89,10 @@ lfm() {
 | `d` | Delete selected or current item (with confirmation) |
 | `c` | Copy selected or current item — opens destination panel |
 | `e` | Open selected item in `$EDITOR` |
+| `o` | Open with default application |
+| `s` | Cycle sort order: name → date → ext → size |
+| `z` | Zip selected or current item(s) |
+| `u` | Extract `.zip` or `.tar.gz` archive |
 
 ### Filter
 
