@@ -436,13 +436,13 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model, active: bool, is_cop
 
     let path_label = if is_copy_target {
         format!(
-            "→  {} [{}]",
+            "→  {} [Sorted by: {}]",
             model.current_dir.display(),
             model.sort_order.label()
         )
     } else {
         format!(
-            "{} [{}]",
+            "{} [Sorted by: {}]",
             model.current_dir.display(),
             model.sort_order.label()
         )
