@@ -289,9 +289,9 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model, active: bool, is_cop
                 theme::TEXT
             };
             let name = if e.is_dir {
-                format!("{}/", e.name)
+                format!("󰉋 {}/", e.name)
             } else {
-                e.name.clone()
+                format!("󰈙 {}", e.name)
             };
             ListItem::new(Span::styled(name, Style::default().fg(fg)))
         })
