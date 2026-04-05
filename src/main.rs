@@ -160,6 +160,7 @@ fn to_message(event: &Event, active_panel: ActivePanel, mode: &InputMode) -> Opt
             KeyCode::Char('/') => Some(Message::EnterFilter),
             KeyCode::Char('n') => Some(Message::NewPath),
             KeyCode::Char('?') => Some(Message::ToggleHelp),
+            KeyCode::Char('s') if active_panel != ActivePanel::Pinned => Some(Message::CycleSort),
             KeyCode::Char('e') if active_panel != ActivePanel::Pinned => Some(Message::OpenEditor),
             KeyCode::Char('c') if active_panel != ActivePanel::Pinned => Some(Message::StartCopy),
             KeyCode::Char('d') if active_panel != ActivePanel::Pinned => Some(Message::DeleteFiles),

@@ -2,6 +2,7 @@ use std::{
     collections::BTreeSet,
     io,
     path::{Path, PathBuf},
+    time::SystemTime,
 };
 
 use ratatui::{
@@ -16,6 +17,37 @@ use crate::message::Message;
 use crate::theme;
 use crate::ui::{input_box, search_box};
 
+#[derive(Clone, Copy, PartialEq, Default)]
+pub enum SortOrder {
+    #[default]
+    Name,
+    Modified,
+    Extension,
+    Size,
+}
+
+impl SortOrder {
+    #[must_use]
+    pub fn next(self) -> Self {
+        match self {
+            Self::Name => Self::Modified,
+            Self::Modified => Self::Extension,
+            Self::Extension => Self::Size,
+            Self::Size => Self::Name,
+        }
+    }
+
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Name => "name",
+            Self::Modified => "date",
+            Self::Extension => "ext",
+            Self::Size => "size",
+        }
+    }
+}
+
 pub struct DeleteTarget {
     pub name: String,
     pub path: PathBuf,
@@ -25,6 +57,8 @@ pub struct DeleteTarget {
 pub struct Entry {
     pub name: String,
     pub is_dir: bool,
+    pub size: u64,
+    pub modified: Option<SystemTime>,
 }
 
 pub struct Model {
@@ -36,12 +70,15 @@ pub struct Model {
     pub new_path_input: input_box::Model,
     pub delete_confirm: bool,
     pub delete_targets: Vec<DeleteTarget>,
+    pub sort_order: SortOrder,
 }
 
 impl Model {
     pub fn init() -> io::Result<Self> {
         let current_dir = std::env::current_dir()?;
-        let entries = read_entries(&current_dir)?;
+        let sort_order = SortOrder::default();
+        let mut entries = read_entries(&current_dir)?;
+        sort_entries(&mut entries, sort_order);
         Ok(Self {
             current_dir,
             entries,
@@ -51,6 +88,7 @@ impl Model {
             new_path_input: input_box::Model::new(),
             delete_confirm: false,
             delete_targets: Vec::new(),
+            sort_order,
         })
     }
 
@@ -59,7 +97,8 @@ impl Model {
     }
 
     pub fn navigate_to(&mut self, path: PathBuf) {
-        if let Ok(entries) = read_entries(&path) {
+        if let Ok(mut entries) = read_entries(&path) {
+            sort_entries(&mut entries, self.sort_order);
             self.current_dir = path;
             self.entries = entries;
             self.selection = 0;
@@ -154,6 +193,12 @@ pub fn update(mut model: Model, msg: Message) -> Model {
             }
         }
         Message::ClearSelection => {
+            model.selected.clear();
+        }
+        Message::CycleSort => {
+            model.sort_order = model.sort_order.next();
+            sort_entries(&mut model.entries, model.sort_order);
+            model.selection = 0;
             model.selected.clear();
         }
         Message::DirUp => {
@@ -267,9 +312,17 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model, active: bool, is_cop
     };
 
     let path_label = if is_copy_target {
-        format!("→  {}", model.current_dir.display())
+        format!(
+            "→  {} [{}]",
+            model.current_dir.display(),
+            model.sort_order.label()
+        )
     } else {
-        model.current_dir.display().to_string()
+        format!(
+            "{} [{}]",
+            model.current_dir.display(),
+            model.sort_order.label()
+        )
     };
     let title = search_box::title(&model.search, &path_label);
     let block = Block::default()
@@ -313,13 +366,36 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model, active: bool, is_cop
 }
 
 fn read_entries(path: &Path) -> io::Result<Vec<Entry>> {
-    let mut entries: Vec<Entry> = std::fs::read_dir(path)?
+    let entries: Vec<Entry> = std::fs::read_dir(path)?
         .filter_map(std::result::Result::ok)
-        .map(|e| Entry {
-            name: e.file_name().to_string_lossy().into_owned(),
-            is_dir: e.file_type().map(|t| t.is_dir()).unwrap_or(false),
+        .map(|e| {
+            let meta = e.metadata().ok();
+            Entry {
+                name: e.file_name().to_string_lossy().into_owned(),
+                is_dir: e.file_type().map(|t| t.is_dir()).unwrap_or(false),
+                size: meta.as_ref().map_or(0, std::fs::Metadata::len),
+                modified: meta.and_then(|m| m.modified().ok()),
+            }
         })
         .collect();
-    entries.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(entries)
+}
+
+fn sort_entries(entries: &mut [Entry], order: SortOrder) {
+    match order {
+        SortOrder::Name => entries.sort_by(|a, b| a.name.cmp(&b.name)),
+        SortOrder::Modified => entries.sort_by(|a, b| b.modified.cmp(&a.modified)),
+        SortOrder::Extension => entries.sort_by(|a, b| {
+            let ext_a = Path::new(&a.name)
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("");
+            let ext_b = Path::new(&b.name)
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("");
+            ext_a.cmp(ext_b).then_with(|| a.name.cmp(&b.name))
+        }),
+        SortOrder::Size => entries.sort_by(|a, b| b.size.cmp(&a.size)),
+    }
 }

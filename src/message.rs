@@ -32,4 +32,5 @@ pub enum Message {
     CancelCopy,
     ToggleHelp,
     OpenEditor,
+    CycleSort,
 }
