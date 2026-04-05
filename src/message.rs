@@ -36,4 +36,9 @@ pub enum Message {
     CycleSort,
     ZipFiles,
     UnzipFile,
+    GotoPath,
+    GotoPathChar(char),
+    GotoPathBackspace,
+    GotoPathConfirm,
+    GotoPathCancel,
 }

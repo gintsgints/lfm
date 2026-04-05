@@ -69,6 +69,7 @@ pub struct Model {
     pub selected: BTreeSet<usize>,
     pub search: search_box::Model,
     pub new_path_input: input_box::Model,
+    pub goto_input: input_box::Model,
     pub delete_confirm: bool,
     pub delete_targets: Vec<DeleteTarget>,
     pub sort_order: SortOrder,
@@ -87,6 +88,7 @@ impl Model {
             selected: BTreeSet::new(),
             search: search_box::Model::new(),
             new_path_input: input_box::Model::new(),
+            goto_input: input_box::Model::new(),
             delete_confirm: false,
             delete_targets: Vec::new(),
             sort_order,
@@ -106,6 +108,7 @@ impl Model {
             self.selected.clear();
             self.search.clear();
             self.new_path_input.close();
+            self.goto_input.close();
             self.delete_confirm = false;
             self.delete_targets.clear();
         }
@@ -169,6 +172,13 @@ pub fn update(mut model: Model, msg: Message) -> Model {
         | Message::NewPathCancel
         | Message::NewPathConfirm => {
             model = update_new_path(model, msg);
+        }
+        Message::GotoPath
+        | Message::GotoPathChar(_)
+        | Message::GotoPathBackspace
+        | Message::GotoPathCancel
+        | Message::GotoPathConfirm => {
+            model = update_goto(model, msg);
         }
         Message::DeleteFiles | Message::DeleteCancel | Message::DeleteConfirm => {
             model = update_delete(model, msg);
@@ -266,6 +276,51 @@ fn update_new_path(mut model: Model, msg: Message) -> Model {
                 if created.is_ok() {
                     let dir = model.current_dir.clone();
                     model.navigate_to(dir);
+                }
+            }
+        }
+        _ => {}
+    }
+    model
+}
+
+fn update_goto(mut model: Model, msg: Message) -> Model {
+    match msg {
+        Message::GotoPath => {
+            model.goto_input.open();
+        }
+        Message::GotoPathChar(c) => {
+            let (input, _) = input_box::update(model.goto_input, Some(c), false, false, false);
+            model.goto_input = input;
+        }
+        Message::GotoPathBackspace => {
+            let (input, _) = input_box::update(model.goto_input, None, true, false, false);
+            model.goto_input = input;
+        }
+        Message::GotoPathCancel => {
+            model.goto_input.close();
+        }
+        Message::GotoPathConfirm => {
+            let text = model.goto_input.text.clone();
+            model.goto_input.close();
+            if !text.is_empty() {
+                let expanded = if let Some(rest) = text.strip_prefix("~/") {
+                    std::env::var_os("HOME").map(|h| PathBuf::from(h).join(rest))
+                } else if text == "~" {
+                    std::env::var_os("HOME").map(PathBuf::from)
+                } else {
+                    None
+                };
+                let target = expanded.unwrap_or_else(|| {
+                    let p = PathBuf::from(&text);
+                    if p.is_absolute() {
+                        p
+                    } else {
+                        model.current_dir.join(p)
+                    }
+                });
+                if target.is_dir() {
+                    model.navigate_to(target);
                 }
             }
         }

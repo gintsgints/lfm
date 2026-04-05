@@ -63,6 +63,17 @@ pub fn view(model: &Model, frame: &mut Frame) {
         ui::input_box::render(frame, area, input, "New path (end with / for directory)");
     }
 
+    let active_goto = match model.active_panel {
+        ActivePanel::LeftFiles => Some(&model.left_files.goto_input),
+        ActivePanel::RightFiles => Some(&model.right_files.goto_input),
+        ActivePanel::Pinned => None,
+    };
+    if let Some(input) = active_goto
+        && input.active
+    {
+        ui::input_box::render(frame, area, input, "Go to path");
+    }
+
     let active_file_panel = match model.active_panel {
         ActivePanel::LeftFiles => Some(&model.left_files),
         ActivePanel::RightFiles => Some(&model.right_files),
@@ -101,6 +112,7 @@ fn hint_line(model: &Model) -> Line<'static> {
         ActivePanel::Pinned => None,
     };
     let in_new_path = active_panel.is_some_and(|p| p.new_path_input.active);
+    let in_goto = active_panel.is_some_and(|p| p.goto_input.active);
     let in_delete = active_panel.is_some_and(|p| p.delete_confirm);
     let in_filter = active_panel.is_some_and(|p| p.search.active);
 
@@ -110,6 +122,13 @@ fn hint_line(model: &Model) -> Line<'static> {
             desc(" / "),
             key("?"),
             desc(" close help"),
+        ])
+    } else if in_goto {
+        Line::from(vec![
+            key(" Enter"),
+            desc(" go  "),
+            key("Esc"),
+            desc(" cancel"),
         ])
     } else if in_delete {
         Line::from(vec![
@@ -168,6 +187,8 @@ fn hint_line(model: &Model) -> Line<'static> {
             desc(" delete  "),
             key("n"),
             desc(" new  "),
+            key("g"),
+            desc(" goto  "),
             key("p"),
             desc(" pins  "),
             key("e"),

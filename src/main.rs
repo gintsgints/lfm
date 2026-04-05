@@ -47,6 +47,11 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
             ActivePanel::RightFiles => model.right_files.new_path_input.active,
             ActivePanel::Pinned => false,
         };
+        let in_goto = match model.active_panel {
+            ActivePanel::LeftFiles => model.left_files.goto_input.active,
+            ActivePanel::RightFiles => model.right_files.goto_input.active,
+            ActivePanel::Pinned => false,
+        };
         let in_delete_confirm = match model.active_panel {
             ActivePanel::LeftFiles => model.left_files.delete_confirm,
             ActivePanel::RightFiles => model.right_files.delete_confirm,
@@ -59,6 +64,8 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
             InputMode::DeleteConfirm
         } else if in_new_path {
             InputMode::NewPath
+        } else if in_goto {
+            InputMode::GotoPath
         } else if model.copy_mode {
             InputMode::Copy
         } else if in_filter {
@@ -102,6 +109,7 @@ enum InputMode {
     Normal,
     Filter,
     NewPath,
+    GotoPath,
     DeleteConfirm,
     Copy,
     Help,
@@ -129,6 +137,15 @@ fn to_message(event: &Event, active_panel: ActivePanel, mode: &InputMode) -> Opt
                     KeyCode::Enter => Some(Message::NewPathConfirm),
                     KeyCode::Backspace => Some(Message::NewPathBackspace),
                     KeyCode::Char(c) => Some(Message::NewPathChar(c)),
+                    _ => None,
+                };
+            }
+            InputMode::GotoPath => {
+                return match key.code {
+                    KeyCode::Esc => Some(Message::GotoPathCancel),
+                    KeyCode::Enter => Some(Message::GotoPathConfirm),
+                    KeyCode::Backspace => Some(Message::GotoPathBackspace),
+                    KeyCode::Char(c) => Some(Message::GotoPathChar(c)),
                     _ => None,
                 };
             }
@@ -170,6 +187,7 @@ fn to_message(event: &Event, active_panel: ActivePanel, mode: &InputMode) -> Opt
             KeyCode::Right | KeyCode::Char('l') => Some(Message::DirEnter),
             KeyCode::Char('/') => Some(Message::EnterFilter),
             KeyCode::Char('n') => Some(Message::NewPath),
+            KeyCode::Char('g') if active_panel != ActivePanel::Pinned => Some(Message::GotoPath),
             KeyCode::Char('?') => Some(Message::ToggleHelp),
             KeyCode::Char('s') if active_panel != ActivePanel::Pinned => Some(Message::CycleSort),
             KeyCode::Char('z') if active_panel != ActivePanel::Pinned => Some(Message::ZipFiles),
