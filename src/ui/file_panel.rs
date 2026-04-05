@@ -163,7 +163,11 @@ pub fn update(mut model: Model, msg: Message) -> Model {
             let (search, reset) = search_box::update(model.search, msg);
             model.search = search;
             if reset {
-                model.selection = raw_idx.unwrap_or(0);
+                // Find the visual position of the previously selected item in the new
+                // filtered view. Falls back to 0 if the item is no longer visible.
+                model.selection = raw_idx
+                    .and_then(|ri| model.visible_entries().position(|(i, _)| i == ri))
+                    .unwrap_or(0);
             }
         }
         Message::NewPath
