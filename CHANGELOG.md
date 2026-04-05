@@ -8,6 +8,11 @@
 - **Sort cycling** (`s`) — cycle sort order per panel: name, date modified, extension, size; active sort shown in panel title
 - **Zip / extract** (`z` / `u`) — zip selected or active items into a `.zip` archive; extract `.zip` and `.tar.gz` archives into a subdirectory
 - **Open with default app** (`o`) — opens the hovered file or directory with the system default application (`open` on macOS, `xdg-open` on Linux, `start` on Windows)
+
+## v0.1.0
+
+### New features
+
 - **Help panel** (`?`) — inline keybinding reference overlay
 - **Mode-aware hint line** — context-sensitive key hints at the bottom of the screen
 - **Open in `$EDITOR`** (`e`) — launch `$EDITOR` on the selected item
@@ -26,4 +31,3 @@
 
 - GitHub Actions CI (build + test on every push)
 - GitHub Actions release workflow — produces binaries for Linux x86_64, macOS arm64, and Windows x86_64 on version tags
-- GPL-3.0-or-later licence
