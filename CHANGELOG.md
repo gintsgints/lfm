@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.3.0
+
+### New features
+
+- **Go to path** (`g`) — open an input dialog, type any absolute or relative path (supports `~` expansion), press Enter to jump there instantly
+
+### Fixes
+
+- Filter cursor now correctly tracks the selected item as you type, so pressing Enter always lands on the highlighted entry
+- Sort order in panel title now reads "Sorted by: name" instead of just "name"
+- Missing `g` keybinding added to the in-app help panel
+
+### Other
+
+- Upgraded `zip` dependency to 8.5.0
+
 ## v0.2.0
 
 ### New features
