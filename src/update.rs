@@ -8,6 +8,7 @@ pub enum Effect {
     None,
     Quit,
     OpenEditor(std::path::PathBuf),
+    OpenDefault(std::path::PathBuf),
 }
 
 pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
@@ -81,16 +82,16 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
             (model, Effect::None)
         }
         Message::OpenEditor => {
-            let panel = match model.active_panel {
-                ActivePanel::LeftFiles => &model.left_files,
-                ActivePanel::RightFiles => &model.right_files,
-                ActivePanel::Pinned => return (model, Effect::None),
+            let Some(path) = active_file_path(&model) else {
+                return (model, Effect::None);
             };
-            let path = panel.visible_entries().nth(panel.selection).map_or_else(
-                || panel.current_dir.clone(),
-                |(_, e)| panel.current_dir.join(&e.name),
-            );
             (model, Effect::OpenEditor(path))
+        }
+        Message::OpenDefault => {
+            let Some(path) = active_file_path(&model) else {
+                return (model, Effect::None);
+            };
+            (model, Effect::OpenDefault(path))
         }
         Message::StartCopy | Message::CancelCopy | Message::ConfirmCopy => {
             (update_copy(model, msg), Effect::None)
@@ -169,6 +170,18 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> io::Result<()> {
         }
     }
     Ok(())
+}
+
+fn active_file_path(model: &Model) -> Option<std::path::PathBuf> {
+    let panel = match model.active_panel {
+        ActivePanel::LeftFiles => &model.left_files,
+        ActivePanel::RightFiles => &model.right_files,
+        ActivePanel::Pinned => return None,
+    };
+    Some(panel.visible_entries().nth(panel.selection).map_or_else(
+        || panel.current_dir.clone(),
+        |(_, e)| panel.current_dir.join(&e.name),
+    ))
 }
 
 fn origin_file_panel(model: &Model) -> &file_panel::Model {

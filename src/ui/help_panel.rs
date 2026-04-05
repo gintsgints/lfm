@@ -27,6 +27,7 @@ const KEYBINDINGS: &[(&str, &str)] = &[
     ("d", "Delete selected or current item"),
     ("c", "Copy selected or current item"),
     ("e", "Open selected item in $EDITOR"),
+    ("o", "Open with default application"),
     ("s", "Cycle sort: name / date / ext / size"),
     ("z", "Zip selected or current item(s)"),
     ("u", "Extract .zip or .tar.gz archive"),

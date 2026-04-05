@@ -82,6 +82,16 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
                         terminal = ratatui::init();
                     }
                 }
+                Effect::OpenDefault(path) => {
+                    #[cfg(target_os = "macos")]
+                    let _ = std::process::Command::new("open").arg(&path).spawn();
+                    #[cfg(target_os = "windows")]
+                    let _ = std::process::Command::new("cmd")
+                        .args(["/c", "start", "", &path.to_string_lossy()])
+                        .spawn();
+                    #[cfg(target_os = "linux")]
+                    let _ = std::process::Command::new("xdg-open").arg(&path).spawn();
+                }
                 Effect::None => {}
             }
         }
@@ -165,6 +175,7 @@ fn to_message(event: &Event, active_panel: ActivePanel, mode: &InputMode) -> Opt
             KeyCode::Char('z') if active_panel != ActivePanel::Pinned => Some(Message::ZipFiles),
             KeyCode::Char('u') if active_panel != ActivePanel::Pinned => Some(Message::UnzipFile),
             KeyCode::Char('e') if active_panel != ActivePanel::Pinned => Some(Message::OpenEditor),
+            KeyCode::Char('o') if active_panel != ActivePanel::Pinned => Some(Message::OpenDefault),
             KeyCode::Char('c') if active_panel != ActivePanel::Pinned => Some(Message::StartCopy),
             KeyCode::Char('d') if active_panel != ActivePanel::Pinned => Some(Message::DeleteFiles),
             KeyCode::Char('p') if active_panel == ActivePanel::Pinned => {

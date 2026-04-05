@@ -32,6 +32,7 @@ pub enum Message {
     CancelCopy,
     ToggleHelp,
     OpenEditor,
+    OpenDefault,
     CycleSort,
     ZipFiles,
     UnzipFile,
