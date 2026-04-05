@@ -28,6 +28,8 @@ const KEYBINDINGS: &[(&str, &str)] = &[
     ("c", "Copy selected or current item"),
     ("e", "Open selected item in $EDITOR"),
     ("s", "Cycle sort: name / date / ext / size"),
+    ("z", "Zip selected or current item(s)"),
+    ("u", "Extract .zip or .tar.gz archive"),
     ("", ""),
     ("Filter", ""),
     ("/", "Enter filter mode"),

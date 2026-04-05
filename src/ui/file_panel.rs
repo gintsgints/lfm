@@ -13,6 +13,7 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState},
 };
 
+use crate::archive;
 use crate::message::Message;
 use crate::theme;
 use crate::ui::{input_box, search_box};
@@ -201,6 +202,9 @@ pub fn update(mut model: Model, msg: Message) -> Model {
             model.selection = 0;
             model.selected.clear();
         }
+        Message::ZipFiles | Message::UnzipFile => {
+            model = update_archive(model, msg);
+        }
         Message::DirUp => {
             if let Some(parent) = model.current_dir.parent().map(Path::to_path_buf) {
                 let came_from = model
@@ -296,6 +300,70 @@ fn update_delete(mut model: Model, msg: Message) -> Model {
             model.selected.clear();
             let dir = model.current_dir.clone();
             model.navigate_to(dir);
+        }
+        _ => {}
+    }
+    model
+}
+
+fn update_archive(mut model: Model, msg: Message) -> Model {
+    match msg {
+        Message::ZipFiles => {
+            let targets = model.action_targets();
+            if !targets.is_empty() {
+                let first_name = &targets[0].name;
+                let stem = if targets[0].is_dir {
+                    first_name.as_str()
+                } else {
+                    Path::new(first_name)
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or(first_name.as_str())
+                };
+                let archive_name = if targets.len() == 1 {
+                    format!("{stem}.zip")
+                } else {
+                    "archive.zip".to_owned()
+                };
+                let dest = model.current_dir.join(&archive_name);
+                let sources: Vec<PathBuf> = targets.iter().map(|t| t.path.clone()).collect();
+                if archive::zip_paths(&sources, &dest).is_ok() {
+                    model.selected.clear();
+                    let dir = model.current_dir.clone();
+                    model.navigate_to(dir);
+                }
+            }
+        }
+        Message::UnzipFile => {
+            let name = model
+                .visible_entries()
+                .nth(model.selection)
+                .map(|(_, e)| e.name.clone());
+            if let Some(name) = name {
+                let src = model.current_dir.join(&name);
+                let ext = Path::new(&name)
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("")
+                    .to_ascii_lowercase();
+                let result = if ext == "zip" {
+                    let dest_name = name.trim_end_matches(".zip");
+                    let dest = model.current_dir.join(dest_name);
+                    std::fs::create_dir_all(&dest).ok();
+                    archive::unzip(&src, &dest)
+                } else if name.to_ascii_lowercase().ends_with(".tar.gz") {
+                    let dest_name = &name[..name.len() - ".tar.gz".len()];
+                    let dest = model.current_dir.join(dest_name);
+                    std::fs::create_dir_all(&dest).ok();
+                    archive::untar_gz(&src, &dest)
+                } else {
+                    return model;
+                };
+                if result.is_ok() {
+                    let dir = model.current_dir.clone();
+                    model.navigate_to(dir);
+                }
+            }
         }
         _ => {}
     }

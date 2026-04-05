@@ -33,4 +33,6 @@ pub enum Message {
     ToggleHelp,
     OpenEditor,
     CycleSort,
+    ZipFiles,
+    UnzipFile,
 }
