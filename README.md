@@ -9,6 +9,7 @@ A fast, keyboard-driven TUI file manager built in Rust, inspired by two-panel fi
 - Multi-item selection with shift-select
 - Live filter (`/`) to narrow directory listings
 - Pinned directories for quick access
+- Navigate to any path instantly with `g` (supports `~` expansion)
 - Create files and directories with full path support (`test/a/b.txt`)
 - Delete files and directories with confirmation
 - Open items in `$EDITOR` or with the default application
@@ -85,6 +86,7 @@ lfm() {
 
 | Key | Action |
 |-----|--------|
+| `g` | Go to path (supports `~`) |
 | `n` | Create file or directory (end path with `/` for directory) |
 | `d` | Delete selected or current item (with confirmation) |
 | `c` | Copy selected or current item — opens destination panel |
