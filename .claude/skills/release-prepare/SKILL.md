@@ -6,7 +6,7 @@ Read `Cargo.toml` and extract the `version` field. This is the release version, 
 
 ### 2. Check README.md for completeness
 
-Read `README.md` and `src/main.rs` (key bindings in `to_message`) and `src/view.rs` (hint line) and `src/ui/help_panel.rs` if it exists.
+Read `README.md` and `src/main.rs` (key bindings in `to_message`) and `src/view.rs` (hint line).
 
 Check that every keybinding defined in `to_message` is documented in the README keybindings table. Also check that every feature mentioned in the Features list actually exists in the code (not stale). Report any gaps — missing keybindings or stale feature entries.
 
@@ -17,7 +17,24 @@ docs: update README for vVERSION
 
 Do not proceed until README is accurate.
 
-### 3. Determine commits since last release tag
+### 3. Check the in-app help panel for completeness
+
+Read `src/ui/help_panel.rs`. The `KEYBINDINGS` constant is the authoritative list of what is shown to the user at runtime inside the app.
+
+Cross-reference it against the keybindings in `src/main.rs` (`to_message`). Every user-facing keybinding that appears in Normal mode should have an entry in `KEYBINDINGS`. Report any that are missing or stale.
+
+**If there are gaps:** update the `KEYBINDINGS` constant in `src/ui/help_panel.rs` to match — add missing entries in the correct section, remove stale ones. Then run:
+```bash
+cargo fmt && cargo clippy -- -D warnings -W clippy::pedantic && cargo test
+```
+Fix any failures. Stage and commit:
+```
+docs: sync help panel keybindings for vVERSION
+```
+
+Do not proceed until the help panel is accurate.
+
+### 4. Determine commits since last release tag
 
 Run:
 ```bash
@@ -27,7 +44,7 @@ git log $(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-paren
 
 This gives all commits since the last tag (or all commits if no tags exist). These are the changes to describe in the changelog.
 
-### 4. Update CHANGELOG.md
+### 5. Update CHANGELOG.md
 
 Read `CHANGELOG.md`. Prepend a new section for `VERSION` above the previous top entry using the format already established in the file:
 
@@ -54,7 +71,7 @@ Stage and commit the changelog:
 docs: add CHANGELOG entry for vVERSION
 ```
 
-### 5. Verify the remote is up to date
+### 6. Verify the remote is up to date
 
 Run:
 ```bash
@@ -68,7 +85,7 @@ If there are unpushed commits, stop and tell the user:
 
 Do **not** push automatically.
 
-### 6. Create the version tag
+### 7. Create the version tag
 
 Run:
 ```bash
@@ -88,6 +105,6 @@ git push origin vVERSION
 ## Rules
 
 - Never push (branches or tags) unless the user explicitly asks.
-- Never modify source code — only `README.md` and `CHANGELOG.md`.
+- Only modify `README.md`, `CHANGELOG.md`, and `src/ui/help_panel.rs` (the `KEYBINDINGS` constant only) — never touch other source files.
 - Do not create a tag if there are unpushed commits — the tag must point to a commit already on the remote.
 - If the tag `vVERSION` already exists, stop and tell the user rather than moving or overwriting it.
