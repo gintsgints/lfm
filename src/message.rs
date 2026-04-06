@@ -44,4 +44,6 @@ pub enum Message {
     GotoPathBackspace,
     GotoPathConfirm,
     GotoPathCancel,
+    ProgressTick { current: u64, total: u64 },
+    ProgressDone,
 }

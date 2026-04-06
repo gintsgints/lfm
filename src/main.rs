@@ -1,4 +1,4 @@
-use std::{io, path::PathBuf};
+use std::{io, path::PathBuf, sync::mpsc, time::Duration};
 
 use ratatui::{
     DefaultTerminal,
@@ -10,6 +10,7 @@ mod message;
 mod model;
 mod state;
 mod theme;
+mod transfer;
 mod ui;
 mod update;
 mod view;
@@ -33,50 +34,62 @@ fn main() -> io::Result<()> {
 
 fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
     let mut model = Model::init(state::load())?;
+    let mut progress_rx: Option<mpsc::Receiver<transfer::ProgressMsg>> = None;
 
     loop {
         terminal.draw(|frame| view(&model, frame))?;
 
-        let in_filter = match model.active_panel {
-            ActivePanel::LeftFiles => model.left_files.search.active,
-            ActivePanel::RightFiles => model.right_files.search.active,
-            ActivePanel::Pinned => false,
-        };
-        let in_new_path = match model.active_panel {
-            ActivePanel::LeftFiles => model.left_files.new_path_input.active,
-            ActivePanel::RightFiles => model.right_files.new_path_input.active,
-            ActivePanel::Pinned => false,
-        };
-        let in_goto = match model.active_panel {
-            ActivePanel::LeftFiles => model.left_files.goto_input.active,
-            ActivePanel::RightFiles => model.right_files.goto_input.active,
-            ActivePanel::Pinned => false,
-        };
-        let in_delete_confirm = match model.active_panel {
-            ActivePanel::LeftFiles => model.left_files.delete_confirm,
-            ActivePanel::RightFiles => model.right_files.delete_confirm,
-            ActivePanel::Pinned => false,
-        };
+        // Drain any pending progress messages from a background transfer thread.
+        let mut got_progress = false;
+        'drain: loop {
+            let Some(rx) = &progress_rx else { break 'drain };
+            match rx.try_recv() {
+                Ok(transfer::ProgressMsg::Tick { current, total }) => {
+                    let (m, _) = update(model, Message::ProgressTick { current, total });
+                    model = m;
+                    got_progress = true;
+                }
+                Ok(transfer::ProgressMsg::Done) => {
+                    let (m, _) = update(model, Message::ProgressDone);
+                    model = m;
+                    progress_rx = None;
+                    got_progress = true;
+                    break 'drain;
+                }
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    // Thread finished without sending Done (e.g. panicked).
+                    let (m, _) = update(model, Message::ProgressDone);
+                    model = m;
+                    progress_rx = None;
+                    got_progress = true;
+                    break 'drain;
+                }
+                Err(mpsc::TryRecvError::Empty) => break 'drain,
+            }
+        }
+        // Redraw immediately after progress updates so the bar (or its
+        // disappearance) is visible without waiting for a keypress.
+        if got_progress {
+            continue;
+        }
 
-        let mode = if model.show_help {
-            InputMode::Help
-        } else if in_delete_confirm {
-            InputMode::DeleteConfirm
-        } else if in_new_path {
-            InputMode::NewPath
-        } else if in_goto {
-            InputMode::GotoPath
-        } else if model.copy_mode {
-            InputMode::Copy
-        } else if model.move_mode {
-            InputMode::Move
-        } else if in_filter {
-            InputMode::Filter
+        // When a transfer is running, poll with a short timeout so we can
+        // redraw progress updates.  Otherwise block until an event arrives.
+        let event = if progress_rx.is_some() {
+            if event::poll(Duration::from_millis(50))? {
+                Some(event::read()?)
+            } else {
+                None
+            }
         } else {
-            InputMode::Normal
+            Some(event::read()?)
         };
 
-        if let Some(msg) = to_message(&event::read()?, model.active_panel, &mode) {
+        let Some(event) = event else { continue };
+
+        let mode = input_mode(&model);
+
+        if let Some(msg) = to_message(&event, model.active_panel, &mode) {
             let (next_model, effect) = update(model, msg);
             model = next_model;
             match effect {
@@ -101,6 +114,21 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
                     #[cfg(target_os = "linux")]
                     let _ = std::process::Command::new("xdg-open").arg(&path).spawn();
                 }
+                Effect::StartCopy(sources, dst) => {
+                    let (tx, rx) = mpsc::channel();
+                    progress_rx = Some(rx);
+                    std::thread::spawn(move || transfer::run_copy(&sources, &dst, &tx));
+                }
+                Effect::StartMove(sources, dst) => {
+                    let (tx, rx) = mpsc::channel();
+                    progress_rx = Some(rx);
+                    std::thread::spawn(move || transfer::run_move(&sources, &dst, &tx));
+                }
+                Effect::StartDelete(sources) => {
+                    let (tx, rx) = mpsc::channel();
+                    progress_rx = Some(rx);
+                    std::thread::spawn(move || transfer::run_delete(&sources, &tx));
+                }
                 Effect::None => {}
             }
         }
@@ -116,6 +144,39 @@ enum InputMode {
     Copy,
     Move,
     Help,
+    Progress,
+}
+
+fn input_mode(model: &Model) -> InputMode {
+    let active_fp = match model.active_panel {
+        ActivePanel::LeftFiles => Some(&model.left_files),
+        ActivePanel::RightFiles => Some(&model.right_files),
+        ActivePanel::Pinned => None,
+    };
+    let in_filter = active_fp.is_some_and(|p| p.search.active);
+    let in_new_path = active_fp.is_some_and(|p| p.new_path_input.active);
+    let in_goto = active_fp.is_some_and(|p| p.goto_input.active);
+    let in_delete = active_fp.is_some_and(|p| p.delete_confirm);
+
+    if model.progress.is_some() {
+        InputMode::Progress
+    } else if model.show_help {
+        InputMode::Help
+    } else if in_delete {
+        InputMode::DeleteConfirm
+    } else if in_new_path {
+        InputMode::NewPath
+    } else if in_goto {
+        InputMode::GotoPath
+    } else if model.copy_mode {
+        InputMode::Copy
+    } else if model.move_mode {
+        InputMode::Move
+    } else if in_filter {
+        InputMode::Filter
+    } else {
+        InputMode::Normal
+    }
 }
 
 enum ModeIntercept {
@@ -185,6 +246,8 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
             ModeIntercept::PassThrough
         }
         InputMode::Normal => ModeIntercept::PassThrough,
+        // Ignore all input while a transfer is running.
+        InputMode::Progress => ModeIntercept::Consumed(None),
     }
 }
 

@@ -86,6 +86,10 @@ pub fn view(model: &Model, frame: &mut Frame) {
         ui::help_panel::render(frame, area);
     }
 
+    if let Some(progress) = &model.progress {
+        ui::progress_bar::render(frame, area, progress);
+    }
+
     if let Some(fp) = active_file_panel
         && fp.delete_confirm
     {

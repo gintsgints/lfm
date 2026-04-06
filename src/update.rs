@@ -1,14 +1,17 @@
-use std::{io, path::Path};
+use std::path::PathBuf;
 
 use crate::message::Message;
-use crate::model::{ActivePanel, Model};
+use crate::model::{ActivePanel, Model, TransferOp, TransferProgress};
 use crate::ui::{file_panel, pinned_panel};
 
 pub enum Effect {
     None,
     Quit,
-    OpenEditor(std::path::PathBuf),
-    OpenDefault(std::path::PathBuf),
+    OpenEditor(PathBuf),
+    OpenDefault(PathBuf),
+    StartCopy(Vec<PathBuf>, PathBuf),
+    StartMove(Vec<PathBuf>, PathBuf),
+    StartDelete(Vec<PathBuf>),
 }
 
 pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
@@ -81,24 +84,28 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
             model.show_help = !model.show_help;
             (model, Effect::None)
         }
-        Message::OpenEditor => {
+        Message::OpenEditor | Message::OpenDefault => {
             let Some(path) = active_file_path(&model) else {
                 return (model, Effect::None);
             };
-            (model, Effect::OpenEditor(path))
-        }
-        Message::OpenDefault => {
-            let Some(path) = active_file_path(&model) else {
-                return (model, Effect::None);
+            let effect = if matches!(msg, Message::OpenEditor) {
+                Effect::OpenEditor(path)
+            } else {
+                Effect::OpenDefault(path)
             };
-            (model, Effect::OpenDefault(path))
+            (model, effect)
         }
-        Message::StartCopy | Message::CancelCopy | Message::ConfirmCopy => {
-            (update_copy(model, msg), Effect::None)
+        Message::StartCopy | Message::CancelCopy | Message::ConfirmCopy => update_copy(model, msg),
+        Message::StartMove | Message::CancelMove | Message::ConfirmMove => update_move(model, msg),
+        Message::DeleteConfirm => update_delete_confirm(model),
+        Message::ProgressTick { current, total } => {
+            if let Some(p) = &mut model.progress {
+                p.current = current;
+                p.total = total;
+            }
+            (model, Effect::None)
         }
-        Message::StartMove | Message::CancelMove | Message::ConfirmMove => {
-            (update_move(model, msg), Effect::None)
-        }
+        Message::ProgressDone => progress_done(model),
         msg => (dispatch_to_panel(model, msg), Effect::None),
     }
 }
@@ -112,17 +119,19 @@ fn dispatch_to_panel(mut model: Model, msg: Message) -> Model {
     model
 }
 
-fn update_copy(mut model: Model, msg: Message) -> Model {
+fn update_copy(mut model: Model, msg: Message) -> (Model, Effect) {
     match msg {
         Message::StartCopy => {
             let start_dir = model.left_files.current_dir.clone();
             model.right_files.navigate_to(start_dir);
             model.copy_mode = true;
             model.active_panel = ActivePanel::RightFiles;
+            (model, Effect::None)
         }
         Message::CancelCopy => {
             model.copy_mode = false;
             model.active_panel = ActivePanel::LeftFiles;
+            (model, Effect::None)
         }
         Message::ConfirmCopy => {
             let dst = {
@@ -132,31 +141,43 @@ fn update_copy(mut model: Model, msg: Message) -> Model {
                     _ => rf.current_dir.clone(),
                 }
             };
-            let sources = model.left_files.action_targets();
-            for target in &sources {
-                copy_entry(&target.path, &dst).ok();
+            let sources: Vec<PathBuf> = model
+                .left_files
+                .action_targets()
+                .into_iter()
+                .map(|t| t.path)
+                .collect();
+            if sources.is_empty() {
+                model.copy_mode = false;
+                model.active_panel = ActivePanel::LeftFiles;
+                return (model, Effect::None);
             }
             model.copy_mode = false;
             model.active_panel = ActivePanel::LeftFiles;
-            let left_dir = model.left_files.current_dir.clone();
-            model.left_files.navigate_to(left_dir);
+            model.progress = Some(TransferProgress {
+                op: TransferOp::Copy,
+                current: 0,
+                total: 0,
+            });
+            (model, Effect::StartCopy(sources, dst))
         }
-        _ => {}
+        _ => (model, Effect::None),
     }
-    model
 }
 
-fn update_move(mut model: Model, msg: Message) -> Model {
+fn update_move(mut model: Model, msg: Message) -> (Model, Effect) {
     match msg {
         Message::StartMove => {
             let start_dir = model.left_files.current_dir.clone();
             model.right_files.navigate_to(start_dir);
             model.move_mode = true;
             model.active_panel = ActivePanel::RightFiles;
+            (model, Effect::None)
         }
         Message::CancelMove => {
             model.move_mode = false;
             model.active_panel = ActivePanel::LeftFiles;
+            (model, Effect::None)
         }
         Message::ConfirmMove => {
             let dst = {
@@ -166,61 +187,28 @@ fn update_move(mut model: Model, msg: Message) -> Model {
                     _ => rf.current_dir.clone(),
                 }
             };
-            let sources = model.left_files.action_targets();
-            for target in &sources {
-                move_entry(&target.path, &dst).ok();
+            let sources: Vec<PathBuf> = model
+                .left_files
+                .action_targets()
+                .into_iter()
+                .map(|t| t.path)
+                .collect();
+            if sources.is_empty() {
+                model.move_mode = false;
+                model.active_panel = ActivePanel::LeftFiles;
+                return (model, Effect::None);
             }
             model.move_mode = false;
             model.active_panel = ActivePanel::LeftFiles;
-            let left_dir = model.left_files.current_dir.clone();
-            model.left_files.navigate_to(left_dir);
+            model.progress = Some(TransferProgress {
+                op: TransferOp::Move,
+                current: 0,
+                total: 0,
+            });
+            (model, Effect::StartMove(sources, dst))
         }
-        _ => {}
+        _ => (model, Effect::None),
     }
-    model
-}
-
-fn move_entry(src: &Path, dst_dir: &Path) -> io::Result<()> {
-    let name = src
-        .file_name()
-        .ok_or_else(|| io::Error::other("no file name"))?;
-    let dst = dst_dir.join(name);
-    if std::fs::rename(src, &dst).is_ok() {
-        return Ok(());
-    }
-    // Cross-device fallback: copy then delete the source.
-    if src.is_dir() {
-        copy_dir_recursive(src, &dst)?;
-        std::fs::remove_dir_all(src)
-    } else {
-        std::fs::copy(src, &dst).map(|_| ())?;
-        std::fs::remove_file(src)
-    }
-}
-
-fn copy_entry(src: &Path, dst_dir: &Path) -> io::Result<()> {
-    let name = src
-        .file_name()
-        .ok_or_else(|| io::Error::other("no file name"))?;
-    let dst = dst_dir.join(name);
-    if src.is_dir() {
-        copy_dir_recursive(src, &dst)
-    } else {
-        std::fs::copy(src, &dst).map(|_| ())
-    }
-}
-
-fn copy_dir_recursive(src: &Path, dst: &Path) -> io::Result<()> {
-    std::fs::create_dir_all(dst)?;
-    for entry in std::fs::read_dir(src)?.filter_map(std::result::Result::ok) {
-        let dst_path = dst.join(entry.file_name());
-        if entry.file_type()?.is_dir() {
-            copy_dir_recursive(&entry.path(), &dst_path)?;
-        } else {
-            std::fs::copy(entry.path(), &dst_path)?;
-        }
-    }
-    Ok(())
 }
 
 fn active_file_path(model: &Model) -> Option<std::path::PathBuf> {
@@ -233,6 +221,41 @@ fn active_file_path(model: &Model) -> Option<std::path::PathBuf> {
         || panel.current_dir.clone(),
         |(_, e)| panel.current_dir.join(&e.name),
     ))
+}
+
+fn progress_done(mut model: Model) -> (Model, Effect) {
+    model.progress = None;
+    model.active_panel = ActivePanel::LeftFiles;
+    let left_dir = model.left_files.current_dir.clone();
+    model.left_files.navigate_to(left_dir);
+    let right_dir = model.right_files.current_dir.clone();
+    model.right_files.navigate_to(right_dir);
+    (model, Effect::None)
+}
+
+fn update_delete_confirm(mut model: Model) -> (Model, Effect) {
+    let panel = match model.active_panel {
+        ActivePanel::LeftFiles => &mut model.left_files,
+        ActivePanel::RightFiles => &mut model.right_files,
+        ActivePanel::Pinned => return (model, Effect::None),
+    };
+    let sources: Vec<PathBuf> = panel
+        .delete_targets
+        .iter()
+        .map(|t| t.path.clone())
+        .collect();
+    panel.delete_confirm = false;
+    panel.delete_targets.clear();
+    panel.selected.clear();
+    if sources.is_empty() {
+        return (model, Effect::None);
+    }
+    model.progress = Some(TransferProgress {
+        op: TransferOp::Delete,
+        current: 0,
+        total: 0,
+    });
+    (model, Effect::StartDelete(sources))
 }
 
 fn origin_file_panel(model: &Model) -> &file_panel::Model {

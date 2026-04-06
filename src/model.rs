@@ -4,6 +4,19 @@ use crate::state::PersistedState;
 use crate::ui::{file_panel, pinned_panel};
 
 #[derive(Clone, Copy, PartialEq)]
+pub enum TransferOp {
+    Copy,
+    Move,
+    Delete,
+}
+
+pub struct TransferProgress {
+    pub op: TransferOp,
+    pub current: u64,
+    pub total: u64,
+}
+
+#[derive(Clone, Copy, PartialEq)]
 pub enum ActivePanel {
     LeftFiles,
     RightFiles,
@@ -38,6 +51,7 @@ pub struct Model {
     pub copy_mode: bool,
     pub move_mode: bool,
     pub show_help: bool,
+    pub progress: Option<TransferProgress>,
 }
 
 impl Model {
@@ -55,6 +69,7 @@ impl Model {
             copy_mode: false,
             move_mode: false,
             show_help: false,
+            progress: None,
         })
     }
 
