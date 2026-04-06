@@ -11,12 +11,7 @@ use crate::theme;
 pub struct Model {
     pub text: String,
     pub active: bool,
-}
-
-pub enum Action {
-    None,
-    Confirmed,
-    Cancelled,
+    cursor: usize, // byte offset into `text`
 }
 
 impl Model {
@@ -24,41 +19,67 @@ impl Model {
         Self {
             text: String::new(),
             active: false,
+            cursor: 0,
         }
     }
 
     pub fn open(&mut self) {
         self.text.clear();
+        self.cursor = 0;
         self.active = true;
     }
 
     pub fn close(&mut self) {
         self.text.clear();
+        self.cursor = 0;
         self.active = false;
     }
-}
 
-pub fn update(
-    mut model: Model,
-    char_input: Option<char>,
-    backspace: bool,
-    confirm: bool,
-    cancel: bool,
-) -> (Model, Action) {
-    if cancel {
-        model.close();
-        return (model, Action::Cancelled);
+    /// Replace the text and position the cursor at the end.
+    pub fn set_text(&mut self, text: String) {
+        self.cursor = text.len();
+        self.text = text;
     }
-    if confirm {
-        model.active = false;
-        return (model, Action::Confirmed);
+
+    /// Insert `c` at the cursor and advance the cursor.
+    pub fn insert(&mut self, c: char) {
+        self.text.insert(self.cursor, c);
+        self.cursor += c.len_utf8();
     }
-    if backspace {
-        model.text.pop();
-    } else if let Some(c) = char_input {
-        model.text.push(c);
+
+    /// Delete the character immediately before the cursor (backspace semantics).
+    pub fn backspace(&mut self) {
+        if self.cursor == 0 {
+            return;
+        }
+        // Find the start of the preceding char.
+        let prev = self.text[..self.cursor]
+            .char_indices()
+            .next_back()
+            .map_or(0, |(i, _)| i);
+        self.text.remove(prev);
+        self.cursor = prev;
     }
-    (model, Action::None)
+
+    /// Move the cursor one character to the left.
+    pub fn move_left(&mut self) {
+        if self.cursor == 0 {
+            return;
+        }
+        self.cursor = self.text[..self.cursor]
+            .char_indices()
+            .next_back()
+            .map_or(0, |(i, _)| i);
+    }
+
+    /// Move the cursor one character to the right.
+    pub fn move_right(&mut self) {
+        if self.cursor >= self.text.len() {
+            return;
+        }
+        let c = self.text[self.cursor..].chars().next().unwrap();
+        self.cursor += c.len_utf8();
+    }
 }
 
 pub fn render(frame: &mut Frame, area: Rect, model: &Model, label: &str) {
@@ -72,14 +93,34 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model, label: &str) {
         .borders(Borders::ALL)
         .style(Style::default().fg(theme::ACTIVE_BORDER));
 
+    let before = &model.text[..model.cursor];
+    let text_style = Style::default()
+        .fg(theme::TEXT)
+        .add_modifier(Modifier::BOLD);
+    let cursor_style = text_style.add_modifier(Modifier::UNDERLINED);
+
+    // Cursor sits _on_ the character at the cursor position.
+    // At end-of-text there is no character, so show a "_" placeholder.
+    let (cursor_span, after_span) = if model.cursor < model.text.len() {
+        let c = model.text[model.cursor..].chars().next().unwrap();
+        let end = model.cursor + c.len_utf8();
+        let on_char = model.text[model.cursor..end].to_owned();
+        let after = model.text[end..].to_owned();
+        (
+            Span::styled(on_char, cursor_style),
+            Span::styled(after, text_style),
+        )
+    } else {
+        (
+            Span::styled("_", cursor_style),
+            Span::styled(String::new(), text_style),
+        )
+    };
+
     let content = Line::from(vec![
-        Span::styled(
-            model.text.clone(),
-            Style::default()
-                .fg(theme::TEXT)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled("█", Style::default().fg(theme::ACTIVE_BORDER)),
+        Span::styled(before.to_owned(), text_style),
+        cursor_span,
+        after_span,
     ]);
 
     frame.render_widget(Clear, popup_area);

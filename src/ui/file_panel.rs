@@ -254,12 +254,16 @@ fn update_new_path(mut model: Model, msg: Message) -> Model {
             model.new_path_input.open();
         }
         Message::NewPathChar(c) => {
-            let (input, _) = input_box::update(model.new_path_input, Some(c), false, false, false);
-            model.new_path_input = input;
+            model.new_path_input.insert(c);
         }
         Message::NewPathBackspace => {
-            let (input, _) = input_box::update(model.new_path_input, None, true, false, false);
-            model.new_path_input = input;
+            model.new_path_input.backspace();
+        }
+        Message::NewPathCursorLeft => {
+            model.new_path_input.move_left();
+        }
+        Message::NewPathCursorRight => {
+            model.new_path_input.move_right();
         }
         Message::NewPathCancel => {
             model.new_path_input.close();
@@ -294,12 +298,16 @@ fn update_goto(mut model: Model, msg: Message) -> Model {
             model.goto_input.open();
         }
         Message::GotoPathChar(c) => {
-            let (input, _) = input_box::update(model.goto_input, Some(c), false, false, false);
-            model.goto_input = input;
+            model.goto_input.insert(c);
         }
         Message::GotoPathBackspace => {
-            let (input, _) = input_box::update(model.goto_input, None, true, false, false);
-            model.goto_input = input;
+            model.goto_input.backspace();
+        }
+        Message::GotoPathCursorLeft => {
+            model.goto_input.move_left();
+        }
+        Message::GotoPathCursorRight => {
+            model.goto_input.move_right();
         }
         Message::GotoPathCancel => {
             model.goto_input.close();

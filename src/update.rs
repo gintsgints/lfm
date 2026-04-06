@@ -73,7 +73,9 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
         Message::ConfirmRename
         | Message::CancelRename
         | Message::RenameChar(_)
-        | Message::RenameBackspace => update_rename(model, msg),
+        | Message::RenameBackspace
+        | Message::RenameCursorLeft
+        | Message::RenameCursorRight => update_rename(model, msg),
         Message::DeleteConfirm => update_delete_confirm(model),
         Message::ProgressTick { current, total } => {
             if let Some(p) = &mut model.progress {
@@ -139,7 +141,7 @@ fn open_rename_dialog(model: &mut Model, mode: TransferMode) {
         .next()
         .map(|t| t.name)
         .unwrap_or_default();
-    model.rename_input.text = name;
+    model.rename_input.set_text(name);
     model.rename_input.active = true;
     model.transfer_mode = mode;
 }
@@ -285,11 +287,19 @@ fn update_move(mut model: Model, msg: Message) -> (Model, Effect) {
 fn update_rename(mut model: Model, msg: Message) -> (Model, Effect) {
     match msg {
         Message::RenameChar(c) => {
-            model.rename_input.text.push(c);
+            model.rename_input.insert(c);
             (model, Effect::None)
         }
         Message::RenameBackspace => {
-            model.rename_input.text.pop();
+            model.rename_input.backspace();
+            (model, Effect::None)
+        }
+        Message::RenameCursorLeft => {
+            model.rename_input.move_left();
+            (model, Effect::None)
+        }
+        Message::RenameCursorRight => {
+            model.rename_input.move_right();
             (model, Effect::None)
         }
         Message::CancelRename => {
