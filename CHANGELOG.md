@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.0
+
+### New features
+
+- **Move files/directories** (`m`) — open a second panel to pick a move destination; progress bar shown during the operation
+- **Progress bar** — live progress indicator for copy, move, and delete operations
+
 ## v0.3.0
 
 ### New features
