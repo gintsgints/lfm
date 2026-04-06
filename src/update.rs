@@ -96,21 +96,20 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
         Message::StartCopy | Message::CancelCopy | Message::ConfirmCopy => {
             (update_copy(model, msg), Effect::None)
         }
-        msg => {
-            match model.active_panel {
-                ActivePanel::LeftFiles => {
-                    model.left_files = file_panel::update(model.left_files, msg);
-                }
-                ActivePanel::RightFiles => {
-                    model.right_files = file_panel::update(model.right_files, msg);
-                }
-                ActivePanel::Pinned => {
-                    model.pinned_panel = pinned_panel::update(model.pinned_panel, msg);
-                }
-            }
-            (model, Effect::None)
+        Message::StartMove | Message::CancelMove | Message::ConfirmMove => {
+            (update_move(model, msg), Effect::None)
         }
+        msg => (dispatch_to_panel(model, msg), Effect::None),
     }
+}
+
+fn dispatch_to_panel(mut model: Model, msg: Message) -> Model {
+    match model.active_panel {
+        ActivePanel::LeftFiles => model.left_files = file_panel::update(model.left_files, msg),
+        ActivePanel::RightFiles => model.right_files = file_panel::update(model.right_files, msg),
+        ActivePanel::Pinned => model.pinned_panel = pinned_panel::update(model.pinned_panel, msg),
+    }
+    model
 }
 
 fn update_copy(mut model: Model, msg: Message) -> Model {
@@ -145,6 +144,58 @@ fn update_copy(mut model: Model, msg: Message) -> Model {
         _ => {}
     }
     model
+}
+
+fn update_move(mut model: Model, msg: Message) -> Model {
+    match msg {
+        Message::StartMove => {
+            let start_dir = model.left_files.current_dir.clone();
+            model.right_files.navigate_to(start_dir);
+            model.move_mode = true;
+            model.active_panel = ActivePanel::RightFiles;
+        }
+        Message::CancelMove => {
+            model.move_mode = false;
+            model.active_panel = ActivePanel::LeftFiles;
+        }
+        Message::ConfirmMove => {
+            let dst = {
+                let rf = &model.right_files;
+                match rf.entries.get(rf.selection) {
+                    Some(e) if e.is_dir => rf.current_dir.join(&e.name),
+                    _ => rf.current_dir.clone(),
+                }
+            };
+            let sources = model.left_files.action_targets();
+            for target in &sources {
+                move_entry(&target.path, &dst).ok();
+            }
+            model.move_mode = false;
+            model.active_panel = ActivePanel::LeftFiles;
+            let left_dir = model.left_files.current_dir.clone();
+            model.left_files.navigate_to(left_dir);
+        }
+        _ => {}
+    }
+    model
+}
+
+fn move_entry(src: &Path, dst_dir: &Path) -> io::Result<()> {
+    let name = src
+        .file_name()
+        .ok_or_else(|| io::Error::other("no file name"))?;
+    let dst = dst_dir.join(name);
+    if std::fs::rename(src, &dst).is_ok() {
+        return Ok(());
+    }
+    // Cross-device fallback: copy then delete the source.
+    if src.is_dir() {
+        copy_dir_recursive(src, &dst)?;
+        std::fs::remove_dir_all(src)
+    } else {
+        std::fs::copy(src, &dst).map(|_| ())?;
+        std::fs::remove_file(src)
+    }
 }
 
 fn copy_entry(src: &Path, dst_dir: &Path) -> io::Result<()> {

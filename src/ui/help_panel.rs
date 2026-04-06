@@ -27,6 +27,7 @@ const KEYBINDINGS: &[(&str, &str)] = &[
     ("g", "Go to path"),
     ("d", "Delete selected or current item"),
     ("c", "Copy selected or current item"),
+    ("m", "Move selected or current item"),
     ("e", "Open selected item in $EDITOR"),
     ("o", "Open with default application"),
     ("s", "Cycle sort: name / date / ext / size"),

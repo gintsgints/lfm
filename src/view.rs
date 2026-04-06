@@ -21,7 +21,7 @@ pub fn view(model: &Model, frame: &mut Frame) {
     let main_area = vertical[0];
     let hint_area = vertical[1];
 
-    if model.copy_mode {
+    if model.copy_mode || model.move_mode {
         let panels = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
@@ -33,16 +33,18 @@ pub fn view(model: &Model, frame: &mut Frame) {
             &model.left_files,
             model.active_panel == ActivePanel::LeftFiles,
             false,
+            false,
         );
         ui::file_panel::render(
             frame,
             panels[1],
             &model.right_files,
             model.active_panel == ActivePanel::RightFiles,
-            true,
+            model.copy_mode,
+            model.move_mode,
         );
     } else {
-        ui::file_panel::render(frame, main_area, &model.left_files, true, false);
+        ui::file_panel::render(frame, main_area, &model.left_files, true, false, false);
     }
 
     let hint = hint_line(model);
@@ -160,6 +162,15 @@ fn hint_line(model: &Model) -> Line<'static> {
             key("Esc"),
             desc(" cancel"),
         ])
+    } else if model.move_mode {
+        Line::from(vec![
+            key(" Enter"),
+            desc(" move here  "),
+            key("Tab"),
+            desc(" switch panel  "),
+            key("Esc"),
+            desc(" cancel"),
+        ])
     } else if model.active_panel == ActivePanel::Pinned {
         Line::from(vec![
             key(" p"),
@@ -183,6 +194,8 @@ fn hint_line(model: &Model) -> Line<'static> {
             desc(" filter  "),
             key("c"),
             desc(" copy  "),
+            key("m"),
+            desc(" move  "),
             key("d"),
             desc(" delete  "),
             key("n"),

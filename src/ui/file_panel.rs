@@ -429,8 +429,17 @@ fn update_archive(mut model: Model, msg: Message) -> Model {
     model
 }
 
-pub fn render(frame: &mut Frame, area: Rect, model: &Model, active: bool, is_copy_target: bool) {
-    let border_style = if is_copy_target {
+pub fn render(
+    frame: &mut Frame,
+    area: Rect,
+    model: &Model,
+    active: bool,
+    is_copy_target: bool,
+    is_move_target: bool,
+) {
+    let border_style = if is_move_target {
+        Style::default().fg(theme::MOVE_TARGET_BORDER)
+    } else if is_copy_target {
         Style::default().fg(theme::COPY_TARGET_BORDER)
     } else if active {
         Style::default().fg(theme::ACTIVE_BORDER)
@@ -438,7 +447,13 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model, active: bool, is_cop
         Style::default().fg(theme::INACTIVE_BORDER)
     };
 
-    let path_label = if is_copy_target {
+    let path_label = if is_move_target {
+        format!(
+            "↝  {} [Sorted by: {}]",
+            model.current_dir.display(),
+            model.sort_order.label()
+        )
+    } else if is_copy_target {
         format!(
             "→  {} [Sorted by: {}]",
             model.current_dir.display(),

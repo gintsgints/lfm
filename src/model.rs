@@ -36,6 +36,7 @@ pub struct Model {
     pub right_files: file_panel::Model,
     pub pinned_panel: pinned_panel::Model,
     pub copy_mode: bool,
+    pub move_mode: bool,
     pub show_help: bool,
 }
 
@@ -52,6 +53,7 @@ impl Model {
             right_files: file_panel::Model::init()?,
             pinned_panel: pinned_panel::Model::with_pins(persisted.pins),
             copy_mode: false,
+            move_mode: false,
             show_help: false,
         })
     }

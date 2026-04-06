@@ -2,7 +2,7 @@ use std::{io, path::PathBuf};
 
 use ratatui::{
     DefaultTerminal,
-    crossterm::event::{self, Event, KeyCode, KeyModifiers},
+    crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
 };
 
 mod archive;
@@ -68,6 +68,8 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
             InputMode::GotoPath
         } else if model.copy_mode {
             InputMode::Copy
+        } else if model.move_mode {
+            InputMode::Move
         } else if in_filter {
             InputMode::Filter
         } else {
@@ -112,105 +114,115 @@ enum InputMode {
     GotoPath,
     DeleteConfirm,
     Copy,
+    Move,
     Help,
 }
 
-fn to_message(event: &Event, active_panel: ActivePanel, mode: &InputMode) -> Option<Message> {
-    if let Event::Key(key) = event {
-        match mode {
-            InputMode::Help => {
-                return match key.code {
-                    KeyCode::Esc | KeyCode::Char('?') => Some(Message::ToggleHelp),
-                    _ => None,
-                };
-            }
-            InputMode::DeleteConfirm => {
-                return match key.code {
-                    KeyCode::Enter => Some(Message::DeleteConfirm),
-                    KeyCode::Esc => Some(Message::DeleteCancel),
-                    _ => None,
-                };
-            }
-            InputMode::NewPath => {
-                return match key.code {
-                    KeyCode::Esc => Some(Message::NewPathCancel),
-                    KeyCode::Enter => Some(Message::NewPathConfirm),
-                    KeyCode::Backspace => Some(Message::NewPathBackspace),
-                    KeyCode::Char(c) => Some(Message::NewPathChar(c)),
-                    _ => None,
-                };
-            }
-            InputMode::GotoPath => {
-                return match key.code {
-                    KeyCode::Esc => Some(Message::GotoPathCancel),
-                    KeyCode::Enter => Some(Message::GotoPathConfirm),
-                    KeyCode::Backspace => Some(Message::GotoPathBackspace),
-                    KeyCode::Char(c) => Some(Message::GotoPathChar(c)),
-                    _ => None,
-                };
-            }
-            InputMode::Copy => {
-                if key.code == KeyCode::Esc {
-                    return Some(Message::CancelCopy);
-                }
-                if key.code == KeyCode::Enter && active_panel == ActivePanel::RightFiles {
-                    return Some(Message::ConfirmCopy);
-                }
-            }
-            InputMode::Filter => {
-                return match key.code {
-                    KeyCode::Esc => Some(Message::ExitFilter),
-                    KeyCode::Enter => Some(Message::ConfirmFilter),
-                    KeyCode::Backspace => Some(Message::FilterBackspace),
-                    KeyCode::Char(c) => Some(Message::FilterChar(c)),
-                    _ => None,
-                };
-            }
-            InputMode::Normal => {}
-        }
+enum ModeIntercept {
+    /// Mode consumed the key; caller should return this message.
+    Consumed(Option<Message>),
+    /// Mode did not handle this key; fall through to normal handling.
+    PassThrough,
+}
 
-        match key.code {
-            KeyCode::Char('q') => Some(Message::Quit),
-            KeyCode::Tab => Some(Message::NextPanel),
-            KeyCode::BackTab => Some(Message::PrevPanel),
-            KeyCode::Up if key.modifiers.contains(KeyModifiers::SHIFT) => {
-                Some(Message::MarkSelectUp)
-            }
-            KeyCode::Down if key.modifiers.contains(KeyModifiers::SHIFT) => {
-                Some(Message::MarkSelectDown)
-            }
-            KeyCode::Char('K') => Some(Message::MarkSelectUp),
-            KeyCode::Char('J') => Some(Message::MarkSelectDown),
-            KeyCode::Up | KeyCode::Char('k') => Some(Message::SelectUp),
-            KeyCode::Down | KeyCode::Char('j') => Some(Message::SelectDown),
-            KeyCode::Left | KeyCode::Char('h') => Some(Message::DirUp),
-            KeyCode::Right | KeyCode::Char('l') => Some(Message::DirEnter),
-            KeyCode::Char('/') => Some(Message::EnterFilter),
-            KeyCode::Char('n') => Some(Message::NewPath),
-            KeyCode::Char('g') if active_panel != ActivePanel::Pinned => Some(Message::GotoPath),
-            KeyCode::Char('?') => Some(Message::ToggleHelp),
-            KeyCode::Char('s') if active_panel != ActivePanel::Pinned => Some(Message::CycleSort),
-            KeyCode::Char('z') if active_panel != ActivePanel::Pinned => Some(Message::ZipFiles),
-            KeyCode::Char('u') if active_panel != ActivePanel::Pinned => Some(Message::UnzipFile),
-            KeyCode::Char('e') if active_panel != ActivePanel::Pinned => Some(Message::OpenEditor),
-            KeyCode::Char('o') if active_panel != ActivePanel::Pinned => Some(Message::OpenDefault),
-            KeyCode::Char('c') if active_panel != ActivePanel::Pinned => Some(Message::StartCopy),
-            KeyCode::Char('d') if active_panel != ActivePanel::Pinned => Some(Message::DeleteFiles),
-            KeyCode::Char('p') if active_panel == ActivePanel::Pinned => {
-                Some(Message::PinCurrentDir)
-            }
-            KeyCode::Char('d') if active_panel == ActivePanel::Pinned => {
-                Some(Message::DeletePinnedDir)
-            }
-            KeyCode::Char('p') => Some(Message::TogglePinnedPanel),
-            KeyCode::Enter | KeyCode::Char(' ') if active_panel == ActivePanel::Pinned => {
-                Some(Message::SelectPinnedDir)
-            }
-            KeyCode::Esc if active_panel == ActivePanel::Pinned => Some(Message::TogglePinnedPanel),
-            KeyCode::Esc => Some(Message::ClearSelection),
+fn to_message(event: &Event, active_panel: ActivePanel, mode: &InputMode) -> Option<Message> {
+    let Event::Key(key) = event else { return None };
+    match intercept_mode(key, active_panel, mode) {
+        ModeIntercept::Consumed(msg) => return msg,
+        ModeIntercept::PassThrough => {}
+    }
+    normal_key(key, active_panel)
+}
+
+fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -> ModeIntercept {
+    match mode {
+        InputMode::Help => ModeIntercept::Consumed(match key.code {
+            KeyCode::Esc | KeyCode::Char('?') => Some(Message::ToggleHelp),
             _ => None,
+        }),
+        InputMode::DeleteConfirm => ModeIntercept::Consumed(match key.code {
+            KeyCode::Enter => Some(Message::DeleteConfirm),
+            KeyCode::Esc => Some(Message::DeleteCancel),
+            _ => None,
+        }),
+        InputMode::NewPath => ModeIntercept::Consumed(match key.code {
+            KeyCode::Esc => Some(Message::NewPathCancel),
+            KeyCode::Enter => Some(Message::NewPathConfirm),
+            KeyCode::Backspace => Some(Message::NewPathBackspace),
+            KeyCode::Char(c) => Some(Message::NewPathChar(c)),
+            _ => None,
+        }),
+        InputMode::GotoPath => ModeIntercept::Consumed(match key.code {
+            KeyCode::Esc => Some(Message::GotoPathCancel),
+            KeyCode::Enter => Some(Message::GotoPathConfirm),
+            KeyCode::Backspace => Some(Message::GotoPathBackspace),
+            KeyCode::Char(c) => Some(Message::GotoPathChar(c)),
+            _ => None,
+        }),
+        InputMode::Filter => ModeIntercept::Consumed(match key.code {
+            KeyCode::Esc => Some(Message::ExitFilter),
+            KeyCode::Enter => Some(Message::ConfirmFilter),
+            KeyCode::Backspace => Some(Message::FilterBackspace),
+            KeyCode::Char(c) => Some(Message::FilterChar(c)),
+            _ => None,
+        }),
+        InputMode::Copy => {
+            if key.code == KeyCode::Esc {
+                return ModeIntercept::Consumed(Some(Message::CancelCopy));
+            }
+            if key.code == KeyCode::Enter && active_panel == ActivePanel::RightFiles {
+                return ModeIntercept::Consumed(Some(Message::ConfirmCopy));
+            }
+            ModeIntercept::PassThrough
         }
-    } else {
-        None
+        InputMode::Move => {
+            if key.code == KeyCode::Esc {
+                return ModeIntercept::Consumed(Some(Message::CancelMove));
+            }
+            if key.code == KeyCode::Enter && active_panel == ActivePanel::RightFiles {
+                return ModeIntercept::Consumed(Some(Message::ConfirmMove));
+            }
+            ModeIntercept::PassThrough
+        }
+        InputMode::Normal => ModeIntercept::PassThrough,
+    }
+}
+
+fn normal_key(key: &KeyEvent, active_panel: ActivePanel) -> Option<Message> {
+    match key.code {
+        KeyCode::Char('q') => Some(Message::Quit),
+        KeyCode::Tab => Some(Message::NextPanel),
+        KeyCode::BackTab => Some(Message::PrevPanel),
+        KeyCode::Up if key.modifiers.contains(KeyModifiers::SHIFT) => Some(Message::MarkSelectUp),
+        KeyCode::Down if key.modifiers.contains(KeyModifiers::SHIFT) => {
+            Some(Message::MarkSelectDown)
+        }
+        KeyCode::Char('K') => Some(Message::MarkSelectUp),
+        KeyCode::Char('J') => Some(Message::MarkSelectDown),
+        KeyCode::Up | KeyCode::Char('k') => Some(Message::SelectUp),
+        KeyCode::Down | KeyCode::Char('j') => Some(Message::SelectDown),
+        KeyCode::Left | KeyCode::Char('h') => Some(Message::DirUp),
+        KeyCode::Right | KeyCode::Char('l') => Some(Message::DirEnter),
+        KeyCode::Char('/') => Some(Message::EnterFilter),
+        KeyCode::Char('n') => Some(Message::NewPath),
+        KeyCode::Char('?') => Some(Message::ToggleHelp),
+        KeyCode::Char('g') if active_panel != ActivePanel::Pinned => Some(Message::GotoPath),
+        KeyCode::Char('s') if active_panel != ActivePanel::Pinned => Some(Message::CycleSort),
+        KeyCode::Char('z') if active_panel != ActivePanel::Pinned => Some(Message::ZipFiles),
+        KeyCode::Char('u') if active_panel != ActivePanel::Pinned => Some(Message::UnzipFile),
+        KeyCode::Char('e') if active_panel != ActivePanel::Pinned => Some(Message::OpenEditor),
+        KeyCode::Char('o') if active_panel != ActivePanel::Pinned => Some(Message::OpenDefault),
+        KeyCode::Char('c') if active_panel != ActivePanel::Pinned => Some(Message::StartCopy),
+        KeyCode::Char('m') if active_panel != ActivePanel::Pinned => Some(Message::StartMove),
+        KeyCode::Char('d') if active_panel != ActivePanel::Pinned => Some(Message::DeleteFiles),
+        KeyCode::Char('p') if active_panel == ActivePanel::Pinned => Some(Message::PinCurrentDir),
+        KeyCode::Char('d') if active_panel == ActivePanel::Pinned => Some(Message::DeletePinnedDir),
+        KeyCode::Char('p') => Some(Message::TogglePinnedPanel),
+        KeyCode::Enter | KeyCode::Char(' ') if active_panel == ActivePanel::Pinned => {
+            Some(Message::SelectPinnedDir)
+        }
+        KeyCode::Esc if active_panel == ActivePanel::Pinned => Some(Message::TogglePinnedPanel),
+        KeyCode::Esc => Some(Message::ClearSelection),
+        _ => None,
     }
 }
