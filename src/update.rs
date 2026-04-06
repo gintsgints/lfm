@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::message::Message;
-use crate::model::{ActivePanel, Model, TransferOp, TransferProgress};
+use crate::model::{ActivePanel, Model, TransferMode, TransferOp, TransferProgress};
 use crate::ui::{file_panel, pinned_panel};
 
 pub enum Effect {
@@ -11,6 +11,8 @@ pub enum Effect {
     OpenDefault(PathBuf),
     StartCopy(Vec<PathBuf>, PathBuf),
     StartMove(Vec<PathBuf>, PathBuf),
+    StartCopyRename(PathBuf, PathBuf),
+    StartMoveRename(PathBuf, PathBuf),
     StartDelete(Vec<PathBuf>),
 }
 
@@ -34,52 +36,17 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
             }
             (model, Effect::None)
         }
-        Message::PinCurrentDir => {
-            let dir = {
-                let origin = origin_file_panel(&model);
-                if let Some(entry) = origin.entries.get(origin.selection)
-                    && entry.is_dir
-                {
-                    origin.current_dir.join(&entry.name)
-                } else {
-                    origin.current_dir.clone()
-                }
-            };
-            if !model.pinned_panel.pins.contains(&dir) {
-                model.pinned_panel.pins.push(dir);
-            }
-            model.active_panel = model.origin_panel;
-            (model, Effect::None)
-        }
+        Message::PinCurrentDir => update_pin_current_dir(model),
         Message::DeletePinnedDir => {
             let sel = model.pinned_panel.selection;
             if sel < model.pinned_panel.pins.len() {
                 model.pinned_panel.pins.remove(sel);
                 let count = model.pinned_panel.pins.len();
-                if count > 0 {
-                    model.pinned_panel.selection = sel.min(count - 1);
-                } else {
-                    model.pinned_panel.selection = 0;
-                }
+                model.pinned_panel.selection = if count > 0 { sel.min(count - 1) } else { 0 };
             }
             (model, Effect::None)
         }
-        Message::SelectPinnedDir => {
-            if let Some(dir) = model
-                .pinned_panel
-                .pins
-                .get(model.pinned_panel.selection)
-                .cloned()
-            {
-                match model.origin_panel {
-                    ActivePanel::LeftFiles => model.left_files.navigate_to(dir),
-                    ActivePanel::RightFiles => model.right_files.navigate_to(dir),
-                    ActivePanel::Pinned => {}
-                }
-            }
-            model.active_panel = model.origin_panel;
-            (model, Effect::None)
-        }
+        Message::SelectPinnedDir => update_select_pinned_dir(model),
         Message::ToggleHelp => {
             model.show_help = !model.show_help;
             (model, Effect::None)
@@ -95,8 +62,18 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
             };
             (model, effect)
         }
-        Message::StartCopy | Message::CancelCopy | Message::ConfirmCopy => update_copy(model, msg),
-        Message::StartMove | Message::CancelMove | Message::ConfirmMove => update_move(model, msg),
+        Message::StartCopy
+        | Message::StartCopyRename
+        | Message::CancelCopy
+        | Message::ConfirmCopy => update_copy(model, msg),
+        Message::StartMove
+        | Message::StartMoveRename
+        | Message::CancelMove
+        | Message::ConfirmMove => update_move(model, msg),
+        Message::ConfirmRename
+        | Message::CancelRename
+        | Message::RenameChar(_)
+        | Message::RenameBackspace => update_rename(model, msg),
         Message::DeleteConfirm => update_delete_confirm(model),
         Message::ProgressTick { current, total } => {
             if let Some(p) = &mut model.progress {
@@ -119,28 +96,90 @@ fn dispatch_to_panel(mut model: Model, msg: Message) -> Model {
     model
 }
 
+fn update_pin_current_dir(mut model: Model) -> (Model, Effect) {
+    let dir = {
+        let origin = origin_file_panel(&model);
+        if let Some(entry) = origin.entries.get(origin.selection)
+            && entry.is_dir
+        {
+            origin.current_dir.join(&entry.name)
+        } else {
+            origin.current_dir.clone()
+        }
+    };
+    if !model.pinned_panel.pins.contains(&dir) {
+        model.pinned_panel.pins.push(dir);
+    }
+    model.active_panel = model.origin_panel;
+    (model, Effect::None)
+}
+
+fn update_select_pinned_dir(mut model: Model) -> (Model, Effect) {
+    if let Some(dir) = model
+        .pinned_panel
+        .pins
+        .get(model.pinned_panel.selection)
+        .cloned()
+    {
+        match model.origin_panel {
+            ActivePanel::LeftFiles => model.left_files.navigate_to(dir),
+            ActivePanel::RightFiles => model.right_files.navigate_to(dir),
+            ActivePanel::Pinned => {}
+        }
+    }
+    model.active_panel = model.origin_panel;
+    (model, Effect::None)
+}
+
+fn open_rename_dialog(model: &mut Model, mode: TransferMode) {
+    let name = model
+        .left_files
+        .action_targets()
+        .into_iter()
+        .next()
+        .map(|t| t.name)
+        .unwrap_or_default();
+    model.rename_input.text = name;
+    model.rename_input.active = true;
+    model.transfer_mode = mode;
+}
+
+fn cancel_transfer(model: &mut Model) {
+    model.transfer_mode = TransferMode::None;
+    model.rename_input.close();
+    model.active_panel = ActivePanel::LeftFiles;
+}
+
 fn update_copy(mut model: Model, msg: Message) -> (Model, Effect) {
     match msg {
         Message::StartCopy => {
             let start_dir = model.left_files.current_dir.clone();
             model.right_files.navigate_to(start_dir);
-            model.copy_mode = true;
+            model.transfer_mode = TransferMode::Copy;
             model.active_panel = ActivePanel::RightFiles;
             (model, Effect::None)
         }
+        Message::StartCopyRename => {
+            let targets = model.left_files.action_targets();
+            if targets.is_empty() {
+                return (model, Effect::None);
+            }
+            if targets.len() != 1 {
+                // Multi-selection: fall back to regular copy.
+                let start_dir = model.left_files.current_dir.clone();
+                model.right_files.navigate_to(start_dir);
+                model.transfer_mode = TransferMode::Copy;
+                model.active_panel = ActivePanel::RightFiles;
+                return (model, Effect::None);
+            }
+            open_rename_dialog(&mut model, TransferMode::CopyRename);
+            (model, Effect::None)
+        }
         Message::CancelCopy => {
-            model.copy_mode = false;
-            model.active_panel = ActivePanel::LeftFiles;
+            cancel_transfer(&mut model);
             (model, Effect::None)
         }
         Message::ConfirmCopy => {
-            let dst = {
-                let rf = &model.right_files;
-                match rf.entries.get(rf.selection) {
-                    Some(e) if e.is_dir => rf.current_dir.join(&e.name),
-                    _ => rf.current_dir.clone(),
-                }
-            };
             let sources: Vec<PathBuf> = model
                 .left_files
                 .action_targets()
@@ -148,11 +187,23 @@ fn update_copy(mut model: Model, msg: Message) -> (Model, Effect) {
                 .map(|t| t.path)
                 .collect();
             if sources.is_empty() {
-                model.copy_mode = false;
-                model.active_panel = ActivePanel::LeftFiles;
+                cancel_transfer(&mut model);
                 return (model, Effect::None);
             }
-            model.copy_mode = false;
+            let dst = dest_dir(&model.right_files);
+            if model.transfer_mode.with_rename() {
+                let new_name = std::mem::take(&mut model.rename_input.text);
+                let src = sources.into_iter().next().unwrap();
+                model.transfer_mode = TransferMode::None;
+                model.active_panel = ActivePanel::LeftFiles;
+                model.progress = Some(TransferProgress {
+                    op: TransferOp::Copy,
+                    current: 0,
+                    total: 0,
+                });
+                return (model, Effect::StartCopyRename(src, dst.join(new_name)));
+            }
+            model.transfer_mode = TransferMode::None;
             model.active_panel = ActivePanel::LeftFiles;
             model.progress = Some(TransferProgress {
                 op: TransferOp::Copy,
@@ -170,23 +221,31 @@ fn update_move(mut model: Model, msg: Message) -> (Model, Effect) {
         Message::StartMove => {
             let start_dir = model.left_files.current_dir.clone();
             model.right_files.navigate_to(start_dir);
-            model.move_mode = true;
+            model.transfer_mode = TransferMode::Move;
             model.active_panel = ActivePanel::RightFiles;
             (model, Effect::None)
         }
+        Message::StartMoveRename => {
+            let targets = model.left_files.action_targets();
+            if targets.is_empty() {
+                return (model, Effect::None);
+            }
+            if targets.len() != 1 {
+                // Multi-selection: fall back to regular move.
+                let start_dir = model.left_files.current_dir.clone();
+                model.right_files.navigate_to(start_dir);
+                model.transfer_mode = TransferMode::Move;
+                model.active_panel = ActivePanel::RightFiles;
+                return (model, Effect::None);
+            }
+            open_rename_dialog(&mut model, TransferMode::MoveRename);
+            (model, Effect::None)
+        }
         Message::CancelMove => {
-            model.move_mode = false;
-            model.active_panel = ActivePanel::LeftFiles;
+            cancel_transfer(&mut model);
             (model, Effect::None)
         }
         Message::ConfirmMove => {
-            let dst = {
-                let rf = &model.right_files;
-                match rf.entries.get(rf.selection) {
-                    Some(e) if e.is_dir => rf.current_dir.join(&e.name),
-                    _ => rf.current_dir.clone(),
-                }
-            };
             let sources: Vec<PathBuf> = model
                 .left_files
                 .action_targets()
@@ -194,11 +253,23 @@ fn update_move(mut model: Model, msg: Message) -> (Model, Effect) {
                 .map(|t| t.path)
                 .collect();
             if sources.is_empty() {
-                model.move_mode = false;
-                model.active_panel = ActivePanel::LeftFiles;
+                cancel_transfer(&mut model);
                 return (model, Effect::None);
             }
-            model.move_mode = false;
+            let dst = dest_dir(&model.right_files);
+            if model.transfer_mode.with_rename() {
+                let new_name = std::mem::take(&mut model.rename_input.text);
+                let src = sources.into_iter().next().unwrap();
+                model.transfer_mode = TransferMode::None;
+                model.active_panel = ActivePanel::LeftFiles;
+                model.progress = Some(TransferProgress {
+                    op: TransferOp::Move,
+                    current: 0,
+                    total: 0,
+                });
+                return (model, Effect::StartMoveRename(src, dst.join(new_name)));
+            }
+            model.transfer_mode = TransferMode::None;
             model.active_panel = ActivePanel::LeftFiles;
             model.progress = Some(TransferProgress {
                 op: TransferOp::Move,
@@ -206,6 +277,36 @@ fn update_move(mut model: Model, msg: Message) -> (Model, Effect) {
                 total: 0,
             });
             (model, Effect::StartMove(sources, dst))
+        }
+        _ => (model, Effect::None),
+    }
+}
+
+fn update_rename(mut model: Model, msg: Message) -> (Model, Effect) {
+    match msg {
+        Message::RenameChar(c) => {
+            model.rename_input.text.push(c);
+            (model, Effect::None)
+        }
+        Message::RenameBackspace => {
+            model.rename_input.text.pop();
+            (model, Effect::None)
+        }
+        Message::CancelRename => {
+            cancel_transfer(&mut model);
+            (model, Effect::None)
+        }
+        Message::ConfirmRename => {
+            if model.rename_input.text.is_empty() {
+                cancel_transfer(&mut model);
+                return (model, Effect::None);
+            }
+            // Deactivate the dialog (keep text) and open the destination panel.
+            model.rename_input.active = false;
+            let start_dir = model.left_files.current_dir.clone();
+            model.right_files.navigate_to(start_dir);
+            model.active_panel = ActivePanel::RightFiles;
+            (model, Effect::None)
         }
         _ => (model, Effect::None),
     }
@@ -256,6 +357,13 @@ fn update_delete_confirm(mut model: Model) -> (Model, Effect) {
         total: 0,
     });
     (model, Effect::StartDelete(sources))
+}
+
+fn dest_dir(right: &file_panel::Model) -> PathBuf {
+    match right.entries.get(right.selection) {
+        Some(e) if e.is_dir => right.current_dir.join(&e.name),
+        _ => right.current_dir.clone(),
+    }
 }
 
 fn origin_file_panel(model: &Model) -> &file_panel::Model {

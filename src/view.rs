@@ -21,7 +21,9 @@ pub fn view(model: &Model, frame: &mut Frame) {
     let main_area = vertical[0];
     let hint_area = vertical[1];
 
-    if model.copy_mode || model.move_mode {
+    if (model.transfer_mode.is_copy() || model.transfer_mode.is_move())
+        && !model.rename_input.active
+    {
         let panels = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
@@ -40,8 +42,8 @@ pub fn view(model: &Model, frame: &mut Frame) {
             panels[1],
             &model.right_files,
             model.active_panel == ActivePanel::RightFiles,
-            model.copy_mode,
-            model.move_mode,
+            model.transfer_mode.is_copy(),
+            model.transfer_mode.is_move(),
         );
     } else {
         ui::file_panel::render(frame, main_area, &model.left_files, true, false, false);
@@ -81,6 +83,15 @@ pub fn view(model: &Model, frame: &mut Frame) {
         ActivePanel::RightFiles => Some(&model.right_files),
         ActivePanel::Pinned => None,
     };
+
+    if model.rename_input.active {
+        let title = if model.transfer_mode.is_copy() {
+            "Copy with rename"
+        } else {
+            "Move with rename"
+        };
+        ui::input_box::render(frame, area, &model.rename_input, title);
+    }
 
     if model.show_help {
         ui::help_panel::render(frame, area);
@@ -122,7 +133,14 @@ fn hint_line(model: &Model) -> Line<'static> {
     let in_delete = active_panel.is_some_and(|p| p.delete_confirm);
     let in_filter = active_panel.is_some_and(|p| p.search.active);
 
-    if model.show_help {
+    if model.rename_input.active {
+        Line::from(vec![
+            key(" Enter"),
+            desc(" confirm  "),
+            key("Esc"),
+            desc(" cancel rename"),
+        ])
+    } else if model.show_help {
         Line::from(vec![
             key(" Esc"),
             desc(" / "),
@@ -157,7 +175,7 @@ fn hint_line(model: &Model) -> Line<'static> {
             key("Esc"),
             desc(" exit filter"),
         ])
-    } else if model.copy_mode {
+    } else if model.transfer_mode.is_copy() {
         Line::from(vec![
             key(" Enter"),
             desc(" copy here  "),
@@ -166,7 +184,7 @@ fn hint_line(model: &Model) -> Line<'static> {
             key("Esc"),
             desc(" cancel"),
         ])
-    } else if model.move_mode {
+    } else if model.transfer_mode.is_move() {
         Line::from(vec![
             key(" Enter"),
             desc(" move here  "),
@@ -189,27 +207,31 @@ fn hint_line(model: &Model) -> Line<'static> {
             desc(" close"),
         ])
     } else {
-        Line::from(vec![
-            key(" q"),
-            desc(" quit  "),
-            key("?"),
-            desc(" help  "),
-            key("/"),
-            desc(" filter  "),
-            key("c"),
-            desc(" copy  "),
-            key("m"),
-            desc(" move  "),
-            key("d"),
-            desc(" delete  "),
-            key("n"),
-            desc(" new  "),
-            key("g"),
-            desc(" goto  "),
-            key("p"),
-            desc(" pins  "),
-            key("e"),
-            desc(" editor"),
-        ])
+        normal_hint_line()
     }
+}
+
+fn normal_hint_line() -> Line<'static> {
+    Line::from(vec![
+        key(" q"),
+        desc(" quit  "),
+        key("?"),
+        desc(" help  "),
+        key("/"),
+        desc(" filter  "),
+        key("c"),
+        desc(" copy  "),
+        key("m"),
+        desc(" move  "),
+        key("d"),
+        desc(" delete  "),
+        key("n"),
+        desc(" new  "),
+        key("g"),
+        desc(" goto  "),
+        key("p"),
+        desc(" pins  "),
+        key("e"),
+        desc(" editor"),
+    ])
 }

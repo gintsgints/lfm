@@ -89,8 +89,8 @@ lfm() {
 | `g` | Go to path (supports `~`) |
 | `n` | Create file or directory (end path with `/` for directory) |
 | `d` | Delete selected or current item (with confirmation) |
-| `c` | Copy selected or current item — opens destination panel |
-| `m` | Move selected or current item — opens destination panel |
+| `c` | Copy selected or current item — opens destination panel, `C` with rename before |
+| `m` | Move selected or current item — opens destination panel, `M` with rename before |
 | `e` | Open selected item in `$EDITOR` |
 | `o` | Open with default application |
 | `s` | Cycle sort order: name → date → ext → size |

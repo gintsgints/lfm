@@ -29,6 +29,22 @@ pub fn run_move(sources: &[PathBuf], dst: &Path, tx: &mpsc::Sender<ProgressMsg>)
     let _ = tx.send(ProgressMsg::Done);
 }
 
+pub fn run_copy_rename(src: &Path, dst: &Path, tx: &mpsc::Sender<ProgressMsg>) {
+    let total = count_path(src);
+    let _ = tx.send(ProgressMsg::Tick { current: 0, total });
+    let mut current = 0u64;
+    copy_to(src, dst, &mut current, total, tx);
+    let _ = tx.send(ProgressMsg::Done);
+}
+
+pub fn run_move_rename(src: &Path, dst: &Path, tx: &mpsc::Sender<ProgressMsg>) {
+    let total = count_path(src);
+    let _ = tx.send(ProgressMsg::Tick { current: 0, total });
+    let mut current = 0u64;
+    move_to(src, dst, &mut current, total, tx);
+    let _ = tx.send(ProgressMsg::Done);
+}
+
 pub fn run_delete(sources: &[PathBuf], tx: &mpsc::Sender<ProgressMsg>) {
     let total = count_files(sources);
     let _ = tx.send(ProgressMsg::Tick { current: 0, total });
@@ -143,6 +159,46 @@ fn move_entry(
         std::fs::remove_dir_all(src).ok();
     } else {
         std::fs::copy(src, &dst).ok();
+        tick(current, total, tx);
+        std::fs::remove_file(src).ok();
+    }
+}
+
+// --- copy/move to an exact destination path (used for rename operations) ---
+
+fn copy_to(src: &Path, dst: &Path, current: &mut u64, total: u64, tx: &mpsc::Sender<ProgressMsg>) {
+    if src.is_dir() {
+        if std::fs::create_dir_all(dst).is_ok() {
+            copy_dir(src, dst, current, total, tx);
+        } else {
+            advance(current, count_path(src), total, tx);
+        }
+    } else {
+        std::fs::copy(src, dst).ok();
+        tick(current, total, tx);
+    }
+}
+
+fn move_to(src: &Path, dst: &Path, current: &mut u64, total: u64, tx: &mpsc::Sender<ProgressMsg>) {
+    let file_count = count_path(src);
+    if std::fs::rename(src, dst).is_ok() {
+        *current += file_count;
+        let _ = tx.send(ProgressMsg::Tick {
+            current: *current,
+            total,
+        });
+        return;
+    }
+    // Cross-device fallback: copy then delete.
+    if src.is_dir() {
+        if std::fs::create_dir_all(dst).is_ok() {
+            copy_dir(src, dst, current, total, tx);
+        } else {
+            advance(current, file_count, total, tx);
+        }
+        std::fs::remove_dir_all(src).ok();
+    } else {
+        std::fs::copy(src, dst).ok();
         tick(current, total, tx);
         std::fs::remove_file(src).ok();
     }

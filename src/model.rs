@@ -1,7 +1,7 @@
 use std::io;
 
 use crate::state::PersistedState;
-use crate::ui::{file_panel, pinned_panel};
+use crate::ui::{file_panel, input_box, pinned_panel};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum TransferOp {
@@ -14,6 +14,30 @@ pub struct TransferProgress {
     pub op: TransferOp,
     pub current: u64,
     pub total: u64,
+}
+
+#[derive(Clone, Copy, PartialEq, Default)]
+pub enum TransferMode {
+    #[default]
+    None,
+    Copy,
+    CopyRename,
+    Move,
+    MoveRename,
+}
+
+impl TransferMode {
+    pub fn is_copy(self) -> bool {
+        matches!(self, Self::Copy | Self::CopyRename)
+    }
+
+    pub fn is_move(self) -> bool {
+        matches!(self, Self::Move | Self::MoveRename)
+    }
+
+    pub fn with_rename(self) -> bool {
+        matches!(self, Self::CopyRename | Self::MoveRename)
+    }
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -48,8 +72,8 @@ pub struct Model {
     pub left_files: file_panel::Model,
     pub right_files: file_panel::Model,
     pub pinned_panel: pinned_panel::Model,
-    pub copy_mode: bool,
-    pub move_mode: bool,
+    pub transfer_mode: TransferMode,
+    pub rename_input: input_box::Model,
     pub show_help: bool,
     pub progress: Option<TransferProgress>,
 }
@@ -66,8 +90,8 @@ impl Model {
             left_files,
             right_files: file_panel::Model::init()?,
             pinned_panel: pinned_panel::Model::with_pins(persisted.pins),
-            copy_mode: false,
-            move_mode: false,
+            transfer_mode: TransferMode::None,
+            rename_input: input_box::Model::new(),
             show_help: false,
             progress: None,
         })

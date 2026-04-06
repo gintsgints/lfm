@@ -124,6 +124,16 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
                     progress_rx = Some(rx);
                     std::thread::spawn(move || transfer::run_move(&sources, &dst, &tx));
                 }
+                Effect::StartCopyRename(src, dst) => {
+                    let (tx, rx) = mpsc::channel();
+                    progress_rx = Some(rx);
+                    std::thread::spawn(move || transfer::run_copy_rename(&src, &dst, &tx));
+                }
+                Effect::StartMoveRename(src, dst) => {
+                    let (tx, rx) = mpsc::channel();
+                    progress_rx = Some(rx);
+                    std::thread::spawn(move || transfer::run_move_rename(&src, &dst, &tx));
+                }
                 Effect::StartDelete(sources) => {
                     let (tx, rx) = mpsc::channel();
                     progress_rx = Some(rx);
@@ -143,6 +153,7 @@ enum InputMode {
     DeleteConfirm,
     Copy,
     Move,
+    Rename,
     Help,
     Progress,
 }
@@ -168,9 +179,11 @@ fn input_mode(model: &Model) -> InputMode {
         InputMode::NewPath
     } else if in_goto {
         InputMode::GotoPath
-    } else if model.copy_mode {
+    } else if model.rename_input.active {
+        InputMode::Rename
+    } else if model.transfer_mode.is_copy() {
         InputMode::Copy
-    } else if model.move_mode {
+    } else if model.transfer_mode.is_move() {
         InputMode::Move
     } else if in_filter {
         InputMode::Filter
@@ -245,6 +258,13 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
             }
             ModeIntercept::PassThrough
         }
+        InputMode::Rename => ModeIntercept::Consumed(match key.code {
+            KeyCode::Esc => Some(Message::CancelRename),
+            KeyCode::Enter => Some(Message::ConfirmRename),
+            KeyCode::Backspace => Some(Message::RenameBackspace),
+            KeyCode::Char(c) => Some(Message::RenameChar(c)),
+            _ => None,
+        }),
         InputMode::Normal => ModeIntercept::PassThrough,
         // Ignore all input while a transfer is running.
         InputMode::Progress => ModeIntercept::Consumed(None),
@@ -276,7 +296,9 @@ fn normal_key(key: &KeyEvent, active_panel: ActivePanel) -> Option<Message> {
         KeyCode::Char('e') if active_panel != ActivePanel::Pinned => Some(Message::OpenEditor),
         KeyCode::Char('o') if active_panel != ActivePanel::Pinned => Some(Message::OpenDefault),
         KeyCode::Char('c') if active_panel != ActivePanel::Pinned => Some(Message::StartCopy),
+        KeyCode::Char('C') if active_panel != ActivePanel::Pinned => Some(Message::StartCopyRename),
         KeyCode::Char('m') if active_panel != ActivePanel::Pinned => Some(Message::StartMove),
+        KeyCode::Char('M') if active_panel != ActivePanel::Pinned => Some(Message::StartMoveRename),
         KeyCode::Char('d') if active_panel != ActivePanel::Pinned => Some(Message::DeleteFiles),
         KeyCode::Char('p') if active_panel == ActivePanel::Pinned => Some(Message::PinCurrentDir),
         KeyCode::Char('d') if active_panel == ActivePanel::Pinned => Some(Message::DeletePinnedDir),
