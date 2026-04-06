@@ -24,6 +24,7 @@ const KEYBINDINGS: &[(&str, &str)] = &[
     ("", ""),
     ("File operations", ""),
     ("n", "Create file or directory"),
+    ("r", "Rename current item"),
     ("g", "Go to path"),
     ("d", "Delete selected or current item"),
     ("c", "Copy selected or current item"),

@@ -70,6 +70,14 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
         | Message::StartMoveRename
         | Message::CancelMove
         | Message::ConfirmMove => update_move(model, msg),
+        Message::RenameInPlace => {
+            let targets = model.left_files.action_targets();
+            if targets.is_empty() || targets.len() > 1 {
+                return (model, Effect::None);
+            }
+            open_rename_dialog(&mut model, TransferMode::Rename);
+            (model, Effect::None)
+        }
         Message::ConfirmRename
         | Message::CancelRename
         | Message::RenameChar(_)
@@ -310,6 +318,25 @@ fn update_rename(mut model: Model, msg: Message) -> (Model, Effect) {
             if model.rename_input.text.is_empty() {
                 cancel_transfer(&mut model);
                 return (model, Effect::None);
+            }
+            if model.transfer_mode == TransferMode::Rename {
+                // In-place rename: move the file to the same directory under the new name.
+                let new_name = std::mem::take(&mut model.rename_input.text);
+                model.rename_input.active = false;
+                model.transfer_mode = TransferMode::None;
+                let Some(target) = model.left_files.action_targets().into_iter().next() else {
+                    return (model, Effect::None);
+                };
+                let dst = target
+                    .path
+                    .parent()
+                    .map_or_else(|| PathBuf::from(&new_name), |p| p.join(&new_name));
+                model.progress = Some(TransferProgress {
+                    op: TransferOp::Move,
+                    current: 0,
+                    total: 0,
+                });
+                return (model, Effect::StartMoveRename(target.path, dst));
             }
             // Deactivate the dialog (keep text) and open the destination panel.
             model.rename_input.active = false;

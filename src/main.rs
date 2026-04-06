@@ -301,6 +301,7 @@ fn normal_key(key: &KeyEvent, active_panel: ActivePanel) -> Option<Message> {
         KeyCode::Char('u') if active_panel != ActivePanel::Pinned => Some(Message::UnzipFile),
         KeyCode::Char('e') if active_panel != ActivePanel::Pinned => Some(Message::OpenEditor),
         KeyCode::Char('o') if active_panel != ActivePanel::Pinned => Some(Message::OpenDefault),
+        KeyCode::Char('r') if active_panel != ActivePanel::Pinned => Some(Message::RenameInPlace),
         KeyCode::Char('c') if active_panel != ActivePanel::Pinned => Some(Message::StartCopy),
         KeyCode::Char('C') if active_panel != ActivePanel::Pinned => Some(Message::StartCopyRename),
         KeyCode::Char('m') if active_panel != ActivePanel::Pinned => Some(Message::StartMove),

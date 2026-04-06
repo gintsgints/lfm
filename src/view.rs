@@ -87,8 +87,10 @@ pub fn view(model: &Model, frame: &mut Frame) {
     if model.rename_input.active {
         let title = if model.transfer_mode.is_copy() {
             "Copy with rename"
-        } else {
+        } else if model.transfer_mode.is_move() {
             "Move with rename"
+        } else {
+            "Rename"
         };
         ui::input_box::render(frame, area, &model.rename_input, title);
     }
@@ -219,6 +221,8 @@ fn normal_hint_line() -> Line<'static> {
         desc(" help  "),
         key("/"),
         desc(" filter  "),
+        key("r"),
+        desc(" rename  "),
         key("c"),
         desc(" copy  "),
         key("m"),

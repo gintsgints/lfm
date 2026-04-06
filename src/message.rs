@@ -37,6 +37,7 @@ pub enum Message {
     CancelMove,
     StartCopyRename,
     StartMoveRename,
+    RenameInPlace,
     RenameChar(char),
     RenameBackspace,
     RenameCursorLeft,

@@ -24,6 +24,7 @@ pub enum TransferMode {
     CopyRename,
     Move,
     MoveRename,
+    Rename,
 }
 
 impl TransferMode {
