@@ -5,7 +5,7 @@ A fast, keyboard-driven TUI file manager built in Rust, inspired by two-panel fi
 ## Features
 
 - Single-panel file browser with vim-style navigation
-- Copy mode — open a second panel to pick a copy destination
+- Copy and move files/directories — open a second panel to pick a destination
 - Multi-item selection with shift-select
 - Live filter (`/`) to narrow directory listings
 - Pinned directories for quick access
@@ -90,6 +90,7 @@ lfm() {
 | `n` | Create file or directory (end path with `/` for directory) |
 | `d` | Delete selected or current item (with confirmation) |
 | `c` | Copy selected or current item — opens destination panel |
+| `m` | Move selected or current item — opens destination panel |
 | `e` | Open selected item in `$EDITOR` |
 | `o` | Open with default application |
 | `s` | Cycle sort order: name → date → ext → size |
@@ -121,6 +122,15 @@ lfm() {
 | `h/l/j/k` | Navigate destination panel |
 | `Enter` | Confirm copy into selected directory (or current dir) |
 | `Esc` | Cancel copy |
+
+### Move mode
+
+| Key | Action |
+|-----|--------|
+| `m` | Start move — right panel opens at current directory |
+| `h/l/j/k` | Navigate destination panel |
+| `Enter` | Confirm move into selected directory (or current dir) |
+| `Esc` | Cancel move |
 
 ### Other
 
