@@ -154,3 +154,27 @@ cargo clippy -- -D warnings -W clippy::pedantic   # lint (hard mode)
 ```
 
 Built with [ratatui](https://github.com/ratatui/ratatui).
+
+## Architecture
+
+lfm follows an **Elm-style MVU** (Model-View-Update) pattern. All state lives in an immutable `Model`; user input produces `Message` values; `update` is a pure function that returns a new `Model` plus an optional `Effect`; side effects (I/O, spawning threads) are executed in `main`.
+
+### Data flow
+
+```
+keyboard event
+      │
+      ▼
+ to_message()          ← input mode intercept (Filter / NewPath / Copy / …)
+      │ Message
+      ▼
+   update()            ← pure; returns (Model, Effect)
+      │
+  ┌───┴──────────────────────────────────┐
+  │ Model                                │ Effect
+  ▼                                      ▼
+view()                          spawn thread / open editor /
+(ratatui render)                write state / quit
+```
+
+Background file transfers run in a dedicated OS thread and send `ProgressMsg` values over an `mpsc` channel. The main loop drains this channel each iteration and fires `Message::ProgressTick` / `Message::ProgressDone` into `update` so the progress bar stays live without blocking input.
