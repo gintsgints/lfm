@@ -78,11 +78,11 @@ pub struct Model {
 }
 
 impl Model {
-    pub fn init() -> io::Result<Self> {
-        let current_dir = std::env::current_dir()?;
+    pub fn init(initial_dir: PathBuf) -> io::Result<Self> {
         let sort_order = SortOrder::default();
-        let mut entries = read_entries(&current_dir)?;
+        let mut entries = read_entries(&initial_dir)?;
         sort_entries(&mut entries, sort_order);
+        let current_dir = initial_dir;
         Ok(Self {
             current_dir,
             entries,

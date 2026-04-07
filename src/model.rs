@@ -83,15 +83,15 @@ pub struct Model {
 
 impl Model {
     pub fn init(persisted: PersistedState) -> io::Result<Self> {
-        let mut left_files = file_panel::Model::init()?;
-        if let Some(dir) = persisted.left_dir {
-            left_files.navigate_to(dir);
-        }
+        let left_dir = persisted
+            .left_dir
+            .or_else(|| std::env::current_dir().ok())
+            .ok_or_else(|| io::Error::other("cannot determine initial directory"))?;
         Ok(Self {
             active_panel: ActivePanel::LeftFiles,
             origin_panel: ActivePanel::LeftFiles,
-            left_files,
-            right_files: file_panel::Model::init()?,
+            left_files: file_panel::Model::init(left_dir.clone())?,
+            right_files: file_panel::Model::init(left_dir)?,
             pinned_panel: pinned_panel::Model::with_pins(persisted.pins),
             transfer_mode: TransferMode::None,
             rename_input: input_box::Model::new(),
