@@ -14,6 +14,8 @@ use ratatui::{
 };
 
 use crate::archive;
+#[cfg(feature = "debug")]
+use crate::debug_log;
 use crate::message::Message;
 use crate::theme;
 use crate::ui::{input_box, search_box};
@@ -516,6 +518,8 @@ pub fn render(
 }
 
 fn read_entries(path: &Path) -> io::Result<Vec<Entry>> {
+    #[cfg(feature = "debug")]
+    debug_log!("Read entries from path: {path:?}");
     let entries: Vec<Entry> = std::fs::read_dir(path)?
         .filter_map(std::result::Result::ok)
         .map(|e| {
