@@ -13,13 +13,30 @@ use crate::ui;
 pub fn view(model: &Model, frame: &mut Frame) {
     let area = frame.area();
 
+    #[cfg(feature = "debug")]
+    let vertical = if model.show_debug {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(0),
+                Constraint::Length(8),
+                Constraint::Length(1),
+            ])
+            .split(area)
+    } else {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(0), Constraint::Length(1)])
+            .split(area)
+    };
+    #[cfg(not(feature = "debug"))]
     let vertical = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(0), Constraint::Length(1)])
         .split(area);
 
     let main_area = vertical[0];
-    let hint_area = vertical[1];
+    let hint_area = vertical[vertical.len() - 1];
 
     if (model.transfer_mode.is_copy() || model.transfer_mode.is_move())
         && !model.rename_input.active
@@ -52,6 +69,15 @@ pub fn view(model: &Model, frame: &mut Frame) {
     let hint = hint_line(model);
     frame.render_widget(Paragraph::new(hint), hint_area);
 
+    #[cfg(feature = "debug")]
+    if model.show_debug {
+        render_debug_panel(frame, vertical[1]);
+    }
+
+    render_overlays(model, frame, area);
+}
+
+fn render_overlays(model: &Model, frame: &mut Frame, area: ratatui::layout::Rect) {
     if model.active_panel == ActivePanel::Pinned {
         ui::pinned_panel::render(frame, area, &model.pinned_panel);
     }
@@ -211,6 +237,24 @@ fn hint_line(model: &Model) -> Line<'static> {
     } else {
         normal_hint_line()
     }
+}
+
+#[cfg(feature = "debug")]
+fn render_debug_panel(frame: &mut Frame, area: ratatui::layout::Rect) {
+    use ratatui::layout::Alignment;
+    use ratatui::widgets::{Block, Borders, List, ListItem};
+    let messages = crate::debug::snapshot();
+    let items: Vec<ListItem> = messages.iter().map(|m| ListItem::new(m.as_str())).collect();
+    let list = List::new(items)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme::INACTIVE_BORDER))
+                .title_alignment(Alignment::Left)
+                .title(" debug "),
+        )
+        .highlight_style(Style::default());
+    frame.render_widget(list, area);
 }
 
 fn normal_hint_line() -> Line<'static> {

@@ -4,6 +4,9 @@ version = "0.5.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 
+[features]
+debug = []
+
 [dependencies]
 ratatui = "0.30.0"
 serde = { version = "1", features = ["derive"] }

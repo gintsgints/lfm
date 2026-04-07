@@ -76,6 +76,8 @@ pub struct Model {
     pub transfer_mode: TransferMode,
     pub rename_input: input_box::Model,
     pub show_help: bool,
+    #[cfg(feature = "debug")]
+    pub show_debug: bool,
     pub progress: Option<TransferProgress>,
 }
 
@@ -94,6 +96,8 @@ impl Model {
             transfer_mode: TransferMode::None,
             rename_input: input_box::Model::new(),
             show_help: false,
+            #[cfg(feature = "debug")]
+            show_debug: true,
             progress: None,
         })
     }

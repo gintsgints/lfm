@@ -6,6 +6,7 @@ use ratatui::{
 };
 
 mod archive;
+pub mod debug;
 mod message;
 mod model;
 mod state;
@@ -279,6 +280,8 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
 
 fn normal_key(key: &KeyEvent, active_panel: ActivePanel) -> Option<Message> {
     match key.code {
+        #[cfg(feature = "debug")]
+        KeyCode::Char('`') => Some(Message::ToggleDebug),
         KeyCode::Char('q') => Some(Message::Quit),
         KeyCode::Tab => Some(Message::NextPanel),
         KeyCode::BackTab => Some(Message::PrevPanel),

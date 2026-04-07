@@ -1,3 +1,4 @@
+#[cfg_attr(feature = "debug", derive(Debug))]
 #[derive(Clone, Copy)]
 pub enum Message {
     Quit,
@@ -57,6 +58,11 @@ pub enum Message {
     GotoPathCursorRight,
     GotoPathConfirm,
     GotoPathCancel,
-    ProgressTick { current: u64, total: u64 },
+    ProgressTick {
+        current: u64,
+        total: u64,
+    },
     ProgressDone,
+    #[cfg(feature = "debug")]
+    ToggleDebug,
 }

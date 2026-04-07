@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+#[cfg(feature = "debug")]
+use crate::debug_log;
 use crate::message::Message;
 use crate::model::{ActivePanel, Model, TransferMode, TransferOp, TransferProgress};
 use crate::ui::{file_panel, pinned_panel};
@@ -17,6 +19,8 @@ pub enum Effect {
 }
 
 pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
+    #[cfg(feature = "debug")]
+    debug_log!("msg: {msg:?}");
     match msg {
         Message::Quit => (model, Effect::Quit),
         Message::NextPanel => {
@@ -49,6 +53,11 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
         Message::SelectPinnedDir => update_select_pinned_dir(model),
         Message::ToggleHelp => {
             model.show_help = !model.show_help;
+            (model, Effect::None)
+        }
+        #[cfg(feature = "debug")]
+        Message::ToggleDebug => {
+            model.show_debug = !model.show_debug;
             (model, Effect::None)
         }
         Message::OpenEditor | Message::OpenDefault => {
