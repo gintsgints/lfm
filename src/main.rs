@@ -242,6 +242,8 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
             KeyCode::Esc => Some(Message::ExitFilter),
             KeyCode::Enter => Some(Message::ConfirmFilter),
             KeyCode::Backspace => Some(Message::FilterBackspace),
+            KeyCode::Up => Some(Message::SelectUp),
+            KeyCode::Down => Some(Message::SelectDown),
             KeyCode::Char(c) => Some(Message::FilterChar(c)),
             _ => None,
         }),
