@@ -86,6 +86,7 @@ lfm() {
 
 | Key | Action |
 |-----|--------|
+| `r` | Rename current item |
 | `g` | Go to path (supports `~`) |
 | `n` | Create file or directory (end path with `/` for directory) |
 | `d` | Delete selected or current item (with confirmation) |
@@ -102,6 +103,7 @@ lfm() {
 | Key | Action |
 |-----|--------|
 | `/` | Enter filter mode |
+| `↑` / `↓` | Move selection while filtering |
 | `Enter` / `Esc` | Exit filter, restore path and selection |
 
 ### Pinned directories

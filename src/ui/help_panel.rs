@@ -39,6 +39,7 @@ const KEYBINDINGS: &[(&str, &str)] = &[
     ("", ""),
     ("Filter", ""),
     ("/", "Enter filter mode"),
+    ("↑ / ↓", "Move selection while filtering"),
     ("Enter / Esc", "Exit filter, restore path and selection"),
     ("", ""),
     ("Pinned directories", ""),
