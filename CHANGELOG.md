@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.5.0
+
+### New features
+
+- **Rename in-place** (`r`) — rename the current item without entering copy or move mode
+- **Copy / Move with rename** (`C` / `M`) — start a copy or move and set the destination filename before placing
+- **Arrow-key cursor in text inputs** — move the cursor left/right inside rename, new-path, and goto dialogs
+- **Arrow keys in filter mode** (`↑` / `↓`) — move the file-list selection without leaving filter mode
+- **Debug panel** (`\``, `--features debug` build only) — toggleable bottom panel that streams internal messages
+
+### Fixes
+
+- Startup no longer reads the current working directory when a different directory is saved in state
+
 ## v0.4.0
 
 ### New features
