@@ -79,6 +79,8 @@ pub struct Model {
     #[cfg(feature = "debug")]
     pub show_debug: bool,
     pub progress: Option<TransferProgress>,
+    /// Name to select in the left panel after the next `progress_done`.
+    pub pending_select: Option<String>,
 }
 
 impl Model {
@@ -99,6 +101,7 @@ impl Model {
             #[cfg(feature = "debug")]
             show_debug: true,
             progress: None,
+            pending_select: None,
         })
     }
 

@@ -340,6 +340,7 @@ fn update_rename(mut model: Model, msg: Message) -> (Model, Effect) {
                     .path
                     .parent()
                     .map_or_else(|| PathBuf::from(&new_name), |p| p.join(&new_name));
+                model.pending_select = Some(new_name);
                 model.progress = Some(TransferProgress {
                     op: TransferOp::Move,
                     current: 0,
@@ -377,6 +378,15 @@ fn progress_done(mut model: Model) -> (Model, Effect) {
     model.left_files.navigate_to(left_dir);
     let right_dir = model.right_files.current_dir.clone();
     model.right_files.navigate_to(right_dir);
+    if let Some(name) = model.pending_select.take() {
+        let pos = model
+            .left_files
+            .visible_entries()
+            .position(|(_, e)| e.name == name);
+        if let Some(pos) = pos {
+            model.left_files.selection = pos;
+        }
+    }
     (model, Effect::None)
 }
 
