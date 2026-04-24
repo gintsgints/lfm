@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct PersistedState {
-    pub left_dir: Option<PathBuf>,
     pub pins: Vec<PathBuf>,
 }
 
