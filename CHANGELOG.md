@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.5.1
+
+### Fixes
+
+- Renamed item is now selected after rename completes
+
+### Other
+
+- Always start in the current working directory; last-visited directory is no longer persisted
+- Updated `zip` dependency to 8.5.1
+
 ## v0.5.0
 
 ### New features
