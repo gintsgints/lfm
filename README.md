@@ -17,7 +17,7 @@ A fast, keyboard-driven TUI file manager built in Rust, inspired by two-panel fi
 - Zip selected items; extract `.zip` and `.tar.gz` archives
 - Nerd Font icons in the file list
 - Catppuccin Mocha colour theme
-- Persists current directory and pinned list across sessions
+- Persists pinned directories across sessions
 - Exits to the active directory via a shell wrapper
 
 ## Requirements
@@ -143,7 +143,7 @@ lfm() {
 
 ## Session persistence
 
-On quit, lfm saves the active directory and pinned list to `~/.config/lfm/state.json`.
+On quit, lfm saves the pinned directory list to `~/.config/lfm/state.json`.
 
 ## Development
 
