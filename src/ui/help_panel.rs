@@ -36,6 +36,7 @@ const KEYBINDINGS: &[(&str, &str)] = &[
     ("s", "Cycle sort: name / date / ext / size"),
     ("z", "Zip selected or current item(s)"),
     ("u", "Extract .zip or .tar.gz archive"),
+    ("S", "Search file contents recursively"),
     ("", ""),
     ("Filter", ""),
     ("/", "Enter filter mode"),

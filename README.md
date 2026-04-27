@@ -15,6 +15,8 @@ A fast, keyboard-driven TUI file manager built in Rust, inspired by two-panel fi
 - Open items in `$EDITOR` or with the default application
 - Sort by name, date modified, extension, or size
 - Zip selected items; extract `.zip` and `.tar.gz` archives
+- Recursive content search (`S`) with live streaming results
+- Error popup for failed file operations
 - Nerd Font icons in the file list
 - Catppuccin Mocha colour theme
 - Persists pinned directories across sessions
@@ -97,6 +99,7 @@ lfm() {
 | `s` | Cycle sort order: name → date → ext → size |
 | `z` | Zip selected or current item(s) |
 | `u` | Extract `.zip` or `.tar.gz` archive |
+| `S` | Search file contents recursively in current directory |
 
 ### Filter
 
@@ -133,6 +136,17 @@ lfm() {
 | `h/l/j/k` | Navigate destination panel |
 | `Enter` | Confirm move into selected directory (or current dir) |
 | `Esc` | Cancel move |
+
+### Content search
+
+| Key | Action |
+|-----|--------|
+| `S` | Open content search overlay |
+| `Tab` | Switch focus between query input and results list |
+| `j` / `↓` | Move down in results |
+| `k` / `↑` | Move up in results |
+| `Enter` | Navigate to the selected file |
+| `Esc` | Cancel search |
 
 ### Other
 
@@ -180,3 +194,5 @@ view()                          spawn thread / open editor /
 ```
 
 Background file transfers run in a dedicated OS thread and send `ProgressMsg` values over an `mpsc` channel. The main loop drains this channel each iteration and fires `Message::ProgressTick` / `Message::ProgressDone` into `update` so the progress bar stays live without blocking input.
+
+Content search works the same way: a background thread walks the directory tree and sends `SearchMsg::Hit` results over a channel. Dropping the receiver cancels the thread. Results stream into the UI on each loop iteration with no keypress required.
