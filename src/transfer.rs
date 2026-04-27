@@ -183,7 +183,9 @@ fn move_entry(
                 advance(current, file_count, total, tx);
             }
         }
-        std::fs::remove_dir_all(src).ok();
+        if let Err(e) = std::fs::remove_dir_all(src) {
+            record_error(err, format!("{}: {e}", src.display()));
+        }
     } else {
         match std::fs::copy(src, &dst) {
             Ok(_) => tick(current, total, tx),
@@ -192,7 +194,9 @@ fn move_entry(
                 tick(current, total, tx);
             }
         }
-        std::fs::remove_file(src).ok();
+        if let Err(e) = std::fs::remove_file(src) {
+            record_error(err, format!("{}: {e}", src.display()));
+        }
     }
 }
 
@@ -251,7 +255,9 @@ fn move_to(
                 advance(current, file_count, total, tx);
             }
         }
-        std::fs::remove_dir_all(src).ok();
+        if let Err(e) = std::fs::remove_dir_all(src) {
+            record_error(err, format!("{}: {e}", src.display()));
+        }
     } else {
         match std::fs::copy(src, dst) {
             Ok(_) => tick(current, total, tx),
@@ -260,7 +266,9 @@ fn move_to(
                 tick(current, total, tx);
             }
         }
-        std::fs::remove_file(src).ok();
+        if let Err(e) = std::fs::remove_file(src) {
+            record_error(err, format!("{}: {e}", src.display()));
+        }
     }
 }
 

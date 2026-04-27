@@ -95,13 +95,7 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
         | Message::RenameCursorLeft
         | Message::RenameCursorRight => update_rename(model, msg),
         Message::DeleteConfirm => update_delete_confirm(model),
-        Message::ProgressTick { current, total } => {
-            if let Some(p) = &mut model.progress {
-                p.current = current;
-                p.total = total;
-            }
-            (model, Effect::None)
-        }
+        Message::ProgressTick { current, total } => update_progress_tick(model, current, total),
         Message::ProgressDone => progress_done(model),
         Message::DismissError => {
             model.error_message = None;
@@ -117,17 +111,33 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
         | Message::ContentSearchUp
         | Message::ContentSearchDown
         | Message::ContentSearchConfirm => update_content_search(model, msg),
-        msg => (dispatch_to_panel(model, msg), Effect::None),
+        msg => {
+            let (mut m, err) = dispatch_to_panel(model, msg);
+            if let Some(e) = err {
+                m.error_message = Some(e);
+            }
+            (m, Effect::None)
+        }
     }
 }
 
-fn dispatch_to_panel(mut model: Model, msg: Message) -> Model {
+fn dispatch_to_panel(mut model: Model, msg: Message) -> (Model, Option<String>) {
     match model.active_panel {
-        ActivePanel::LeftFiles => model.left_files = file_panel::update(model.left_files, msg),
-        ActivePanel::RightFiles => model.right_files = file_panel::update(model.right_files, msg),
-        ActivePanel::Pinned => model.pinned_panel = pinned_panel::update(model.pinned_panel, msg),
+        ActivePanel::LeftFiles => {
+            let (fp, err) = file_panel::update(model.left_files, msg);
+            model.left_files = fp;
+            (model, err)
+        }
+        ActivePanel::RightFiles => {
+            let (fp, err) = file_panel::update(model.right_files, msg);
+            model.right_files = fp;
+            (model, err)
+        }
+        ActivePanel::Pinned => {
+            model.pinned_panel = pinned_panel::update(model.pinned_panel, msg);
+            (model, None)
+        }
     }
-    model
 }
 
 fn update_pin_current_dir(mut model: Model) -> (Model, Effect) {
@@ -384,6 +394,14 @@ fn active_file_path(model: &Model) -> Option<std::path::PathBuf> {
         || panel.current_dir.clone(),
         |(_, e)| panel.current_dir.join(&e.name),
     ))
+}
+
+fn update_progress_tick(mut model: Model, current: u64, total: u64) -> (Model, Effect) {
+    if let Some(p) = &mut model.progress {
+        p.current = current;
+        p.total = total;
+    }
+    (model, Effect::None)
 }
 
 fn progress_done(mut model: Model) -> (Model, Effect) {

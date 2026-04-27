@@ -154,7 +154,7 @@ impl Model {
     }
 }
 
-pub fn update(mut model: Model, msg: Message) -> Model {
+pub fn update(mut model: Model, msg: Message) -> (Model, Option<String>) {
     match msg {
         Message::EnterFilter
         | Message::FilterChar(_)
@@ -177,7 +177,7 @@ pub fn update(mut model: Model, msg: Message) -> Model {
         | Message::NewPathBackspace
         | Message::NewPathCancel
         | Message::NewPathConfirm => {
-            model = update_new_path(model, msg);
+            return update_new_path(model, msg);
         }
         Message::GotoPath
         | Message::GotoPathChar(_)
@@ -219,7 +219,7 @@ pub fn update(mut model: Model, msg: Message) -> Model {
             model.selected.clear();
         }
         Message::ZipFiles | Message::UnzipFile => {
-            model = update_archive(model, msg);
+            return update_archive(model, msg);
         }
         Message::DirUp => {
             if let Some(parent) = model.current_dir.parent().map(Path::to_path_buf) {
@@ -247,10 +247,10 @@ pub fn update(mut model: Model, msg: Message) -> Model {
         }
         _ => {}
     }
-    model
+    (model, None)
 }
 
-fn update_new_path(mut model: Model, msg: Message) -> Model {
+fn update_new_path(mut model: Model, msg: Message) -> (Model, Option<String>) {
     match msg {
         Message::NewPath => {
             model.new_path_input.open();
@@ -275,23 +275,26 @@ fn update_new_path(mut model: Model, msg: Message) -> Model {
             model.new_path_input.close();
             if !text.is_empty() {
                 let target = model.current_dir.join(&text);
-                let created = if text.ends_with('/') {
+                let created: io::Result<()> = if text.ends_with('/') {
                     std::fs::create_dir_all(&target)
                 } else {
-                    if let Some(parent) = target.parent() {
-                        std::fs::create_dir_all(parent).ok();
-                    }
-                    std::fs::File::create(&target).map(|_| ())
+                    target
+                        .parent()
+                        .map_or(Ok(()), std::fs::create_dir_all)
+                        .and_then(|()| std::fs::File::create(&target).map(|_| ()))
                 };
-                if created.is_ok() {
-                    let dir = model.current_dir.clone();
-                    model.navigate_to(dir);
+                match created {
+                    Ok(()) => {
+                        let dir = model.current_dir.clone();
+                        model.navigate_to(dir);
+                    }
+                    Err(e) => return (model, Some(format!("{}: {e}", target.display()))),
                 }
             }
         }
         _ => {}
     }
-    model
+    (model, None)
 }
 
 fn update_goto(mut model: Model, msg: Message) -> Model {
@@ -366,7 +369,7 @@ fn update_delete(mut model: Model, msg: Message) -> Model {
     model
 }
 
-fn update_archive(mut model: Model, msg: Message) -> Model {
+fn update_archive(mut model: Model, msg: Message) -> (Model, Option<String>) {
     match msg {
         Message::ZipFiles => {
             let targets = model.action_targets();
@@ -387,10 +390,13 @@ fn update_archive(mut model: Model, msg: Message) -> Model {
                 };
                 let dest = model.current_dir.join(&archive_name);
                 let sources: Vec<PathBuf> = targets.iter().map(|t| t.path.clone()).collect();
-                if archive::zip_paths(&sources, &dest).is_ok() {
-                    model.selected.clear();
-                    let dir = model.current_dir.clone();
-                    model.navigate_to(dir);
+                match archive::zip_paths(&sources, &dest) {
+                    Ok(()) => {
+                        model.selected.clear();
+                        let dir = model.current_dir.clone();
+                        model.navigate_to(dir);
+                    }
+                    Err(e) => return (model, Some(e.to_string())),
                 }
             }
         }
@@ -409,25 +415,26 @@ fn update_archive(mut model: Model, msg: Message) -> Model {
                 let result = if ext == "zip" {
                     let dest_name = name.trim_end_matches(".zip");
                     let dest = model.current_dir.join(dest_name);
-                    std::fs::create_dir_all(&dest).ok();
-                    archive::unzip(&src, &dest)
+                    std::fs::create_dir_all(&dest).and_then(|()| archive::unzip(&src, &dest))
                 } else if name.to_ascii_lowercase().ends_with(".tar.gz") {
                     let dest_name = &name[..name.len() - ".tar.gz".len()];
                     let dest = model.current_dir.join(dest_name);
-                    std::fs::create_dir_all(&dest).ok();
-                    archive::untar_gz(&src, &dest)
+                    std::fs::create_dir_all(&dest).and_then(|()| archive::untar_gz(&src, &dest))
                 } else {
-                    return model;
+                    return (model, None);
                 };
-                if result.is_ok() {
-                    let dir = model.current_dir.clone();
-                    model.navigate_to(dir);
+                match result {
+                    Ok(()) => {
+                        let dir = model.current_dir.clone();
+                        model.navigate_to(dir);
+                    }
+                    Err(e) => return (model, Some(e.to_string())),
                 }
             }
         }
         _ => {}
     }
-    model
+    (model, None)
 }
 
 pub fn render(
