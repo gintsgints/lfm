@@ -1,4 +1,5 @@
 pub mod confirm_box;
+pub mod error_box;
 pub mod file_panel;
 pub mod help_panel;
 pub mod input_box;

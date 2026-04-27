@@ -102,6 +102,10 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
             (model, Effect::None)
         }
         Message::ProgressDone => progress_done(model),
+        Message::DismissError => {
+            model.error_message = None;
+            (model, Effect::None)
+        }
         msg => (dispatch_to_panel(model, msg), Effect::None),
     }
 }

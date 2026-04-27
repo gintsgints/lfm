@@ -81,6 +81,7 @@ pub struct Model {
     pub progress: Option<TransferProgress>,
     /// Name to select in the left panel after the next `progress_done`.
     pub pending_select: Option<String>,
+    pub error_message: Option<String>,
 }
 
 impl Model {
@@ -99,6 +100,7 @@ impl Model {
             show_debug: true,
             progress: None,
             pending_select: None,
+            error_message: None,
         })
     }
 

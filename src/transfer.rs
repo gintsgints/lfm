@@ -5,61 +5,67 @@ use std::{
 
 pub enum ProgressMsg {
     Tick { current: u64, total: u64 },
-    Done,
+    Done { error: Option<String> },
 }
 
 pub fn run_copy(sources: &[PathBuf], dst: &Path, tx: &mpsc::Sender<ProgressMsg>) {
     let total = count_files(sources);
-    // Announce total before the first file is copied so the bar shows "0 / N".
     let _ = tx.send(ProgressMsg::Tick { current: 0, total });
     let mut current = 0u64;
+    let mut first_error: Option<String> = None;
     for src in sources {
-        copy_entry(src, dst, &mut current, total, tx);
+        copy_entry(src, dst, &mut current, total, tx, &mut first_error);
     }
-    let _ = tx.send(ProgressMsg::Done);
+    let _ = tx.send(ProgressMsg::Done { error: first_error });
 }
 
 pub fn run_move(sources: &[PathBuf], dst: &Path, tx: &mpsc::Sender<ProgressMsg>) {
     let total = count_files(sources);
     let _ = tx.send(ProgressMsg::Tick { current: 0, total });
     let mut current = 0u64;
+    let mut first_error: Option<String> = None;
     for src in sources {
-        move_entry(src, dst, &mut current, total, tx);
+        move_entry(src, dst, &mut current, total, tx, &mut first_error);
     }
-    let _ = tx.send(ProgressMsg::Done);
+    let _ = tx.send(ProgressMsg::Done { error: first_error });
 }
 
 pub fn run_copy_rename(src: &Path, dst: &Path, tx: &mpsc::Sender<ProgressMsg>) {
     let total = count_path(src);
     let _ = tx.send(ProgressMsg::Tick { current: 0, total });
     let mut current = 0u64;
-    copy_to(src, dst, &mut current, total, tx);
-    let _ = tx.send(ProgressMsg::Done);
+    let mut first_error: Option<String> = None;
+    copy_to(src, dst, &mut current, total, tx, &mut first_error);
+    let _ = tx.send(ProgressMsg::Done { error: first_error });
 }
 
 pub fn run_move_rename(src: &Path, dst: &Path, tx: &mpsc::Sender<ProgressMsg>) {
     let total = count_path(src);
     let _ = tx.send(ProgressMsg::Tick { current: 0, total });
     let mut current = 0u64;
-    move_to(src, dst, &mut current, total, tx);
-    let _ = tx.send(ProgressMsg::Done);
+    let mut first_error: Option<String> = None;
+    move_to(src, dst, &mut current, total, tx, &mut first_error);
+    let _ = tx.send(ProgressMsg::Done { error: first_error });
 }
 
 pub fn run_delete(sources: &[PathBuf], tx: &mpsc::Sender<ProgressMsg>) {
     let total = count_files(sources);
     let _ = tx.send(ProgressMsg::Tick { current: 0, total });
     let mut current = 0u64;
+    let mut first_error: Option<String> = None;
     for src in sources {
-        // Count before deleting — can't walk the tree after it's gone.
         let file_count = count_path(src);
-        if src.is_dir() {
-            std::fs::remove_dir_all(src).ok();
+        let result = if src.is_dir() {
+            std::fs::remove_dir_all(src)
         } else {
-            std::fs::remove_file(src).ok();
+            std::fs::remove_file(src)
+        };
+        if let Err(e) = result {
+            record_error(&mut first_error, format!("{}: {e}", src.display()));
         }
         advance(&mut current, file_count, total, tx);
     }
-    let _ = tx.send(ProgressMsg::Done);
+    let _ = tx.send(ProgressMsg::Done { error: first_error });
 }
 
 // --- file counting ---
@@ -88,23 +94,37 @@ fn copy_entry(
     current: &mut u64,
     total: u64,
     tx: &mpsc::Sender<ProgressMsg>,
+    err: &mut Option<String>,
 ) {
     let Some(name) = src.file_name() else { return };
     let dst = dst_dir.join(name);
     if src.is_dir() {
-        if std::fs::create_dir_all(&dst).is_ok() {
-            copy_dir(src, &dst, current, total, tx);
-        } else {
-            // Failed to create destination dir; skip but still advance counter.
-            advance(current, count_path(src), total, tx);
+        match std::fs::create_dir_all(&dst) {
+            Ok(()) => copy_dir(src, &dst, current, total, tx, err),
+            Err(e) => {
+                record_error(err, format!("{}: {e}", dst.display()));
+                advance(current, count_path(src), total, tx);
+            }
         }
     } else {
-        std::fs::copy(src, &dst).ok();
-        tick(current, total, tx);
+        match std::fs::copy(src, &dst) {
+            Ok(_) => tick(current, total, tx),
+            Err(e) => {
+                record_error(err, format!("{}: {e}", src.display()));
+                tick(current, total, tx);
+            }
+        }
     }
 }
 
-fn copy_dir(src: &Path, dst: &Path, current: &mut u64, total: u64, tx: &mpsc::Sender<ProgressMsg>) {
+fn copy_dir(
+    src: &Path,
+    dst: &Path,
+    current: &mut u64,
+    total: u64,
+    tx: &mpsc::Sender<ProgressMsg>,
+    err: &mut Option<String>,
+) {
     let Ok(rd) = std::fs::read_dir(src) else {
         return;
     };
@@ -112,14 +132,21 @@ fn copy_dir(src: &Path, dst: &Path, current: &mut u64, total: u64, tx: &mpsc::Se
         let dst_path = dst.join(entry.file_name());
         let Ok(ft) = entry.file_type() else { continue };
         if ft.is_dir() {
-            if std::fs::create_dir_all(&dst_path).is_ok() {
-                copy_dir(&entry.path(), &dst_path, current, total, tx);
-            } else {
-                advance(current, count_path(&entry.path()), total, tx);
+            match std::fs::create_dir_all(&dst_path) {
+                Ok(()) => copy_dir(&entry.path(), &dst_path, current, total, tx, err),
+                Err(e) => {
+                    record_error(err, format!("{}: {e}", dst_path.display()));
+                    advance(current, count_path(&entry.path()), total, tx);
+                }
             }
         } else {
-            std::fs::copy(entry.path(), &dst_path).ok();
-            tick(current, total, tx);
+            match std::fs::copy(entry.path(), &dst_path) {
+                Ok(_) => tick(current, total, tx),
+                Err(e) => {
+                    record_error(err, format!("{}: {e}", entry.path().display()));
+                    tick(current, total, tx);
+                }
+            }
         }
     }
 }
@@ -132,12 +159,10 @@ fn move_entry(
     current: &mut u64,
     total: u64,
     tx: &mpsc::Sender<ProgressMsg>,
+    err: &mut Option<String>,
 ) {
     let Some(name) = src.file_name() else { return };
     let dst = dst_dir.join(name);
-
-    // Count files in this source item before attempting rename so we can
-    // advance the counter accurately even when rename is instant.
     let file_count = count_path(src);
 
     if std::fs::rename(src, &dst).is_ok() {
@@ -151,35 +176,63 @@ fn move_entry(
 
     // Cross-device fallback: copy then delete.
     if src.is_dir() {
-        if std::fs::create_dir_all(&dst).is_ok() {
-            copy_dir(src, &dst, current, total, tx);
-        } else {
-            advance(current, file_count, total, tx);
+        match std::fs::create_dir_all(&dst) {
+            Ok(()) => copy_dir(src, &dst, current, total, tx, err),
+            Err(e) => {
+                record_error(err, format!("{}: {e}", dst.display()));
+                advance(current, file_count, total, tx);
+            }
         }
         std::fs::remove_dir_all(src).ok();
     } else {
-        std::fs::copy(src, &dst).ok();
-        tick(current, total, tx);
+        match std::fs::copy(src, &dst) {
+            Ok(_) => tick(current, total, tx),
+            Err(e) => {
+                record_error(err, format!("{}: {e}", src.display()));
+                tick(current, total, tx);
+            }
+        }
         std::fs::remove_file(src).ok();
     }
 }
 
 // --- copy/move to an exact destination path (used for rename operations) ---
 
-fn copy_to(src: &Path, dst: &Path, current: &mut u64, total: u64, tx: &mpsc::Sender<ProgressMsg>) {
+fn copy_to(
+    src: &Path,
+    dst: &Path,
+    current: &mut u64,
+    total: u64,
+    tx: &mpsc::Sender<ProgressMsg>,
+    err: &mut Option<String>,
+) {
     if src.is_dir() {
-        if std::fs::create_dir_all(dst).is_ok() {
-            copy_dir(src, dst, current, total, tx);
-        } else {
-            advance(current, count_path(src), total, tx);
+        match std::fs::create_dir_all(dst) {
+            Ok(()) => copy_dir(src, dst, current, total, tx, err),
+            Err(e) => {
+                record_error(err, format!("{}: {e}", dst.display()));
+                advance(current, count_path(src), total, tx);
+            }
         }
     } else {
-        std::fs::copy(src, dst).ok();
-        tick(current, total, tx);
+        match std::fs::copy(src, dst) {
+            Ok(_) => tick(current, total, tx),
+            Err(e) => {
+                record_error(err, format!("{}: {e}", src.display()));
+                tick(current, total, tx);
+            }
+        }
     }
 }
 
-fn move_to(src: &Path, dst: &Path, current: &mut u64, total: u64, tx: &mpsc::Sender<ProgressMsg>) {
+fn move_to(
+    src: &Path,
+    dst: &Path,
+    current: &mut u64,
+    total: u64,
+    tx: &mpsc::Sender<ProgressMsg>,
+    err: &mut Option<String>,
+) {
     let file_count = count_path(src);
     if std::fs::rename(src, dst).is_ok() {
         *current += file_count;
@@ -191,20 +244,33 @@ fn move_to(src: &Path, dst: &Path, current: &mut u64, total: u64, tx: &mpsc::Sen
     }
     // Cross-device fallback: copy then delete.
     if src.is_dir() {
-        if std::fs::create_dir_all(dst).is_ok() {
-            copy_dir(src, dst, current, total, tx);
-        } else {
-            advance(current, file_count, total, tx);
+        match std::fs::create_dir_all(dst) {
+            Ok(()) => copy_dir(src, dst, current, total, tx, err),
+            Err(e) => {
+                record_error(err, format!("{}: {e}", dst.display()));
+                advance(current, file_count, total, tx);
+            }
         }
         std::fs::remove_dir_all(src).ok();
     } else {
-        std::fs::copy(src, dst).ok();
-        tick(current, total, tx);
+        match std::fs::copy(src, dst) {
+            Ok(_) => tick(current, total, tx),
+            Err(e) => {
+                record_error(err, format!("{}: {e}", src.display()));
+                tick(current, total, tx);
+            }
+        }
         std::fs::remove_file(src).ok();
     }
 }
 
 // ---
+
+fn record_error(first_error: &mut Option<String>, msg: String) {
+    if first_error.is_none() {
+        *first_error = Some(msg);
+    }
+}
 
 fn tick(current: &mut u64, total: u64, tx: &mpsc::Sender<ProgressMsg>) {
     advance(current, 1, total, tx);

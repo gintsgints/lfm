@@ -40,34 +40,8 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
     loop {
         terminal.draw(|frame| view(&model, frame))?;
 
-        // Drain any pending progress messages from a background transfer thread.
-        let mut got_progress = false;
-        'drain: loop {
-            let Some(rx) = &progress_rx else { break 'drain };
-            match rx.try_recv() {
-                Ok(transfer::ProgressMsg::Tick { current, total }) => {
-                    let (m, _) = update(model, Message::ProgressTick { current, total });
-                    model = m;
-                    got_progress = true;
-                }
-                Ok(transfer::ProgressMsg::Done) => {
-                    let (m, _) = update(model, Message::ProgressDone);
-                    model = m;
-                    progress_rx = None;
-                    got_progress = true;
-                    break 'drain;
-                }
-                Err(mpsc::TryRecvError::Disconnected) => {
-                    // Thread finished without sending Done (e.g. panicked).
-                    let (m, _) = update(model, Message::ProgressDone);
-                    model = m;
-                    progress_rx = None;
-                    got_progress = true;
-                    break 'drain;
-                }
-                Err(mpsc::TryRecvError::Empty) => break 'drain,
-            }
-        }
+        let (m, got_progress) = drain_progress(model, &mut progress_rx);
+        model = m;
         // Redraw immediately after progress updates so the bar (or its
         // disappearance) is visible without waiting for a keypress.
         if got_progress {
@@ -146,6 +120,45 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
     }
 }
 
+fn drain_progress(
+    mut model: Model,
+    progress_rx: &mut Option<mpsc::Receiver<transfer::ProgressMsg>>,
+) -> (Model, bool) {
+    let mut got_progress = false;
+    loop {
+        let result = match progress_rx.as_ref() {
+            None => break,
+            Some(rx) => rx.try_recv(),
+        };
+        match result {
+            Ok(transfer::ProgressMsg::Tick { current, total }) => {
+                let (m, _) = update(model, Message::ProgressTick { current, total });
+                model = m;
+                got_progress = true;
+            }
+            Ok(transfer::ProgressMsg::Done { error }) => {
+                let (m, _) = update(model, Message::ProgressDone);
+                model = m;
+                if let Some(err) = error {
+                    model.error_message = Some(err);
+                }
+                *progress_rx = None;
+                got_progress = true;
+                break;
+            }
+            Err(mpsc::TryRecvError::Disconnected) => {
+                let (m, _) = update(model, Message::ProgressDone);
+                model = m;
+                *progress_rx = None;
+                got_progress = true;
+                break;
+            }
+            Err(mpsc::TryRecvError::Empty) => break,
+        }
+    }
+    (model, got_progress)
+}
+
 enum InputMode {
     Normal,
     Filter,
@@ -157,6 +170,7 @@ enum InputMode {
     Rename,
     Help,
     Progress,
+    Error,
 }
 
 fn input_mode(model: &Model) -> InputMode {
@@ -170,7 +184,9 @@ fn input_mode(model: &Model) -> InputMode {
     let in_goto = active_fp.is_some_and(|p| p.goto_input.active);
     let in_delete = active_fp.is_some_and(|p| p.delete_confirm);
 
-    if model.progress.is_some() {
+    if model.error_message.is_some() {
+        InputMode::Error
+    } else if model.progress.is_some() {
         InputMode::Progress
     } else if model.show_help {
         InputMode::Help
@@ -277,6 +293,10 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
         InputMode::Normal => ModeIntercept::PassThrough,
         // Ignore all input while a transfer is running.
         InputMode::Progress => ModeIntercept::Consumed(None),
+        InputMode::Error => ModeIntercept::Consumed(match key.code {
+            KeyCode::Enter | KeyCode::Esc => Some(Message::DismissError),
+            _ => None,
+        }),
     }
 }
 

@@ -63,6 +63,7 @@ pub enum Message {
         total: u64,
     },
     ProgressDone,
+    DismissError,
     #[cfg(feature = "debug")]
     ToggleDebug,
 }

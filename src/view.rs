@@ -129,6 +129,10 @@ fn render_overlays(model: &Model, frame: &mut Frame, area: ratatui::layout::Rect
         ui::progress_bar::render(frame, area, progress);
     }
 
+    if let Some(msg) = &model.error_message {
+        ui::error_box::render(frame, area, msg);
+    }
+
     if let Some(fp) = active_file_panel
         && fp.delete_confirm
     {
@@ -161,7 +165,14 @@ fn hint_line(model: &Model) -> Line<'static> {
     let in_delete = active_panel.is_some_and(|p| p.delete_confirm);
     let in_filter = active_panel.is_some_and(|p| p.search.active);
 
-    if model.rename_input.active {
+    if model.error_message.is_some() {
+        Line::from(vec![
+            key(" Enter"),
+            desc(" / "),
+            key("Esc"),
+            desc(" dismiss error"),
+        ])
+    } else if model.rename_input.active {
         Line::from(vec![
             key(" Enter"),
             desc(" confirm  "),
