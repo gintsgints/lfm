@@ -358,17 +358,8 @@ fn update_delete(mut model: Model, msg: Message) -> Model {
         }
         Message::DeleteConfirm => {
             model.delete_confirm = false;
-            for target in &model.delete_targets {
-                if target.is_dir {
-                    std::fs::remove_dir_all(&target.path).ok();
-                } else {
-                    std::fs::remove_file(&target.path).ok();
-                }
-            }
             model.delete_targets.clear();
             model.selected.clear();
-            let dir = model.current_dir.clone();
-            model.navigate_to(dir);
         }
         _ => {}
     }
