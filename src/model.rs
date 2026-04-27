@@ -1,7 +1,32 @@
-use std::io;
+use std::{io, path::PathBuf};
 
+use crate::search::SearchResult;
 use crate::state::PersistedState;
 use crate::ui::{file_panel, input_box, pinned_panel};
+
+pub struct ContentSearch {
+    pub root: PathBuf,
+    pub query: input_box::Model,
+    pub results: Vec<SearchResult>,
+    pub selection: usize,
+    pub done: bool,
+    pub input_focused: bool,
+}
+
+impl ContentSearch {
+    pub fn new(root: PathBuf) -> Self {
+        let mut query = input_box::Model::new();
+        query.open();
+        Self {
+            root,
+            query,
+            results: Vec::new(),
+            selection: 0,
+            done: true,
+            input_focused: true,
+        }
+    }
+}
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum TransferOp {
@@ -82,6 +107,7 @@ pub struct Model {
     /// Name to select in the left panel after the next `progress_done`.
     pub pending_select: Option<String>,
     pub error_message: Option<String>,
+    pub content_search: Option<ContentSearch>,
 }
 
 impl Model {
@@ -101,6 +127,7 @@ impl Model {
             progress: None,
             pending_select: None,
             error_message: None,
+            content_search: None,
         })
     }
 

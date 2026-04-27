@@ -129,6 +129,10 @@ fn render_overlays(model: &Model, frame: &mut Frame, area: ratatui::layout::Rect
         ui::progress_bar::render(frame, area, progress);
     }
 
+    if let Some(cs) = &model.content_search {
+        ui::content_search_panel::render(frame, area, cs);
+    }
+
     if let Some(msg) = &model.error_message {
         ui::error_box::render(frame, area, msg);
     }
@@ -165,7 +169,9 @@ fn hint_line(model: &Model) -> Line<'static> {
     let in_delete = active_panel.is_some_and(|p| p.delete_confirm);
     let in_filter = active_panel.is_some_and(|p| p.search.active);
 
-    if model.error_message.is_some() {
+    if let Some(cs) = &model.content_search {
+        content_search_hint(cs.input_focused)
+    } else if model.error_message.is_some() {
         Line::from(vec![
             key(" Enter"),
             desc(" / "),
@@ -268,6 +274,26 @@ fn render_debug_panel(frame: &mut Frame, area: ratatui::layout::Rect) {
     frame.render_widget(list, area);
 }
 
+fn content_search_hint(input_focused: bool) -> Line<'static> {
+    if input_focused {
+        Line::from(vec![
+            key(" Tab"),
+            desc(" results  "),
+            key("Esc"),
+            desc(" cancel search"),
+        ])
+    } else {
+        Line::from(vec![
+            key(" Enter"),
+            desc(" select  "),
+            key("Tab"),
+            desc(" input  "),
+            key("Esc"),
+            desc(" cancel search"),
+        ])
+    }
+}
+
 fn normal_hint_line() -> Line<'static> {
     Line::from(vec![
         key(" q"),
@@ -291,6 +317,8 @@ fn normal_hint_line() -> Line<'static> {
         key("p"),
         desc(" pins  "),
         key("e"),
-        desc(" editor"),
+        desc(" editor  "),
+        key("S"),
+        desc(" search"),
     ])
 }

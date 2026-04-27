@@ -3,7 +3,7 @@ use std::path::PathBuf;
 #[cfg(feature = "debug")]
 use crate::debug_log;
 use crate::message::Message;
-use crate::model::{ActivePanel, Model, TransferMode, TransferOp, TransferProgress};
+use crate::model::{ActivePanel, ContentSearch, Model, TransferMode, TransferOp, TransferProgress};
 use crate::ui::{file_panel, pinned_panel};
 
 pub enum Effect {
@@ -16,6 +16,7 @@ pub enum Effect {
     StartCopyRename(PathBuf, PathBuf),
     StartMoveRename(PathBuf, PathBuf),
     StartDelete(Vec<PathBuf>),
+    StartContentSearch { root: PathBuf, query: String },
 }
 
 pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
@@ -106,6 +107,16 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
             model.error_message = None;
             (model, Effect::None)
         }
+        Message::ContentSearch
+        | Message::ContentSearchChar(_)
+        | Message::ContentSearchBackspace
+        | Message::ContentSearchCursorLeft
+        | Message::ContentSearchCursorRight
+        | Message::ContentSearchToggleFocus
+        | Message::ContentSearchCancel
+        | Message::ContentSearchUp
+        | Message::ContentSearchDown
+        | Message::ContentSearchConfirm => update_content_search(model, msg),
         msg => (dispatch_to_panel(model, msg), Effect::None),
     }
 }
@@ -431,4 +442,122 @@ fn origin_file_panel(model: &Model) -> &file_panel::Model {
         ActivePanel::RightFiles => &model.right_files,
         ActivePanel::LeftFiles | ActivePanel::Pinned => &model.left_files,
     }
+}
+
+fn update_content_search(mut model: Model, msg: Message) -> (Model, Effect) {
+    match msg {
+        Message::ContentSearch => {
+            if model.active_panel == ActivePanel::Pinned {
+                return (model, Effect::None);
+            }
+            let root = if model.active_panel == ActivePanel::RightFiles {
+                model.right_files.current_dir.clone()
+            } else {
+                model.left_files.current_dir.clone()
+            };
+            model.content_search = Some(ContentSearch::new(root));
+            (model, Effect::None)
+        }
+        Message::ContentSearchChar(c) => {
+            let (query, root) = {
+                let Some(cs) = &mut model.content_search else {
+                    return (model, Effect::None);
+                };
+                cs.query.insert(c);
+                cs.results.clear();
+                cs.selection = 0;
+                cs.done = cs.query.text.is_empty();
+                (cs.query.text.clone(), cs.root.clone())
+            };
+            if query.is_empty() {
+                (model, Effect::None)
+            } else {
+                (model, Effect::StartContentSearch { root, query })
+            }
+        }
+        Message::ContentSearchBackspace => {
+            let (query, root) = {
+                let Some(cs) = &mut model.content_search else {
+                    return (model, Effect::None);
+                };
+                cs.query.backspace();
+                cs.results.clear();
+                cs.selection = 0;
+                cs.done = cs.query.text.is_empty();
+                (cs.query.text.clone(), cs.root.clone())
+            };
+            if query.is_empty() {
+                (model, Effect::None)
+            } else {
+                (model, Effect::StartContentSearch { root, query })
+            }
+        }
+        Message::ContentSearchCursorLeft => {
+            if let Some(cs) = &mut model.content_search {
+                cs.query.move_left();
+            }
+            (model, Effect::None)
+        }
+        Message::ContentSearchCursorRight => {
+            if let Some(cs) = &mut model.content_search {
+                cs.query.move_right();
+            }
+            (model, Effect::None)
+        }
+        Message::ContentSearchToggleFocus => {
+            if let Some(cs) = &mut model.content_search {
+                cs.input_focused = !cs.input_focused;
+            }
+            (model, Effect::None)
+        }
+        Message::ContentSearchCancel => {
+            model.content_search = None;
+            (model, Effect::None)
+        }
+        Message::ContentSearchUp => {
+            if let Some(cs) = &mut model.content_search {
+                cs.selection = cs.selection.saturating_sub(1);
+            }
+            (model, Effect::None)
+        }
+        Message::ContentSearchDown => {
+            if let Some(cs) = &mut model.content_search
+                && !cs.results.is_empty()
+            {
+                cs.selection = (cs.selection + 1).min(cs.results.len() - 1);
+            }
+            (model, Effect::None)
+        }
+        Message::ContentSearchConfirm => confirm_content_search(model),
+        _ => (model, Effect::None),
+    }
+}
+
+fn confirm_content_search(mut model: Model) -> (Model, Effect) {
+    let Some(cs) = &model.content_search else {
+        return (model, Effect::None);
+    };
+    let Some(result) = cs.results.get(cs.selection) else {
+        return (model, Effect::None);
+    };
+    let dir = result.path.parent().map(std::path::Path::to_path_buf);
+    let name = result
+        .path
+        .file_name()
+        .map(|n: &std::ffi::OsStr| n.to_string_lossy().into_owned());
+    model.content_search = None;
+    if let Some(dir) = dir {
+        model.left_files.navigate_to(dir);
+        if let Some(name) = name {
+            let pos = model
+                .left_files
+                .visible_entries()
+                .position(|(_, e)| e.name == name);
+            if let Some(pos) = pos {
+                model.left_files.selection = pos;
+            }
+        }
+    }
+    model.active_panel = ActivePanel::LeftFiles;
+    (model, Effect::None)
 }

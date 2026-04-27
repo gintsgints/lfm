@@ -64,6 +64,16 @@ pub enum Message {
     },
     ProgressDone,
     DismissError,
+    ContentSearch,
+    ContentSearchChar(char),
+    ContentSearchBackspace,
+    ContentSearchCursorLeft,
+    ContentSearchCursorRight,
+    ContentSearchToggleFocus,
+    ContentSearchCancel,
+    ContentSearchUp,
+    ContentSearchDown,
+    ContentSearchConfirm,
     #[cfg(feature = "debug")]
     ToggleDebug,
 }

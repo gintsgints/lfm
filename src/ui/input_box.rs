@@ -72,6 +72,10 @@ impl Model {
             .map_or(0, |(i, _)| i);
     }
 
+    pub fn cursor(&self) -> usize {
+        self.cursor
+    }
+
     /// Move the cursor one character to the right.
     pub fn move_right(&mut self) {
         if self.cursor >= self.text.len() {

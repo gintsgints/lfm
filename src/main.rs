@@ -9,6 +9,7 @@ mod archive;
 pub mod debug;
 mod message;
 mod model;
+mod search;
 mod state;
 mod theme;
 mod transfer;
@@ -36,21 +37,22 @@ fn main() -> io::Result<()> {
 fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
     let mut model = Model::init(state::load())?;
     let mut progress_rx: Option<mpsc::Receiver<transfer::ProgressMsg>> = None;
+    let mut search_rx: Option<mpsc::Receiver<search::SearchMsg>> = None;
 
     loop {
         terminal.draw(|frame| view(&model, frame))?;
 
         let (m, got_progress) = drain_progress(model, &mut progress_rx);
         model = m;
-        // Redraw immediately after progress updates so the bar (or its
-        // disappearance) is visible without waiting for a keypress.
-        if got_progress {
+        let (m, got_search) = drain_search(model, &mut search_rx);
+        model = m;
+        // Redraw immediately so results and progress are visible without a keypress.
+        if got_progress || got_search {
             continue;
         }
 
-        // When a transfer is running, poll with a short timeout so we can
-        // redraw progress updates.  Otherwise block until an event arrives.
-        let event = if progress_rx.is_some() {
+        // Poll with a short timeout while a background thread is running.
+        let event = if progress_rx.is_some() || search_rx.is_some() {
             if event::poll(Duration::from_millis(50))? {
                 Some(event::read()?)
             } else {
@@ -114,6 +116,11 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
                     progress_rx = Some(rx);
                     std::thread::spawn(move || transfer::run_delete(&sources, &tx));
                 }
+                Effect::StartContentSearch { root, query } => {
+                    let (tx, rx) = mpsc::channel();
+                    search_rx = Some(rx);
+                    std::thread::spawn(move || search::run_search(&root, &query, &tx));
+                }
                 Effect::None => {}
             }
         }
@@ -159,6 +166,41 @@ fn drain_progress(
     (model, got_progress)
 }
 
+fn drain_search(
+    mut model: Model,
+    search_rx: &mut Option<mpsc::Receiver<search::SearchMsg>>,
+) -> (Model, bool) {
+    if model.content_search.is_none() {
+        *search_rx = None;
+        return (model, false);
+    }
+    let mut got_result = false;
+    loop {
+        let result = match search_rx.as_ref() {
+            None => break,
+            Some(rx) => rx.try_recv(),
+        };
+        match result {
+            Ok(search::SearchMsg::Hit(r)) => {
+                if let Some(cs) = &mut model.content_search {
+                    cs.results.push(r);
+                }
+                got_result = true;
+            }
+            Ok(search::SearchMsg::Done) | Err(mpsc::TryRecvError::Disconnected) => {
+                if let Some(cs) = &mut model.content_search {
+                    cs.done = true;
+                }
+                *search_rx = None;
+                got_result = true;
+                break;
+            }
+            Err(mpsc::TryRecvError::Empty) => break,
+        }
+    }
+    (model, got_result)
+}
+
 enum InputMode {
     Normal,
     Filter,
@@ -171,6 +213,8 @@ enum InputMode {
     Help,
     Progress,
     Error,
+    ContentSearchInput,
+    ContentSearchResults,
 }
 
 fn input_mode(model: &Model) -> InputMode {
@@ -186,6 +230,12 @@ fn input_mode(model: &Model) -> InputMode {
 
     if model.error_message.is_some() {
         InputMode::Error
+    } else if let Some(cs) = &model.content_search {
+        if cs.input_focused {
+            InputMode::ContentSearchInput
+        } else {
+            InputMode::ContentSearchResults
+        }
     } else if model.progress.is_some() {
         InputMode::Progress
     } else if model.show_help {
@@ -297,6 +347,24 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
             KeyCode::Enter | KeyCode::Esc => Some(Message::DismissError),
             _ => None,
         }),
+        InputMode::ContentSearchInput => ModeIntercept::Consumed(match key.code {
+            KeyCode::Esc => Some(Message::ContentSearchCancel),
+            KeyCode::Enter => Some(Message::ContentSearchConfirm),
+            KeyCode::Tab => Some(Message::ContentSearchToggleFocus),
+            KeyCode::Backspace => Some(Message::ContentSearchBackspace),
+            KeyCode::Left => Some(Message::ContentSearchCursorLeft),
+            KeyCode::Right => Some(Message::ContentSearchCursorRight),
+            KeyCode::Char(c) => Some(Message::ContentSearchChar(c)),
+            _ => None,
+        }),
+        InputMode::ContentSearchResults => ModeIntercept::Consumed(match key.code {
+            KeyCode::Esc => Some(Message::ContentSearchCancel),
+            KeyCode::Enter => Some(Message::ContentSearchConfirm),
+            KeyCode::Tab => Some(Message::ContentSearchToggleFocus),
+            KeyCode::Up | KeyCode::Char('k') => Some(Message::ContentSearchUp),
+            KeyCode::Down | KeyCode::Char('j') => Some(Message::ContentSearchDown),
+            _ => None,
+        }),
     }
 }
 
@@ -322,6 +390,7 @@ fn normal_key(key: &KeyEvent, active_panel: ActivePanel) -> Option<Message> {
         KeyCode::Char('?') => Some(Message::ToggleHelp),
         KeyCode::Char('g') if active_panel != ActivePanel::Pinned => Some(Message::GotoPath),
         KeyCode::Char('s') if active_panel != ActivePanel::Pinned => Some(Message::CycleSort),
+        KeyCode::Char('S') if active_panel != ActivePanel::Pinned => Some(Message::ContentSearch),
         KeyCode::Char('z') if active_panel != ActivePanel::Pinned => Some(Message::ZipFiles),
         KeyCode::Char('u') if active_panel != ActivePanel::Pinned => Some(Message::UnzipFile),
         KeyCode::Char('e') if active_panel != ActivePanel::Pinned => Some(Message::OpenEditor),
