@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.6.0
+
+### New features
+
+- **Error popup** — shows a dismissible overlay (Enter / Esc) when a background transfer (copy, move, delete) encounters an I/O error
+
+### Other
+
+- Removed redundant synchronous deletion from the file-panel refresh path
+
 ## v0.5.1
 
 ### Fixes
