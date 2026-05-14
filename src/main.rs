@@ -418,6 +418,7 @@ fn normal_key(key: &KeyEvent, active_panel: ActivePanel) -> Option<Message> {
         KeyCode::Enter | KeyCode::Char(' ') if active_panel == ActivePanel::Pinned => {
             Some(Message::SelectPinnedDir)
         }
+        KeyCode::Enter => Some(Message::DirEnter),
         KeyCode::Esc if active_panel == ActivePanel::Pinned => Some(Message::TogglePinnedPanel),
         KeyCode::Esc => Some(Message::ClearSelection),
         _ => None,
