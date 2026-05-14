@@ -168,6 +168,7 @@ fn hint_line(model: &Model) -> Line<'static> {
     let in_goto = active_panel.is_some_and(|p| p.goto_input.active);
     let in_delete = active_panel.is_some_and(|p| p.delete_confirm);
     let in_filter = active_panel.is_some_and(|p| p.search.active);
+    let filter_locked = active_panel.is_some_and(|p| !p.search.active && !p.search.text.is_empty());
 
     if let Some(cs) = &model.content_search {
         content_search_hint(cs.input_focused)
@@ -220,6 +221,8 @@ fn hint_line(model: &Model) -> Line<'static> {
             key("Esc"),
             desc(" exit filter"),
         ])
+    } else if filter_locked {
+        Line::from(vec![key(" Esc"), desc(" remove filter")])
     } else if model.transfer_mode.is_copy() {
         Line::from(vec![
             key(" Enter"),

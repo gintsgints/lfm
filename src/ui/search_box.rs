@@ -43,7 +43,10 @@ pub fn update(mut model: Model, msg: Message) -> (Model, bool) {
             model.text.pop();
             reset_selection = true;
         }
-        Message::ConfirmFilter | Message::ExitFilter => {
+        Message::ConfirmFilter => {
+            model.active = false;
+        }
+        Message::ExitFilter => {
             model.text.clear();
             model.active = false;
             reset_selection = true;

@@ -204,6 +204,7 @@ fn drain_search(
 enum InputMode {
     Normal,
     Filter,
+    FilteredNormal,
     NewPath,
     GotoPath,
     DeleteConfirm,
@@ -224,6 +225,7 @@ fn input_mode(model: &Model) -> InputMode {
         ActivePanel::Pinned => None,
     };
     let in_filter = active_fp.is_some_and(|p| p.search.active);
+    let filter_locked = active_fp.is_some_and(|p| !p.search.active && !p.search.text.is_empty());
     let in_new_path = active_fp.is_some_and(|p| p.new_path_input.active);
     let in_goto = active_fp.is_some_and(|p| p.goto_input.active);
     let in_delete = active_fp.is_some_and(|p| p.delete_confirm);
@@ -254,6 +256,8 @@ fn input_mode(model: &Model) -> InputMode {
         InputMode::Move
     } else if in_filter {
         InputMode::Filter
+    } else if filter_locked {
+        InputMode::FilteredNormal
     } else {
         InputMode::Normal
     }
@@ -340,6 +344,13 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
             KeyCode::Char(c) => Some(Message::RenameChar(c)),
             _ => None,
         }),
+        InputMode::FilteredNormal => {
+            if key.code == KeyCode::Esc {
+                ModeIntercept::Consumed(Some(Message::ExitFilter))
+            } else {
+                ModeIntercept::PassThrough
+            }
+        }
         InputMode::Normal => ModeIntercept::PassThrough,
         // Ignore all input while a transfer is running.
         InputMode::Progress => ModeIntercept::Consumed(None),
