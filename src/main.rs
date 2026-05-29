@@ -250,12 +250,12 @@ fn input_mode(model: &Model) -> InputMode {
         InputMode::GotoPath
     } else if model.rename_input.active {
         InputMode::Rename
+    } else if in_filter {
+        InputMode::Filter
     } else if model.transfer_mode.is_copy() {
         InputMode::Copy
     } else if model.transfer_mode.is_move() {
         InputMode::Move
-    } else if in_filter {
-        InputMode::Filter
     } else if filter_locked {
         InputMode::FilteredNormal
     } else {
