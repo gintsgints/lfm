@@ -72,7 +72,7 @@ lfm() {
 | `j` / `↓` | Move down |
 | `k` / `↑` | Move up |
 | `h` / `←` | Go to parent directory |
-| `l` / `→` | Enter directory |
+| `l` / `→` / `Enter` | Enter directory |
 | `Tab` | Next panel |
 | `Shift+Tab` | Previous panel |
 
@@ -106,8 +106,8 @@ lfm() {
 | Key | Action |
 |-----|--------|
 | `/` | Enter filter mode |
-| `↑` / `↓` | Move selection while filtering |
-| `Enter` / `Esc` | Exit filter, restore path and selection |
+| `↓` / `Enter` / `Tab` | Lock filter and move to file list |
+| `Esc` | Clear filter |
 
 ### Pinned directories
 
