@@ -7,7 +7,7 @@ use std::{
 
 use ratatui::{
     Frame,
-    layout::Rect,
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::Span,
     widgets::{Block, Borders, List, ListItem, ListState},
@@ -170,6 +170,14 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Option<String>) {
                 model.selection = raw_idx
                     .and_then(|ri| model.visible_entries().position(|(i, _)| i == ri))
                     .unwrap_or(0);
+            }
+        }
+        Message::FilterBarDown => {
+            let (search, _) = search_box::update(model.search, Message::ConfirmFilter);
+            model.search = search;
+            let count = model.entry_count();
+            if count > 0 {
+                model.selection = (model.selection + 1).min(count - 1);
             }
         }
         Message::NewPath
@@ -445,6 +453,22 @@ pub fn render(
     is_copy_target: bool,
     is_move_target: bool,
 ) {
+    let (panel_area, filter_area) = if model.search.is_filtering() {
+        let areas = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(3), Constraint::Min(0)])
+            .split(area);
+        (areas[1], Some(areas[0]))
+    } else {
+        (area, None)
+    };
+
+    if let Some(fa) = filter_area {
+        search_box::render(frame, fa, &model.search);
+    }
+
+    let area = panel_area;
+
     let border_style = if is_move_target {
         Style::default().fg(theme::MOVE_TARGET_BORDER)
     } else if is_copy_target {
@@ -474,7 +498,7 @@ pub fn render(
             model.sort_order.label()
         )
     };
-    let title = search_box::title(&model.search, &path_label);
+    let title = search_box::title(&path_label);
     let block = Block::default()
         .title(title)
         .borders(Borders::ALL)

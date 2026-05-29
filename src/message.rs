@@ -20,6 +20,7 @@ pub enum Message {
     FilterBackspace,
     ConfirmFilter,
     ExitFilter,
+    FilterBarDown,
     NewPath,
     NewPathChar(char),
     NewPathBackspace,

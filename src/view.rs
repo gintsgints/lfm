@@ -158,18 +158,69 @@ fn desc(label: &'static str) -> Span<'static> {
     Span::styled(label, Style::default().fg(theme::INACTIVE_BORDER))
 }
 
-fn hint_line(model: &Model) -> Line<'static> {
+fn active_panel_hints(model: &Model) -> Option<Line<'static>> {
     let active_panel = match model.active_panel {
         ActivePanel::LeftFiles => Some(&model.left_files),
         ActivePanel::RightFiles => Some(&model.right_files),
         ActivePanel::Pinned => None,
-    };
-    let in_new_path = active_panel.is_some_and(|p| p.new_path_input.active);
-    let in_goto = active_panel.is_some_and(|p| p.goto_input.active);
-    let in_delete = active_panel.is_some_and(|p| p.delete_confirm);
-    let in_filter = active_panel.is_some_and(|p| p.search.active);
-    let filter_locked = active_panel.is_some_and(|p| !p.search.active && !p.search.text.is_empty());
+    }?;
+    let in_new_path = active_panel.new_path_input.active;
+    let in_goto = active_panel.goto_input.active;
+    let in_delete = active_panel.delete_confirm;
+    let in_filter = active_panel.search.active;
+    let filter_locked = !active_panel.search.active && !active_panel.search.text.is_empty();
 
+    if in_goto {
+        Some(Line::from(vec![
+            key(" Enter"),
+            desc(" go  "),
+            key("Esc"),
+            desc(" cancel"),
+        ]))
+    } else if in_delete {
+        Some(Line::from(vec![
+            key(" Enter"),
+            desc(" confirm delete  "),
+            key("Esc"),
+            desc(" cancel"),
+        ]))
+    } else if in_new_path {
+        Some(Line::from(vec![
+            key(" Enter"),
+            desc(" create  "),
+            key("Esc"),
+            desc(" cancel"),
+        ]))
+    } else if in_filter {
+        let mut spans = vec![
+            key(" Enter"),
+            desc(" / "),
+            key("Tab"),
+            desc(" / "),
+            key("↓"),
+            desc(" to panel  "),
+            key("Esc"),
+            desc(" clear filter  "),
+        ];
+        spans.extend(normal_hint_spans());
+        Some(Line::from(spans))
+    } else if filter_locked {
+        let mut spans = vec![
+            key(" /"),
+            desc(" / "),
+            key("Tab"),
+            desc(" edit filter  "),
+            key("Esc"),
+            desc(" clear filter  "),
+        ];
+        spans.extend(normal_hint_spans());
+        Some(Line::from(spans))
+    } else {
+        None
+    }
+}
+
+fn hint_line(model: &Model) -> Line<'static> {
     if let Some(cs) = &model.content_search {
         content_search_hint(cs.input_focused)
     } else if model.error_message.is_some() {
@@ -193,36 +244,8 @@ fn hint_line(model: &Model) -> Line<'static> {
             key("?"),
             desc(" close help"),
         ])
-    } else if in_goto {
-        Line::from(vec![
-            key(" Enter"),
-            desc(" go  "),
-            key("Esc"),
-            desc(" cancel"),
-        ])
-    } else if in_delete {
-        Line::from(vec![
-            key(" Enter"),
-            desc(" confirm delete  "),
-            key("Esc"),
-            desc(" cancel"),
-        ])
-    } else if in_new_path {
-        Line::from(vec![
-            key(" Enter"),
-            desc(" create  "),
-            key("Esc"),
-            desc(" cancel"),
-        ])
-    } else if in_filter {
-        Line::from(vec![
-            key(" Enter"),
-            desc(" / "),
-            key("Esc"),
-            desc(" exit filter"),
-        ])
-    } else if filter_locked {
-        Line::from(vec![key(" Esc"), desc(" remove filter")])
+    } else if let Some(line) = active_panel_hints(model) {
+        line
     } else if model.transfer_mode.is_copy() {
         Line::from(vec![
             key(" Enter"),
@@ -297,8 +320,8 @@ fn content_search_hint(input_focused: bool) -> Line<'static> {
     }
 }
 
-fn normal_hint_line() -> Line<'static> {
-    Line::from(vec![
+fn normal_hint_spans() -> Vec<Span<'static>> {
+    vec![
         key(" q"),
         desc(" quit  "),
         key("?"),
@@ -323,5 +346,9 @@ fn normal_hint_line() -> Line<'static> {
         desc(" editor  "),
         key("S"),
         desc(" search"),
-    ])
+    ]
+}
+
+fn normal_hint_line() -> Line<'static> {
+    Line::from(normal_hint_spans())
 }

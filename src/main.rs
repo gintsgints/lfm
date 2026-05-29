@@ -310,10 +310,9 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
         }),
         InputMode::Filter => ModeIntercept::Consumed(match key.code {
             KeyCode::Esc => Some(Message::ExitFilter),
-            KeyCode::Enter => Some(Message::ConfirmFilter),
+            KeyCode::Enter | KeyCode::Tab => Some(Message::ConfirmFilter),
             KeyCode::Backspace => Some(Message::FilterBackspace),
-            KeyCode::Up => Some(Message::SelectUp),
-            KeyCode::Down => Some(Message::SelectDown),
+            KeyCode::Down => Some(Message::FilterBarDown),
             KeyCode::Char(c) => Some(Message::FilterChar(c)),
             _ => None,
         }),
@@ -344,13 +343,11 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
             KeyCode::Char(c) => Some(Message::RenameChar(c)),
             _ => None,
         }),
-        InputMode::FilteredNormal => {
-            if key.code == KeyCode::Esc {
-                ModeIntercept::Consumed(Some(Message::ExitFilter))
-            } else {
-                ModeIntercept::PassThrough
-            }
-        }
+        InputMode::FilteredNormal => match key.code {
+            KeyCode::Esc => ModeIntercept::Consumed(Some(Message::ExitFilter)),
+            KeyCode::Tab => ModeIntercept::Consumed(Some(Message::EnterFilter)),
+            _ => ModeIntercept::PassThrough,
+        },
         InputMode::Normal => ModeIntercept::PassThrough,
         // Ignore all input while a transfer is running.
         InputMode::Progress => ModeIntercept::Consumed(None),

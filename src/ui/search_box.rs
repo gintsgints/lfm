@@ -1,6 +1,9 @@
 use ratatui::{
-    style::Style,
+    Frame,
+    layout::Rect,
+    style::{Modifier, Style},
     text::{Line, Span},
+    widgets::{Block, Borders, Paragraph},
 };
 
 use crate::message::Message;
@@ -43,7 +46,7 @@ pub fn update(mut model: Model, msg: Message) -> (Model, bool) {
             model.text.pop();
             reset_selection = true;
         }
-        Message::ConfirmFilter => {
+        Message::ConfirmFilter | Message::FilterBarDown => {
             model.active = false;
         }
         Message::ExitFilter => {
@@ -56,17 +59,38 @@ pub fn update(mut model: Model, msg: Message) -> (Model, bool) {
     (model, reset_selection)
 }
 
-pub fn title(model: &Model, path_label: &str) -> Line<'static> {
-    if model.is_filtering() {
+pub fn render(frame: &mut Frame, area: Rect, model: &Model) {
+    let border_style = if model.active {
+        Style::default().fg(theme::ACTIVE_BORDER)
+    } else {
+        Style::default().fg(theme::INACTIVE_BORDER)
+    };
+
+    let text_style = Style::default()
+        .fg(theme::TEXT)
+        .add_modifier(Modifier::BOLD);
+    let cursor_style = text_style.add_modifier(Modifier::UNDERLINED);
+
+    let content = if model.active {
         Line::from(vec![
-            Span::styled(" 🔍 ", Style::default().fg(theme::ACTIVE_BORDER)),
-            Span::styled(model.text.clone(), Style::default().fg(theme::TEXT)),
-            Span::raw(" "),
+            Span::styled(model.text.clone(), text_style),
+            Span::styled("_", cursor_style),
         ])
     } else {
-        Line::from(Span::styled(
-            format!(" {path_label} "),
-            Style::default().fg(theme::TEXT),
-        ))
-    }
+        Line::from(Span::styled(model.text.clone(), text_style))
+    };
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(border_style)
+        .title(Span::styled(" filter ", Style::default().fg(theme::TEXT)));
+
+    frame.render_widget(Paragraph::new(content).block(block), area);
+}
+
+pub fn title(path_label: &str) -> Line<'static> {
+    Line::from(Span::styled(
+        format!(" {path_label} "),
+        Style::default().fg(theme::TEXT),
+    ))
 }
