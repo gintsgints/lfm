@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.7.0
+
+### New features
+
+- **Content search** (`S`) — search file contents recursively in the current directory; results stream live into a panel; press `Enter` to navigate to the matching file
+- **Non-modal filter bar** (`/`) — filter bar is now inline at the bottom of the file list; `Enter` / `Tab` / `↓` lock the filter and move focus to the list; `Esc` clears it
+- **Enter to navigate** (`Enter`) — pressing Enter in the file list now enters the selected directory (in addition to `l` / `→`)
+
+### Fixes
+
+- File operation errors (copy, move, delete) are now surfaced in the error popup
+- Filter mode now takes priority over copy/move mode in key dispatch
+
 ## v0.6.0
 
 ### New features
