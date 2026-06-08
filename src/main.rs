@@ -46,13 +46,21 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
         model = m;
         let (m, got_search) = drain_search(model, &mut search_rx);
         model = m;
-        // Redraw immediately so results and progress are visible without a keypress.
-        if got_progress || got_search {
-            continue;
-        }
 
-        // Poll with a short timeout while a background thread is running.
-        let event = if progress_rx.is_some() || search_rx.is_some() {
+        // Decide how long to wait for input.
+        //
+        // When we just drained progress/search results, redraw promptly with a
+        // zero-timeout poll — but still service the keyboard so a fast-producing
+        // background thread (e.g. a search matching many lines) can't starve
+        // input and freeze the UI. When a thread is running but idle, poll with
+        // a short timeout. Otherwise block until the next event.
+        let event = if got_progress || got_search {
+            if event::poll(Duration::ZERO)? {
+                Some(event::read()?)
+            } else {
+                None
+            }
+        } else if progress_rx.is_some() || search_rx.is_some() {
             if event::poll(Duration::from_millis(50))? {
                 Some(event::read()?)
             } else {
