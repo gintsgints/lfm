@@ -169,6 +169,26 @@ cargo fmt            # format code
 cargo clippy -- -D warnings -W clippy::pedantic   # lint (hard mode)
 ```
 
+### Debugging
+
+An in-app debug log is available behind the `debug` cargo feature (off by default):
+
+```bash
+cargo run --features debug
+```
+
+With the feature enabled, press `` ` `` (backtick) to toggle a debug panel at the bottom of the screen. It shows the most recent internal log messages, including:
+
+- The `Message` dispatched for each keypress
+- Directory reads
+- Content search timings — each search logs a summary line on completion, e.g. `search "." for "foo": 12 hit(s) in 340 file(s), 18.421ms`
+
+Emit your own log lines from anywhere in the code with the `debug_log!` macro:
+
+```rust
+debug_log!("value = {value:?}");
+```
+
 Built with [ratatui](https://github.com/ratatui/ratatui).
 
 ## Architecture
