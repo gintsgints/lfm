@@ -287,7 +287,14 @@ fn render_debug_panel(frame: &mut Frame, area: ratatui::layout::Rect) {
     use ratatui::layout::Alignment;
     use ratatui::widgets::{Block, Borders, List, ListItem};
     let messages = crate::debug::snapshot();
-    let items: Vec<ListItem> = messages.iter().map(|m| ListItem::new(m.as_str())).collect();
+    // The list renders top-down, so show only the newest messages that fit
+    // (minus 2 rows for the top/bottom borders) to keep the latest visible.
+    let visible = area.height.saturating_sub(2) as usize;
+    let start = messages.len().saturating_sub(visible);
+    let items: Vec<ListItem> = messages[start..]
+        .iter()
+        .map(|m| ListItem::new(m.as_str()))
+        .collect();
     let list = List::new(items)
         .block(
             Block::default()
