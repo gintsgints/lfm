@@ -7,10 +7,13 @@ use ratatui::{
 
 mod archive;
 pub mod debug;
+mod file_find;
 mod message;
 mod model;
 mod search;
 mod state;
+#[cfg(test)]
+mod tests;
 mod theme;
 mod transfer;
 mod ui;
@@ -38,6 +41,7 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
     let mut model = Model::init(state::load())?;
     let mut progress_rx: Option<mpsc::Receiver<transfer::ProgressMsg>> = None;
     let mut search_rx: Option<mpsc::Receiver<search::SearchMsg>> = None;
+    let mut file_find_rx: Option<mpsc::Receiver<file_find::FileFindMsg>> = None;
 
     loop {
         terminal.draw(|frame| view(&model, frame))?;
@@ -45,6 +49,8 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
         let (m, got_progress) = drain_progress(model, &mut progress_rx);
         model = m;
         let (m, got_search) = drain_search(model, &mut search_rx);
+        model = m;
+        let (m, got_file_find) = drain_file_find(model, &mut file_find_rx);
         model = m;
 
         // Decide how long to wait for input.
@@ -54,13 +60,13 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
         // background thread (e.g. a search matching many lines) can't starve
         // input and freeze the UI. When a thread is running but idle, poll with
         // a short timeout. Otherwise block until the next event.
-        let event = if got_progress || got_search {
+        let event = if got_progress || got_search || got_file_find {
             if event::poll(Duration::ZERO)? {
                 Some(event::read()?)
             } else {
                 None
             }
-        } else if progress_rx.is_some() || search_rx.is_some() {
+        } else if progress_rx.is_some() || search_rx.is_some() || file_find_rx.is_some() {
             if event::poll(Duration::from_millis(50))? {
                 Some(event::read()?)
             } else {
@@ -128,6 +134,11 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
                     let (tx, rx) = mpsc::channel();
                     search_rx = Some(rx);
                     std::thread::spawn(move || search::run_search(&root, &query, &tx));
+                }
+                Effect::StartFileFind { root, query } => {
+                    let (tx, rx) = mpsc::channel();
+                    file_find_rx = Some(rx);
+                    std::thread::spawn(move || file_find::run_file_find(&root, &query, &tx));
                 }
                 Effect::None => {}
             }
@@ -209,6 +220,41 @@ fn drain_search(
     (model, got_result)
 }
 
+fn drain_file_find(
+    mut model: Model,
+    file_find_rx: &mut Option<mpsc::Receiver<file_find::FileFindMsg>>,
+) -> (Model, bool) {
+    if model.file_find.is_none() {
+        *file_find_rx = None;
+        return (model, false);
+    }
+    let mut got_result = false;
+    loop {
+        let result = match file_find_rx.as_ref() {
+            None => break,
+            Some(rx) => rx.try_recv(),
+        };
+        match result {
+            Ok(file_find::FileFindMsg::Hit(r)) => {
+                if let Some(ff) = &mut model.file_find {
+                    ff.results.push(r);
+                }
+                got_result = true;
+            }
+            Ok(file_find::FileFindMsg::Done) | Err(mpsc::TryRecvError::Disconnected) => {
+                if let Some(ff) = &mut model.file_find {
+                    ff.done = true;
+                }
+                *file_find_rx = None;
+                got_result = true;
+                break;
+            }
+            Err(mpsc::TryRecvError::Empty) => break,
+        }
+    }
+    (model, got_result)
+}
+
 enum InputMode {
     Normal,
     Filter,
@@ -224,6 +270,8 @@ enum InputMode {
     Error,
     ContentSearchInput,
     ContentSearchResults,
+    FileFindInput,
+    FileFindResults,
 }
 
 fn input_mode(model: &Model) -> InputMode {
@@ -245,6 +293,12 @@ fn input_mode(model: &Model) -> InputMode {
             InputMode::ContentSearchInput
         } else {
             InputMode::ContentSearchResults
+        }
+    } else if let Some(ff) = &model.file_find {
+        if ff.input_focused {
+            InputMode::FileFindInput
+        } else {
+            InputMode::FileFindResults
         }
     } else if model.progress.is_some() {
         InputMode::Progress
@@ -363,7 +417,18 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
             KeyCode::Enter | KeyCode::Esc => Some(Message::DismissError),
             _ => None,
         }),
-        InputMode::ContentSearchInput => ModeIntercept::Consumed(match key.code {
+        InputMode::ContentSearchInput
+        | InputMode::ContentSearchResults
+        | InputMode::FileFindInput
+        | InputMode::FileFindResults => intercept_search_mode(key, mode),
+    }
+}
+
+/// Key handling for the content-search and file-find popups, which share the
+/// same input/results layout and navigation keys.
+fn intercept_search_mode(key: &KeyEvent, mode: &InputMode) -> ModeIntercept {
+    ModeIntercept::Consumed(match mode {
+        InputMode::ContentSearchInput => match key.code {
             KeyCode::Esc => Some(Message::ContentSearchCancel),
             KeyCode::Enter => Some(Message::ContentSearchConfirm),
             KeyCode::Tab => Some(Message::ContentSearchToggleFocus),
@@ -372,16 +437,35 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
             KeyCode::Right => Some(Message::ContentSearchCursorRight),
             KeyCode::Char(c) => Some(Message::ContentSearchChar(c)),
             _ => None,
-        }),
-        InputMode::ContentSearchResults => ModeIntercept::Consumed(match key.code {
+        },
+        InputMode::ContentSearchResults => match key.code {
             KeyCode::Esc => Some(Message::ContentSearchCancel),
             KeyCode::Enter => Some(Message::ContentSearchConfirm),
             KeyCode::Tab => Some(Message::ContentSearchToggleFocus),
             KeyCode::Up | KeyCode::Char('k') => Some(Message::ContentSearchUp),
             KeyCode::Down | KeyCode::Char('j') => Some(Message::ContentSearchDown),
             _ => None,
-        }),
-    }
+        },
+        InputMode::FileFindInput => match key.code {
+            KeyCode::Esc => Some(Message::FileFindCancel),
+            KeyCode::Enter => Some(Message::FileFindConfirm),
+            KeyCode::Tab => Some(Message::FileFindToggleFocus),
+            KeyCode::Backspace => Some(Message::FileFindBackspace),
+            KeyCode::Left => Some(Message::FileFindCursorLeft),
+            KeyCode::Right => Some(Message::FileFindCursorRight),
+            KeyCode::Char(c) => Some(Message::FileFindChar(c)),
+            _ => None,
+        },
+        InputMode::FileFindResults => match key.code {
+            KeyCode::Esc => Some(Message::FileFindCancel),
+            KeyCode::Enter => Some(Message::FileFindConfirm),
+            KeyCode::Tab => Some(Message::FileFindToggleFocus),
+            KeyCode::Up | KeyCode::Char('k') => Some(Message::FileFindUp),
+            KeyCode::Down | KeyCode::Char('j') => Some(Message::FileFindDown),
+            _ => None,
+        },
+        _ => None,
+    })
 }
 
 fn normal_key(key: &KeyEvent, active_panel: ActivePanel) -> Option<Message> {
@@ -407,6 +491,7 @@ fn normal_key(key: &KeyEvent, active_panel: ActivePanel) -> Option<Message> {
         KeyCode::Char('g') if active_panel != ActivePanel::Pinned => Some(Message::GotoPath),
         KeyCode::Char('s') if active_panel != ActivePanel::Pinned => Some(Message::CycleSort),
         KeyCode::Char('S') if active_panel != ActivePanel::Pinned => Some(Message::ContentSearch),
+        KeyCode::Char('F') if active_panel != ActivePanel::Pinned => Some(Message::FileFind),
         KeyCode::Char('z') if active_panel != ActivePanel::Pinned => Some(Message::ZipFiles),
         KeyCode::Char('u') if active_panel != ActivePanel::Pinned => Some(Message::UnzipFile),
         KeyCode::Char('e') if active_panel != ActivePanel::Pinned => Some(Message::OpenEditor),

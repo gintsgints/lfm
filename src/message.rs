@@ -75,6 +75,16 @@ pub enum Message {
     ContentSearchUp,
     ContentSearchDown,
     ContentSearchConfirm,
+    FileFind,
+    FileFindChar(char),
+    FileFindBackspace,
+    FileFindCursorLeft,
+    FileFindCursorRight,
+    FileFindToggleFocus,
+    FileFindCancel,
+    FileFindUp,
+    FileFindDown,
+    FileFindConfirm,
     #[cfg(feature = "debug")]
     ToggleDebug,
 }

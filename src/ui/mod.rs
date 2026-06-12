@@ -1,6 +1,7 @@
 pub mod confirm_box;
 pub mod content_search_panel;
 pub mod error_box;
+pub mod file_find_panel;
 pub mod file_panel;
 pub mod help_panel;
 pub mod input_box;

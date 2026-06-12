@@ -3,7 +3,9 @@ use std::path::PathBuf;
 #[cfg(feature = "debug")]
 use crate::debug_log;
 use crate::message::Message;
-use crate::model::{ActivePanel, ContentSearch, Model, TransferMode, TransferOp, TransferProgress};
+use crate::model::{
+    ActivePanel, ContentSearch, FileFind, Model, TransferMode, TransferOp, TransferProgress,
+};
 use crate::ui::{file_panel, pinned_panel};
 
 pub enum Effect {
@@ -17,6 +19,7 @@ pub enum Effect {
     StartMoveRename(PathBuf, PathBuf),
     StartDelete(Vec<PathBuf>),
     StartContentSearch { root: PathBuf, query: String },
+    StartFileFind { root: PathBuf, query: String },
 }
 
 pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
@@ -42,15 +45,7 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
             (model, Effect::None)
         }
         Message::PinCurrentDir => update_pin_current_dir(model),
-        Message::DeletePinnedDir => {
-            let sel = model.pinned_panel.selection;
-            if sel < model.pinned_panel.pins.len() {
-                model.pinned_panel.pins.remove(sel);
-                let count = model.pinned_panel.pins.len();
-                model.pinned_panel.selection = if count > 0 { sel.min(count - 1) } else { 0 };
-            }
-            (model, Effect::None)
-        }
+        Message::DeletePinnedDir => update_delete_pinned_dir(model),
         Message::SelectPinnedDir => update_select_pinned_dir(model),
         Message::ToggleHelp => {
             model.show_help = !model.show_help;
@@ -61,17 +56,7 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
             model.show_debug = !model.show_debug;
             (model, Effect::None)
         }
-        Message::OpenEditor | Message::OpenDefault => {
-            let Some(path) = active_file_path(&model) else {
-                return (model, Effect::None);
-            };
-            let effect = if matches!(msg, Message::OpenEditor) {
-                Effect::OpenEditor(path)
-            } else {
-                Effect::OpenDefault(path)
-            };
-            (model, effect)
-        }
+        Message::OpenEditor | Message::OpenDefault => update_open(model, &msg),
         Message::StartCopy
         | Message::StartCopyRename
         | Message::CancelCopy
@@ -111,6 +96,16 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
         | Message::ContentSearchUp
         | Message::ContentSearchDown
         | Message::ContentSearchConfirm => update_content_search(model, msg),
+        Message::FileFind
+        | Message::FileFindChar(_)
+        | Message::FileFindBackspace
+        | Message::FileFindCursorLeft
+        | Message::FileFindCursorRight
+        | Message::FileFindToggleFocus
+        | Message::FileFindCancel
+        | Message::FileFindUp
+        | Message::FileFindDown
+        | Message::FileFindConfirm => update_file_find(model, msg),
         msg => {
             let (mut m, err) = dispatch_to_panel(model, msg);
             if let Some(e) = err {
@@ -156,6 +151,28 @@ fn update_pin_current_dir(mut model: Model) -> (Model, Effect) {
     }
     model.active_panel = model.origin_panel;
     (model, Effect::None)
+}
+
+fn update_delete_pinned_dir(mut model: Model) -> (Model, Effect) {
+    let sel = model.pinned_panel.selection;
+    if sel < model.pinned_panel.pins.len() {
+        model.pinned_panel.pins.remove(sel);
+        let count = model.pinned_panel.pins.len();
+        model.pinned_panel.selection = if count > 0 { sel.min(count - 1) } else { 0 };
+    }
+    (model, Effect::None)
+}
+
+fn update_open(model: Model, msg: &Message) -> (Model, Effect) {
+    let Some(path) = active_file_path(&model) else {
+        return (model, Effect::None);
+    };
+    let effect = if matches!(msg, Message::OpenEditor) {
+        Effect::OpenEditor(path)
+    } else {
+        Effect::OpenDefault(path)
+    };
+    (model, effect)
 }
 
 fn update_select_pinned_dir(mut model: Model) -> (Model, Effect) {
@@ -564,6 +581,124 @@ fn confirm_content_search(mut model: Model) -> (Model, Effect) {
         .file_name()
         .map(|n: &std::ffi::OsStr| n.to_string_lossy().into_owned());
     model.content_search = None;
+    if let Some(dir) = dir {
+        model.left_files.navigate_to(dir);
+        if let Some(name) = name {
+            let pos = model
+                .left_files
+                .visible_entries()
+                .position(|(_, e)| e.name == name);
+            if let Some(pos) = pos {
+                model.left_files.selection = pos;
+            }
+        }
+    }
+    model.active_panel = ActivePanel::LeftFiles;
+    (model, Effect::None)
+}
+
+fn update_file_find(mut model: Model, msg: Message) -> (Model, Effect) {
+    match msg {
+        Message::FileFind => {
+            if model.active_panel == ActivePanel::Pinned {
+                return (model, Effect::None);
+            }
+            let root = if model.active_panel == ActivePanel::RightFiles {
+                model.right_files.current_dir.clone()
+            } else {
+                model.left_files.current_dir.clone()
+            };
+            model.file_find = Some(FileFind::new(root));
+            (model, Effect::None)
+        }
+        Message::FileFindChar(c) => {
+            let (query, root) = {
+                let Some(ff) = &mut model.file_find else {
+                    return (model, Effect::None);
+                };
+                ff.query.insert(c);
+                ff.results.clear();
+                ff.selection = 0;
+                ff.done = ff.query.text.is_empty();
+                (ff.query.text.clone(), ff.root.clone())
+            };
+            if query.is_empty() {
+                (model, Effect::None)
+            } else {
+                (model, Effect::StartFileFind { root, query })
+            }
+        }
+        Message::FileFindBackspace => {
+            let (query, root) = {
+                let Some(ff) = &mut model.file_find else {
+                    return (model, Effect::None);
+                };
+                ff.query.backspace();
+                ff.results.clear();
+                ff.selection = 0;
+                ff.done = ff.query.text.is_empty();
+                (ff.query.text.clone(), ff.root.clone())
+            };
+            if query.is_empty() {
+                (model, Effect::None)
+            } else {
+                (model, Effect::StartFileFind { root, query })
+            }
+        }
+        Message::FileFindCursorLeft => {
+            if let Some(ff) = &mut model.file_find {
+                ff.query.move_left();
+            }
+            (model, Effect::None)
+        }
+        Message::FileFindCursorRight => {
+            if let Some(ff) = &mut model.file_find {
+                ff.query.move_right();
+            }
+            (model, Effect::None)
+        }
+        Message::FileFindToggleFocus => {
+            if let Some(ff) = &mut model.file_find {
+                ff.input_focused = !ff.input_focused;
+            }
+            (model, Effect::None)
+        }
+        Message::FileFindCancel => {
+            model.file_find = None;
+            (model, Effect::None)
+        }
+        Message::FileFindUp => {
+            if let Some(ff) = &mut model.file_find {
+                ff.selection = ff.selection.saturating_sub(1);
+            }
+            (model, Effect::None)
+        }
+        Message::FileFindDown => {
+            if let Some(ff) = &mut model.file_find
+                && !ff.results.is_empty()
+            {
+                ff.selection = (ff.selection + 1).min(ff.results.len() - 1);
+            }
+            (model, Effect::None)
+        }
+        Message::FileFindConfirm => confirm_file_find(model),
+        _ => (model, Effect::None),
+    }
+}
+
+fn confirm_file_find(mut model: Model) -> (Model, Effect) {
+    let Some(ff) = &model.file_find else {
+        return (model, Effect::None);
+    };
+    let Some(result) = ff.results.get(ff.selection) else {
+        return (model, Effect::None);
+    };
+    let dir = result.path.parent().map(std::path::Path::to_path_buf);
+    let name = result
+        .path
+        .file_name()
+        .map(|n: &std::ffi::OsStr| n.to_string_lossy().into_owned());
+    model.file_find = None;
     if let Some(dir) = dir {
         model.left_files.navigate_to(dir);
         if let Some(name) = name {

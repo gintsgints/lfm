@@ -37,6 +37,7 @@ const KEYBINDINGS: &[(&str, &str)] = &[
     ("z", "Zip selected or current item(s)"),
     ("u", "Extract .zip or .tar.gz archive"),
     ("S", "Search file contents recursively"),
+    ("Shift+F", "Fuzzy-find files by name"),
     ("", ""),
     ("Filter", ""),
     ("/", "Enter filter mode"),

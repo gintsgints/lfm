@@ -133,6 +133,10 @@ fn render_overlays(model: &Model, frame: &mut Frame, area: ratatui::layout::Rect
         ui::content_search_panel::render(frame, area, cs);
     }
 
+    if let Some(ff) = &model.file_find {
+        ui::file_find_panel::render(frame, area, ff);
+    }
+
     if let Some(msg) = &model.error_message {
         ui::error_box::render(frame, area, msg);
     }
@@ -223,6 +227,8 @@ fn active_panel_hints(model: &Model) -> Option<Line<'static>> {
 fn hint_line(model: &Model) -> Line<'static> {
     if let Some(cs) = &model.content_search {
         content_search_hint(cs.input_focused)
+    } else if let Some(ff) = &model.file_find {
+        content_search_hint(ff.input_focused)
     } else if model.error_message.is_some() {
         Line::from(vec![
             key(" Enter"),
