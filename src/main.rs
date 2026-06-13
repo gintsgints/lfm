@@ -78,6 +78,11 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
 
         let Some(event) = event else { continue };
 
+        #[cfg(feature = "debug")]
+        if let Event::Key(key) = &event {
+            debug_log!("key: {:?} {:?}", key.code, key.modifiers);
+        }
+
         let mode = input_mode(&model);
 
         if let Some(msg) = to_message(&event, model.active_panel, &mode) {
