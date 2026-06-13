@@ -551,7 +551,11 @@ fn update_content_search(mut model: Model, msg: Message) -> (Model, Effect) {
         }
         Message::ContentSearchUp => {
             if let Some(cs) = &mut model.content_search {
-                cs.selection = cs.selection.saturating_sub(1);
+                if cs.selection == 0 {
+                    cs.input_focused = true;
+                } else {
+                    cs.selection -= 1;
+                }
             }
             (model, Effect::None)
         }
@@ -669,7 +673,11 @@ fn update_file_find(mut model: Model, msg: Message) -> (Model, Effect) {
         }
         Message::FileFindUp => {
             if let Some(ff) = &mut model.file_find {
-                ff.selection = ff.selection.saturating_sub(1);
+                if ff.selection == 0 {
+                    ff.input_focused = true;
+                } else {
+                    ff.selection -= 1;
+                }
             }
             (model, Effect::None)
         }

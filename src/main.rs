@@ -431,7 +431,7 @@ fn intercept_search_mode(key: &KeyEvent, mode: &InputMode) -> ModeIntercept {
         InputMode::ContentSearchInput => match key.code {
             KeyCode::Esc => Some(Message::ContentSearchCancel),
             KeyCode::Enter => Some(Message::ContentSearchConfirm),
-            KeyCode::Tab => Some(Message::ContentSearchToggleFocus),
+            KeyCode::Tab | KeyCode::Down => Some(Message::ContentSearchToggleFocus),
             KeyCode::Backspace => Some(Message::ContentSearchBackspace),
             KeyCode::Left => Some(Message::ContentSearchCursorLeft),
             KeyCode::Right => Some(Message::ContentSearchCursorRight),
@@ -449,7 +449,7 @@ fn intercept_search_mode(key: &KeyEvent, mode: &InputMode) -> ModeIntercept {
         InputMode::FileFindInput => match key.code {
             KeyCode::Esc => Some(Message::FileFindCancel),
             KeyCode::Enter => Some(Message::FileFindConfirm),
-            KeyCode::Tab => Some(Message::FileFindToggleFocus),
+            KeyCode::Tab | KeyCode::Down => Some(Message::FileFindToggleFocus),
             KeyCode::Backspace => Some(Message::FileFindBackspace),
             KeyCode::Left => Some(Message::FileFindCursorLeft),
             KeyCode::Right => Some(Message::FileFindCursorRight),
