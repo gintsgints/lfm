@@ -42,11 +42,48 @@ pub fn disable_extended_key_reporting() {
     let _ = execute!(io::stdout(), PopKeyboardEnhancementFlags);
 }
 
-/// Under the Kitty keyboard protocol a shifted letter arrives as a lowercase
-/// `Char` with the `SHIFT` modifier set (e.g. `Char('s')` + `SHIFT`) instead of
-/// the uppercase `Char('S')` legacy terminals send. Fold that back to uppercase
-/// so the key dispatch can match `'S'`, `'K'`, etc. uniformly, and so text
-/// inputs receive the capital the user actually typed.
+/// Map an unshifted key to the character its `SHIFT` variant produces on a US
+/// keyboard. Letters fold to uppercase; the digit row and punctuation fold to
+/// their shifted symbols (e.g. `/` -> `?`, `1` -> `!`). Returns `None` when the
+/// key has no distinct shifted form.
+fn shifted_char(c: char) -> Option<char> {
+    if c.is_ascii_lowercase() {
+        return Some(c.to_ascii_uppercase());
+    }
+    let shifted = match c {
+        '1' => '!',
+        '2' => '@',
+        '3' => '#',
+        '4' => '$',
+        '5' => '%',
+        '6' => '^',
+        '7' => '&',
+        '8' => '*',
+        '9' => '(',
+        '0' => ')',
+        '`' => '~',
+        '-' => '_',
+        '=' => '+',
+        '[' => '{',
+        ']' => '}',
+        '\\' => '|',
+        ';' => ':',
+        '\'' => '"',
+        ',' => '<',
+        '.' => '>',
+        '/' => '?',
+        _ => return None,
+    };
+    Some(shifted)
+}
+
+/// Under the Kitty keyboard protocol a shifted key arrives as its *unshifted*
+/// `Char` with the `SHIFT` modifier set — e.g. `Char('s')` + `SHIFT` instead of
+/// `Char('S')`, and `Char('/')` + `SHIFT` instead of `Char('?')` — whereas
+/// legacy terminals send the shifted character directly. Fold that back to the
+/// shifted character so the key dispatch can match `'S'`, `'?'`, etc. uniformly
+/// (e.g. `/` and `?` stay distinct commands), and so text inputs receive the
+/// glyph the user actually typed.
 pub fn normalize_key_event(event: Event, extended_keys: bool) -> Event {
     if !extended_keys {
         return event;
@@ -56,9 +93,9 @@ pub fn normalize_key_event(event: Event, extended_keys: bool) -> Event {
     };
     if key.modifiers.contains(KeyModifiers::SHIFT)
         && let KeyCode::Char(c) = key.code
-        && c.is_ascii_lowercase()
+        && let Some(shifted) = shifted_char(c)
     {
-        key.code = KeyCode::Char(c.to_ascii_uppercase());
+        key.code = KeyCode::Char(shifted);
     }
     Event::Key(key)
 }
