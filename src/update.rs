@@ -51,6 +51,10 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
             model.show_help = !model.show_help;
             (model, Effect::None)
         }
+        Message::SetShiftHeld(held) => {
+            model.shift_held = held;
+            (model, Effect::None)
+        }
         #[cfg(feature = "debug")]
         Message::ToggleDebug => {
             model.show_debug = !model.show_debug;

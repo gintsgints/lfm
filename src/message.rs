@@ -85,6 +85,8 @@ pub enum Message {
     FileFindUp,
     FileFindDown,
     FileFindConfirm,
+    /// Shift was pressed (`true`) or released (`false`); updates the hint bar.
+    SetShiftHeld(bool),
     #[cfg(feature = "debug")]
     ToggleDebug,
 }

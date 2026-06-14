@@ -126,6 +126,10 @@ pub struct Model {
     pub transfer_mode: TransferMode,
     pub rename_input: input_box::Model,
     pub show_help: bool,
+    /// Whether Shift is currently held. Tracked only when the terminal reports
+    /// key release events (Kitty protocol), so the bottom hint bar can show the
+    /// shifted command set while Shift is down. Stays `false` otherwise.
+    pub shift_held: bool,
     #[cfg(feature = "debug")]
     pub show_debug: bool,
     pub progress: Option<TransferProgress>,
@@ -148,6 +152,7 @@ impl Model {
             transfer_mode: TransferMode::None,
             rename_input: input_box::Model::new(),
             show_help: false,
+            shift_held: false,
             #[cfg(feature = "debug")]
             show_debug: true,
             progress: None,

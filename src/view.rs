@@ -206,7 +206,7 @@ fn active_panel_hints(model: &Model) -> Option<Line<'static>> {
             key("Esc"),
             desc(" clear filter  "),
         ];
-        spans.extend(normal_hint_spans());
+        spans.extend(hint_spans(model.shift_held));
         Some(Line::from(spans))
     } else if filter_locked {
         let mut spans = vec![
@@ -217,7 +217,7 @@ fn active_panel_hints(model: &Model) -> Option<Line<'static>> {
             key("Esc"),
             desc(" clear filter  "),
         ];
-        spans.extend(normal_hint_spans());
+        spans.extend(hint_spans(model.shift_held));
         Some(Line::from(spans))
     } else {
         None
@@ -284,7 +284,7 @@ fn hint_line(model: &Model) -> Line<'static> {
             desc(" close"),
         ])
     } else {
-        normal_hint_line()
+        normal_hint_line(model.shift_held)
     }
 }
 
@@ -362,6 +362,33 @@ fn normal_hint_spans() -> Vec<Span<'static>> {
     ]
 }
 
-fn normal_hint_line() -> Line<'static> {
-    Line::from(normal_hint_spans())
+/// The shifted command set, shown while Shift is held (see [`hint_spans`]).
+fn shifted_hint_spans() -> Vec<Span<'static>> {
+    vec![
+        key(" J"),
+        desc(" mark ↓  "),
+        key("K"),
+        desc(" mark ↑  "),
+        key("C"),
+        desc(" copy+rename  "),
+        key("M"),
+        desc(" move+rename  "),
+        key("S"),
+        desc(" search  "),
+        key("F"),
+        desc(" find"),
+    ]
+}
+
+/// Pick the normal or shifted hint set depending on whether Shift is held.
+fn hint_spans(shift_held: bool) -> Vec<Span<'static>> {
+    if shift_held {
+        shifted_hint_spans()
+    } else {
+        normal_hint_spans()
+    }
+}
+
+fn normal_hint_line(shift_held: bool) -> Line<'static> {
+    Line::from(hint_spans(shift_held))
 }

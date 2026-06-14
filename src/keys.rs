@@ -3,7 +3,9 @@
 
 use std::io;
 
-use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use ratatui::crossterm::event::{
+    Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, ModifierKeyCode,
+};
 
 #[cfg(feature = "debug")]
 use crate::debug_log;
@@ -101,13 +103,36 @@ pub fn normalize_key_event(event: Event, extended_keys: bool) -> Event {
 }
 
 #[cfg(feature = "debug")]
-pub fn log_key_and_is_release(event: &Event) -> bool {
-    use ratatui::crossterm::event::KeyEventKind;
+pub fn log_key(event: &Event) {
+    if let Event::Key(key) = event {
+        debug_log!("key: {:?} {:?} {:?}", key.code, key.modifiers, key.kind);
+    }
+}
+
+/// `Some(true)` when Shift was just pressed (or auto-repeated) and `Some(false)`
+/// when it was released, for bare Shift key events. Returns `None` for anything
+/// else. The Kitty protocol reports modifier keys as their own press/release
+/// events, which is what lets the hint bar react to Shift on its own.
+pub fn shift_held_change(event: &Event) -> Option<bool> {
     let Event::Key(key) = event else {
-        return false;
+        return None;
     };
-    debug_log!("key: {:?} {:?} {:?}", key.code, key.modifiers, key.kind);
-    key.kind == KeyEventKind::Release
+    if !matches!(
+        key.code,
+        KeyCode::Modifier(ModifierKeyCode::LeftShift | ModifierKeyCode::RightShift)
+    ) {
+        return None;
+    }
+    match key.kind {
+        KeyEventKind::Press | KeyEventKind::Repeat => Some(true),
+        KeyEventKind::Release => Some(false),
+    }
+}
+
+/// Whether the event is a key *release*. Under the Kitty protocol every press is
+/// followed by a release that must not re-trigger the command a second time.
+pub fn is_key_release(event: &Event) -> bool {
+    matches!(event, Event::Key(key) if key.kind == KeyEventKind::Release)
 }
 
 pub enum InputMode {

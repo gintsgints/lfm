@@ -94,11 +94,23 @@ fn run(mut terminal: DefaultTerminal, extended_keys: bool) -> io::Result<PathBuf
         let Some(event) = event else { continue };
 
         #[cfg(feature = "debug")]
-        if keys::log_key_and_is_release(&event) {
+        keys::log_key(&event);
+
+        let event = normalize_key_event(event, extended_keys);
+
+        // Track Shift on its own so the hint bar can show the shifted command
+        // set while it is held. Only fires when the terminal reports release
+        // events (Kitty protocol); otherwise `shift_held` stays false.
+        if let Some(held) = keys::shift_held_change(&event) {
+            model = update(model, Message::SetShiftHeld(held)).0;
             continue;
         }
 
-        let event = normalize_key_event(event, extended_keys);
+        // A key release must not re-trigger a command — the Kitty protocol
+        // reports one for every press.
+        if keys::is_key_release(&event) {
+            continue;
+        }
 
         let mode = input_mode(&model);
 
