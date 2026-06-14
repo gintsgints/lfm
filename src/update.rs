@@ -6,7 +6,7 @@ use crate::message::Message;
 use crate::model::{
     ActivePanel, ContentSearch, FileFind, Model, TransferMode, TransferOp, TransferProgress,
 };
-use crate::ui::{file_panel, pinned_panel};
+use crate::ui::{file_panel, help_panel, pinned_panel};
 
 pub enum Effect {
     None,
@@ -49,8 +49,11 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
         Message::SelectPinnedDir => update_select_pinned_dir(model),
         Message::ToggleHelp => {
             model.show_help = !model.show_help;
+            model.help_selection = 0;
             (model, Effect::None)
         }
+        Message::HelpScrollUp => update_help_scroll(model, help_panel::prev_selectable),
+        Message::HelpScrollDown => update_help_scroll(model, help_panel::next_selectable),
         Message::SetShiftHeld(held) => {
             model.shift_held = held;
             (model, Effect::None)
@@ -137,6 +140,11 @@ fn dispatch_to_panel(mut model: Model, msg: Message) -> (Model, Option<String>) 
             (model, None)
         }
     }
+}
+
+fn update_help_scroll(mut model: Model, step: fn(usize) -> usize) -> (Model, Effect) {
+    model.help_selection = step(model.help_selection);
+    (model, Effect::None)
 }
 
 fn update_pin_current_dir(mut model: Model) -> (Model, Effect) {

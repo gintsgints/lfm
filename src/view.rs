@@ -122,7 +122,7 @@ fn render_overlays(model: &Model, frame: &mut Frame, area: ratatui::layout::Rect
     }
 
     if model.show_help {
-        ui::help_panel::render(frame, area);
+        ui::help_panel::render(frame, area, model.help_selection);
     }
 
     if let Some(progress) = &model.progress {
@@ -245,9 +245,13 @@ fn hint_line(model: &Model) -> Line<'static> {
         ])
     } else if model.show_help {
         Line::from(vec![
-            key(" Esc"),
+            key(" j/k"),
+            desc(" scroll  "),
+            key("Esc"),
             desc(" / "),
             key("?"),
+            desc(" / "),
+            key("q"),
             desc(" close help"),
         ])
     } else if let Some(line) = active_panel_hints(model) {

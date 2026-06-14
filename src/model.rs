@@ -126,6 +126,8 @@ pub struct Model {
     pub transfer_mode: TransferMode,
     pub rename_input: input_box::Model,
     pub show_help: bool,
+    /// Index of the highlighted line in the help panel; drives its scrolling.
+    pub help_selection: usize,
     /// Whether Shift is currently held. Tracked only when the terminal reports
     /// key release events (Kitty protocol), so the bottom hint bar can show the
     /// shifted command set while Shift is down. Stays `false` otherwise.
@@ -152,6 +154,7 @@ impl Model {
             transfer_mode: TransferMode::None,
             rename_input: input_box::Model::new(),
             show_help: false,
+            help_selection: 0,
             shift_held: false,
             #[cfg(feature = "debug")]
             show_debug: true,

@@ -224,7 +224,9 @@ pub fn to_message(event: &Event, active_panel: ActivePanel, mode: &InputMode) ->
 fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -> ModeIntercept {
     match mode {
         InputMode::Help => ModeIntercept::Consumed(match key.code {
-            KeyCode::Esc | KeyCode::Char('?') => Some(Message::ToggleHelp),
+            KeyCode::Esc | KeyCode::Char('?' | 'q') => Some(Message::ToggleHelp),
+            KeyCode::Char('j') | KeyCode::Down => Some(Message::HelpScrollDown),
+            KeyCode::Char('k') | KeyCode::Up => Some(Message::HelpScrollUp),
             _ => None,
         }),
         InputMode::DeleteConfirm => ModeIntercept::Consumed(match key.code {

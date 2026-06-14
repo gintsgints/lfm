@@ -47,6 +47,8 @@ pub enum Message {
     ConfirmRename,
     CancelRename,
     ToggleHelp,
+    HelpScrollUp,
+    HelpScrollDown,
     OpenEditor,
     OpenDefault,
     CycleSort,

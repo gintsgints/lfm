@@ -1,9 +1,9 @@
 use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
-    style::Style,
+    style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, List, ListItem},
+    widgets::{Block, Borders, Clear, List, ListItem, ListState},
 };
 
 use crate::theme;
@@ -56,12 +56,35 @@ const KEYBINDINGS: &[(&str, &str)] = &[
     ("q", "Quit"),
 ];
 
-pub fn render(frame: &mut Frame, area: Rect) {
+/// A line is selectable (can hold the highlight cursor) when it carries a key
+/// binding or section header — blank separator lines are skipped while scrolling.
+fn is_selectable(index: usize) -> bool {
+    KEYBINDINGS
+        .get(index)
+        .is_some_and(|(key, _)| !key.is_empty())
+}
+
+/// Next selectable line below `current`, or `current` if already at the bottom.
+pub fn next_selectable(current: usize) -> usize {
+    ((current + 1)..KEYBINDINGS.len())
+        .find(|&i| is_selectable(i))
+        .unwrap_or(current)
+}
+
+/// Previous selectable line above `current`, or `current` if already at the top.
+pub fn prev_selectable(current: usize) -> usize {
+    (0..current)
+        .rev()
+        .find(|&i| is_selectable(i))
+        .unwrap_or(current)
+}
+
+pub fn render(frame: &mut Frame, area: Rect, selection: usize) {
     let popup_area = centered_rect(60, 80, area);
 
     let block = Block::default()
         .title(Span::styled(
-            " Help  [Esc] close ",
+            " Help  [↑/↓ scroll, Esc close] ",
             Style::default().fg(theme::TEXT),
         ))
         .borders(Borders::ALL)
@@ -87,10 +110,18 @@ pub fn render(frame: &mut Frame, area: Rect) {
         })
         .collect();
 
-    let list = List::new(items).block(block);
+    let list = List::new(items).block(block).highlight_style(
+        Style::default()
+            .bg(theme::HIGHLIGHT_BG)
+            .fg(theme::HIGHLIGHT_FG)
+            .add_modifier(Modifier::BOLD),
+    );
+
+    let mut state = ListState::default();
+    state.select(Some(selection.min(KEYBINDINGS.len().saturating_sub(1))));
 
     frame.render_widget(Clear, popup_area);
-    frame.render_widget(list, popup_area);
+    frame.render_stateful_widget(list, popup_area, &mut state);
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
