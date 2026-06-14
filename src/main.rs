@@ -2,7 +2,7 @@ use std::{io, path::PathBuf, sync::mpsc, time::Duration};
 
 use ratatui::{
     DefaultTerminal,
-    crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
+    crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
 };
 
 mod archive;
@@ -28,13 +28,61 @@ use view::view;
 fn main() -> io::Result<()> {
     let choosedir = std::env::var_os("LFM_CHOOSEDIR").map(PathBuf::from);
     let terminal = ratatui::init();
+    enable_extended_key_reporting();
     let result = run(terminal);
+    disable_extended_key_reporting();
     ratatui::restore();
     let dir = result?;
     if let Some(path) = choosedir {
         let _ = std::fs::write(path, dir.display().to_string());
     }
     Ok(())
+}
+
+fn enable_extended_key_reporting() {
+    use ratatui::crossterm::{
+        event::{KeyboardEnhancementFlags, PushKeyboardEnhancementFlags},
+        execute,
+    };
+    #[cfg(feature = "debug")]
+    debug_log!(
+        "kbd enhancement query: {:?}",
+        ratatui::crossterm::terminal::supports_keyboard_enhancement()
+    );
+    let _ = execute!(
+        io::stdout(),
+        PushKeyboardEnhancementFlags(
+            KeyboardEnhancementFlags::REPORT_EVENT_TYPES
+                | KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES
+                | KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
+        )
+    );
+}
+
+fn disable_extended_key_reporting() {
+    use ratatui::crossterm::{event::PopKeyboardEnhancementFlags, execute};
+    let _ = execute!(io::stdout(), PopKeyboardEnhancementFlags);
+}
+
+#[cfg(feature = "debug")]
+fn log_key_and_is_release(event: &Event) -> bool {
+    let Event::Key(key) = event else {
+        return false;
+    };
+    #[cfg(feature = "debug")]
+    debug_log!("key: {:?} {:?} {:?}", key.code, key.modifiers, key.kind);
+    key.kind == KeyEventKind::Release
+}
+
+fn open_in_editor(terminal: &mut DefaultTerminal, path: &std::path::Path) {
+    let Some(editor) = std::env::var_os("EDITOR") else {
+        return;
+    };
+    disable_extended_key_reporting();
+    ratatui::restore();
+    let _ = std::process::Command::new(editor).arg(path).status();
+    *terminal = ratatui::init();
+    enable_extended_key_reporting();
 }
 
 fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
@@ -79,8 +127,8 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
         let Some(event) = event else { continue };
 
         #[cfg(feature = "debug")]
-        if let Event::Key(key) = &event {
-            debug_log!("key: {:?} {:?}", key.code, key.modifiers);
+        if log_key_and_is_release(&event) {
+            continue;
         }
 
         let mode = input_mode(&model);
@@ -93,13 +141,7 @@ fn run(mut terminal: DefaultTerminal) -> io::Result<PathBuf> {
                     let _ = state::save(&model.to_persisted());
                     return Ok(model.left_files.current_dir.clone());
                 }
-                Effect::OpenEditor(path) => {
-                    if let Some(editor) = std::env::var_os("EDITOR") {
-                        ratatui::restore();
-                        let _ = std::process::Command::new(editor).arg(&path).status();
-                        terminal = ratatui::init();
-                    }
-                }
+                Effect::OpenEditor(path) => open_in_editor(&mut terminal, &path),
                 Effect::OpenDefault(path) => {
                     #[cfg(target_os = "macos")]
                     let _ = std::process::Command::new("open").arg(&path).spawn();
