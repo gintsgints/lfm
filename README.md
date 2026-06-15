@@ -16,6 +16,7 @@ A fast, keyboard-driven TUI file manager built in Rust, inspired by two-panel fi
 - Sort by name, date modified, extension, or size
 - Zip selected items; extract `.zip` and `.tar.gz` archives
 - Recursive content search (`S`) with live streaming results
+- User-defined preset commands (`x`) — run any shell command on the selection, with optional `{input}` prompt
 - Error popup for failed file operations
 - Nerd Font icons in the file list
 - Catppuccin Mocha colour theme
@@ -96,6 +97,7 @@ lfm() {
 | `m` | Move selected or current item — opens destination panel, `M` with rename before |
 | `e` | Open selected item in `$EDITOR` |
 | `o` | Open with default application |
+| `x` | Run a preset command on the selection (see [Preset commands](#preset-commands)) |
 | `s` | Cycle sort order: name → date → ext → size |
 | `z` | Zip selected or current item(s) |
 | `u` | Extract `.zip` or `.tar.gz` archive |
@@ -154,6 +156,66 @@ lfm() {
 |-----|--------|
 | `?` | Show keybinding help |
 | `q` | Quit and cd to active directory |
+
+## Preset commands
+
+Press `x` in a file panel to open the **preset picker** — a list of user-defined commands loaded from `~/.config/lfm/commands.json`. On first run, lfm writes a starter file with a few examples.
+
+### Picker keys
+
+| Key | Action |
+|-----|--------|
+| `j` / `↓` | Move down |
+| `k` / `↑` | Move up |
+| `Enter` | Run the selected preset (prompts for `{input}` first if the template needs it) |
+| `Esc` | Close picker / back out of input step |
+
+### Config format
+
+Each entry in `commands.json` is a JSON object:
+
+```json
+{
+  "presets": [
+    { "label": "file (show type)",   "command": ["file", "{paths}"],          "output": "capture" },
+    { "label": "wc (count lines)",   "command": ["wc", "-l", "{paths}"],      "output": "capture" },
+    { "label": "grep for {input}",   "command": "grep -rn {input} {files}",   "output": "capture" },
+    { "label": "open in VS Code",    "command": ["code", "{paths}"] }
+  ]
+}
+```
+
+- **`label`** — shown in the picker.
+- **`command`** — an **array** runs the program directly (no shell, no quoting pitfalls); a **string** runs via `sh -c`, so pipes, redirects, and `&&` work.
+- **`output`** *(optional)* — `background` (default), `block`, or `capture`. See below.
+
+### Placeholders
+
+Templates may reference any of the following. Both `{files}` and `{paths}` expand to **N entries** (one per selected file) when used as a whole argv element; embedding them inside a larger string (e.g. `--out={files}.bak`) requires a single selection.
+
+| Placeholder | Expands to |
+|-------------|------------|
+| `{files}` | File names as shown in the panel (relative to the panel's cwd) |
+| `{paths}` | Absolute paths |
+| `{input}` | A single value the picker prompts for (only when this placeholder is present) |
+
+In `sh -c` mode every expanded value is single-quoted, so filenames with spaces or quotes stay safe.
+
+### Selection model
+
+Commands act on **marked files if any, otherwise the file under the cursor** — the same rule as copy, move, and delete. A command that references `{files}` or `{paths}` but has nothing selected (e.g. in an empty directory) raises an error and doesn't run.
+
+The command's working directory is the active panel's current directory; both panels are refreshed when the command finishes.
+
+### Output modes
+
+| Mode | Behaviour |
+|------|-----------|
+| `background` *(default)* | Spawn and forget. Output is discarded. Good for GUI launches (`code`, `mpv`, `xdg-open`). |
+| `block` | Suspend the TUI, run the command attached to the terminal, then wait for `Enter` to return. Good for interactive tools (`git log`, `htop`, anything piped to `less`). |
+| `capture` | Run hidden, collect `stdout` + `stderr`, show the merged buffer in a scrollable popup with `exit N` in the header. Good for quick info commands (`file`, `wc`, `grep`). |
+
+In the capture popup: `j`/`k` scroll a line, `PgUp`/`PgDn` page, `Esc` or `Enter` close.
 
 ## Session persistence
 
