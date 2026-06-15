@@ -956,7 +956,7 @@ fn run_selected_preset(mut model: Model, input: &str) -> (Model, Effect) {
         return (model, Effect::None);
     }
 
-    let spec = match preset.expand(&names, &paths, input) {
+    let spec = match preset.expand(&names, &paths, &cwd, input) {
         Ok(s) => s,
         Err(e) => {
             model.command_picker = None;

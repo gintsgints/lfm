@@ -197,6 +197,7 @@ Templates may reference any of the following. Both `{files}` and `{paths}` expan
 |-------------|------------|
 | `{files}` | File names as shown in the panel (relative to the panel's cwd) |
 | `{paths}` | Absolute paths |
+| `{cwd}` | The active panel's current directory (absolute) |
 | `{input}` | A single value the picker prompts for (only when this placeholder is present) |
 
 In `sh -c` mode every expanded value is single-quoted, so filenames with spaces or quotes stay safe.

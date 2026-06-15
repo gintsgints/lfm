@@ -94,13 +94,16 @@ impl Preset {
         &self,
         names: &[String],
         paths: &[PathBuf],
+        cwd: &Path,
         input: &str,
     ) -> Result<ExecSpec, String> {
         match &self.command {
             CommandTemplate::Argv(parts) => {
-                expand_argv(parts, names, paths, input).map(ExecSpec::Argv)
+                expand_argv(parts, names, paths, cwd, input).map(ExecSpec::Argv)
             }
-            CommandTemplate::Shell(s) => Ok(ExecSpec::Shell(expand_shell(s, names, paths, input))),
+            CommandTemplate::Shell(s) => {
+                Ok(ExecSpec::Shell(expand_shell(s, names, paths, cwd, input)))
+            }
         }
     }
 
@@ -118,8 +121,10 @@ fn expand_argv(
     parts: &[String],
     names: &[String],
     paths: &[PathBuf],
+    cwd: &Path,
     input: &str,
 ) -> Result<Vec<OsString>, String> {
+    let cwd_s = cwd.display().to_string();
     let mut out: Vec<OsString> = Vec::new();
     for part in parts {
         if part == "{files}" {
@@ -130,31 +135,52 @@ fn expand_argv(
             for p in paths {
                 out.push(p.clone().into_os_string());
             }
-        } else if part == "{input}" {
-            out.push(OsString::from(input));
         } else if part.contains("{files}") || part.contains("{paths}") {
-            // Embedded placeholder — only valid for a single file.
+            // Embedded multi-value placeholder — only valid for a single file.
             if names.len() != 1 {
                 return Err(format!(
                     "placeholder embedded in '{part}' requires exactly one selected file (got {})",
                     names.len()
                 ));
             }
-            let s = part
-                .replace("{files}", &names[0])
-                .replace("{paths}", &paths[0].display().to_string())
-                .replace("{input}", input);
+            let s = substitute_single(part, Some(&names[0]), Some(&paths[0]), &cwd_s, input);
             out.push(OsString::from(s));
-        } else if part.contains("{input}") {
-            out.push(OsString::from(part.replace("{input}", input)));
         } else {
-            out.push(OsString::from(part));
+            // {cwd} and {input} are always single values, so they're safe to
+            // substitute on any arg regardless of selection size.
+            out.push(OsString::from(substitute_single(
+                part, None, None, &cwd_s, input,
+            )));
         }
     }
     Ok(out)
 }
 
-fn expand_shell(template: &str, names: &[String], paths: &[PathBuf], input: &str) -> String {
+/// Replace single-value placeholders in `s`. `name` and `path` are `Some` only
+/// when we've verified there's exactly one selected file.
+fn substitute_single(
+    s: &str,
+    name: Option<&String>,
+    path: Option<&PathBuf>,
+    cwd: &str,
+    input: &str,
+) -> String {
+    let mut out = s.replace("{cwd}", cwd).replace("{input}", input);
+    if let (Some(name), Some(path)) = (name, path) {
+        out = out
+            .replace("{files}", name)
+            .replace("{paths}", &path.display().to_string());
+    }
+    out
+}
+
+fn expand_shell(
+    template: &str,
+    names: &[String],
+    paths: &[PathBuf],
+    cwd: &Path,
+    input: &str,
+) -> String {
     let files = names
         .iter()
         .map(|n| shell_quote(n))
@@ -165,10 +191,12 @@ fn expand_shell(template: &str, names: &[String], paths: &[PathBuf], input: &str
         .map(|p| shell_quote(&p.display().to_string()))
         .collect::<Vec<_>>()
         .join(" ");
+    let cwd_q = shell_quote(&cwd.display().to_string());
     let input_q = shell_quote(input);
     template
         .replace("{files}", &files)
         .replace("{paths}", &pathstr)
+        .replace("{cwd}", &cwd_q)
         .replace("{input}", &input_q)
 }
 
@@ -240,6 +268,10 @@ mod tests {
         v.iter().map(PathBuf::from).collect()
     }
 
+    fn cwd() -> &'static Path {
+        Path::new("/cwd")
+    }
+
     fn argv_preset(parts: &[&str]) -> Preset {
         Preset {
             label: "t".into(),
@@ -277,7 +309,7 @@ mod tests {
     fn argv_files_expands_to_multiple_args() {
         let p = argv_preset(&["ls", "{files}"]);
         let got = expect_argv(
-            p.expand(&names(&["a", "b"]), &paths(&["/x/a", "/x/b"]), "")
+            p.expand(&names(&["a", "b"]), &paths(&["/x/a", "/x/b"]), cwd(), "")
                 .unwrap(),
         );
         assert_eq!(got, vec!["ls", "a", "b"]);
@@ -286,7 +318,10 @@ mod tests {
     #[test]
     fn argv_paths_expands_to_absolute() {
         let p = argv_preset(&["cat", "{paths}"]);
-        let got = expect_argv(p.expand(&names(&["a"]), &paths(&["/x/a"]), "").unwrap());
+        let got = expect_argv(
+            p.expand(&names(&["a"]), &paths(&["/x/a"]), cwd(), "")
+                .unwrap(),
+        );
         assert_eq!(got, vec!["cat", "/x/a"]);
     }
 
@@ -294,23 +329,40 @@ mod tests {
     fn argv_input_is_single_arg() {
         let p = argv_preset(&["grep", "{input}", "{files}"]);
         let got = expect_argv(
-            p.expand(&names(&["a"]), &paths(&["/x/a"]), "foo bar")
+            p.expand(&names(&["a"]), &paths(&["/x/a"]), cwd(), "foo bar")
                 .unwrap(),
         );
         assert_eq!(got, vec!["grep", "foo bar", "a"]);
     }
 
     #[test]
+    fn argv_cwd_is_single_arg() {
+        let p = argv_preset(&["cd", "{cwd}"]);
+        let got = expect_argv(p.expand(&[], &[], cwd(), "").unwrap());
+        assert_eq!(got, vec!["cd", "/cwd"]);
+    }
+
+    #[test]
+    fn argv_cwd_embedded_in_arg() {
+        let p = argv_preset(&["sh", "--rcfile={cwd}/.rc"]);
+        let got = expect_argv(p.expand(&[], &[], cwd(), "").unwrap());
+        assert_eq!(got, vec!["sh", "--rcfile=/cwd/.rc"]);
+    }
+
+    #[test]
     fn argv_embedded_placeholder_with_single_file_substitutes() {
         let p = argv_preset(&["mv", "{files}", "{files}.bak"]);
-        let got = expect_argv(p.expand(&names(&["a"]), &paths(&["/x/a"]), "").unwrap());
+        let got = expect_argv(
+            p.expand(&names(&["a"]), &paths(&["/x/a"]), cwd(), "")
+                .unwrap(),
+        );
         assert_eq!(got, vec!["mv", "a", "a.bak"]);
     }
 
     #[test]
     fn argv_embedded_placeholder_with_many_files_errors() {
         let p = argv_preset(&["mv", "{files}", "{paths}.bak"]);
-        let err = match p.expand(&names(&["a", "b"]), &paths(&["/x/a", "/x/b"]), "") {
+        let err = match p.expand(&names(&["a", "b"]), &paths(&["/x/a", "/x/b"]), cwd(), "") {
             Ok(_) => panic!("expected error"),
             Err(e) => e,
         };
@@ -321,7 +373,7 @@ mod tests {
     fn shell_quotes_filenames_with_spaces() {
         let p = shell_preset("ls {files}");
         let got = expect_shell(
-            p.expand(&names(&["my file"]), &paths(&["/x/my file"]), "")
+            p.expand(&names(&["my file"]), &paths(&["/x/my file"]), cwd(), "")
                 .unwrap(),
         );
         assert_eq!(got, "ls 'my file'");
@@ -331,7 +383,7 @@ mod tests {
     fn shell_escapes_single_quotes_in_filenames() {
         let p = shell_preset("ls {files}");
         let got = expect_shell(
-            p.expand(&names(&["it's"]), &paths(&["/x/it's"]), "")
+            p.expand(&names(&["it's"]), &paths(&["/x/it's"]), cwd(), "")
                 .unwrap(),
         );
         assert_eq!(got, r"ls 'it'\''s'");
@@ -341,10 +393,18 @@ mod tests {
     fn shell_quotes_input() {
         let p = shell_preset("grep {input} {files}");
         let got = expect_shell(
-            p.expand(&names(&["a"]), &paths(&["/x/a"]), "hello world")
+            p.expand(&names(&["a"]), &paths(&["/x/a"]), cwd(), "hello world")
                 .unwrap(),
         );
         assert_eq!(got, "grep 'hello world' 'a'");
+    }
+
+    #[test]
+    fn shell_quotes_cwd() {
+        let p = shell_preset("ls {cwd}");
+        let dir = Path::new("/path with space");
+        let got = expect_shell(p.expand(&[], &[], dir, "").unwrap());
+        assert_eq!(got, "ls '/path with space'");
     }
 
     #[test]
@@ -360,5 +420,7 @@ mod tests {
         assert!(argv_preset(&["cat", "{paths}"]).references_files());
         assert!(!argv_preset(&["true"]).references_files());
         assert!(!shell_preset("echo hello").references_files());
+        // {cwd} doesn't require a selection — runs even with empty file list.
+        assert!(!argv_preset(&["pwd-print", "{cwd}"]).references_files());
     }
 }
