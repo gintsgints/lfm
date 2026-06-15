@@ -1,6 +1,7 @@
 use std::{io, path::PathBuf};
 
 use crate::file_find::FileFindResult;
+use crate::presets::Preset;
 use crate::search::SearchResult;
 use crate::state::PersistedState;
 use crate::ui::{file_panel, input_box, pinned_panel};
@@ -116,6 +117,33 @@ impl ActivePanel {
     }
 }
 
+/// Open command picker. While `input` is `Some`, the picker has moved on to
+/// the second step (collecting `{input}`) for the highlighted preset.
+pub struct CommandPicker {
+    pub presets: Vec<Preset>,
+    pub selection: usize,
+    pub input: Option<input_box::Model>,
+}
+
+impl CommandPicker {
+    pub fn new(presets: Vec<Preset>) -> Self {
+        Self {
+            presets,
+            selection: 0,
+            input: None,
+        }
+    }
+}
+
+/// Output of a `capture`-mode preset, displayed in a scrollable popup.
+pub struct CapturePopup {
+    pub label: String,
+    /// `None` means the command failed to spawn (binary not found, etc.).
+    pub exit_code: Option<i32>,
+    pub output: String,
+    pub scroll: u16,
+}
+
 pub struct Model {
     pub active_panel: ActivePanel,
     /// The file panel that was active when the pinned panel was opened.
@@ -140,6 +168,8 @@ pub struct Model {
     pub error_message: Option<String>,
     pub content_search: Option<ContentSearch>,
     pub file_find: Option<FileFind>,
+    pub command_picker: Option<CommandPicker>,
+    pub capture_popup: Option<CapturePopup>,
 }
 
 impl Model {
@@ -163,6 +193,8 @@ impl Model {
             error_message: None,
             content_search: None,
             file_find: None,
+            command_picker: None,
+            capture_popup: None,
         })
     }
 

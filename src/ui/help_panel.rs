@@ -33,6 +33,7 @@ const KEYBINDINGS: &[(&str, &str)] = &[
     ("Shift+M", "Move single item — rename before placing"),
     ("e", "Open selected item in $EDITOR"),
     ("o", "Open with default application"),
+    ("x", "Run preset command (see ~/.config/lfm/commands.json)"),
     ("s", "Cycle sort: name / date / ext / size"),
     ("z", "Zip selected or current item(s)"),
     ("u", "Extract .zip or .tar.gz archive"),

@@ -8,6 +8,7 @@ mod file_find;
 mod keys;
 mod message;
 mod model;
+mod presets;
 mod search;
 mod state;
 #[cfg(test)]
@@ -23,8 +24,9 @@ use keys::{
     to_message,
 };
 use message::Message;
-use model::Model;
-use update::{Effect, update};
+use model::{CapturePopup, Model};
+use presets::OutputMode;
+use update::{Effect, RunSpec, update};
 use view::view;
 
 fn main() -> io::Result<()> {
@@ -39,6 +41,82 @@ fn main() -> io::Result<()> {
         let _ = std::fs::write(path, dir.display().to_string());
     }
     Ok(())
+}
+
+fn build_command(spec: &RunSpec) -> std::process::Command {
+    if let Some(argv) = &spec.argv {
+        let mut iter = argv.iter();
+        let program = iter.next().cloned().unwrap_or_default();
+        let mut cmd = std::process::Command::new(program);
+        cmd.args(iter);
+        cmd.current_dir(&spec.cwd);
+        cmd
+    } else {
+        let shell_cmd = spec.shell.clone().unwrap_or_default();
+        let mut cmd = std::process::Command::new("sh");
+        cmd.arg("-c").arg(shell_cmd);
+        cmd.current_dir(&spec.cwd);
+        cmd
+    }
+}
+
+/// Execute a preset command and update the model with any UI-visible result
+/// (capture popup, error modal, refreshed panels).
+fn run_preset_command(terminal: &mut DefaultTerminal, mut model: Model, spec: RunSpec) -> Model {
+    match spec.mode {
+        OutputMode::Background => {
+            let mut cmd = build_command(&spec);
+            if let Err(e) = cmd.spawn() {
+                model.error_message = Some(format!("spawn '{}' failed: {e}", spec.label));
+            }
+            model
+        }
+        OutputMode::Capture => {
+            let mut cmd = build_command(&spec);
+            match cmd.output() {
+                Ok(out) => {
+                    let mut buf = String::new();
+                    buf.push_str(&String::from_utf8_lossy(&out.stdout));
+                    if !out.stderr.is_empty() {
+                        buf.push_str(&String::from_utf8_lossy(&out.stderr));
+                    }
+                    model.capture_popup = Some(CapturePopup {
+                        label: spec.label,
+                        exit_code: out.status.code(),
+                        output: buf,
+                        scroll: 0,
+                    });
+                }
+                Err(e) => {
+                    model.error_message = Some(format!("spawn '{}' failed: {e}", spec.label));
+                }
+            }
+            model
+        }
+        OutputMode::Block => {
+            disable_extended_key_reporting();
+            ratatui::restore();
+            let mut cmd = build_command(&spec);
+            let status = cmd.status();
+            // Pause so the user can read the command's output before the TUI
+            // wipes it. Done in cooked stdin mode (Enter to continue).
+            println!();
+            println!("[Press Enter to return to lfm]");
+            let mut buf = String::new();
+            let _ = std::io::stdin().read_line(&mut buf);
+            *terminal = ratatui::init();
+            enable_extended_key_reporting();
+            if let Err(e) = status {
+                model.error_message = Some(format!("spawn '{}' failed: {e}", spec.label));
+            }
+            // Refresh panels here so any filesystem changes are visible.
+            let left = model.left_files.current_dir.clone();
+            model.left_files.navigate_to(left);
+            let right = model.right_files.current_dir.clone();
+            model.right_files.navigate_to(right);
+            model
+        }
+    }
 }
 
 fn open_in_editor(terminal: &mut DefaultTerminal, path: &std::path::Path) {
@@ -162,6 +240,9 @@ fn run(mut terminal: DefaultTerminal, extended_keys: bool) -> io::Result<PathBuf
                     let (tx, rx) = mpsc::channel();
                     search_rx = Some(rx);
                     std::thread::spawn(move || search::run_search(&root, &query, &tx));
+                }
+                Effect::RunCommand { spec } => {
+                    model = run_preset_command(&mut terminal, model, spec);
                 }
                 Effect::StartFileFind { root, query } => {
                     let (tx, rx) = mpsc::channel();

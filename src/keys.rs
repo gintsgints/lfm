@@ -152,6 +152,9 @@ pub enum InputMode {
     ContentSearchResults,
     FileFindInput,
     FileFindResults,
+    CommandPicker,
+    CommandInput,
+    CapturePopup,
 }
 
 pub fn input_mode(model: &Model) -> InputMode {
@@ -168,6 +171,14 @@ pub fn input_mode(model: &Model) -> InputMode {
 
     if model.error_message.is_some() {
         InputMode::Error
+    } else if model.capture_popup.is_some() {
+        InputMode::CapturePopup
+    } else if let Some(cp) = &model.command_picker {
+        if cp.input.is_some() {
+            InputMode::CommandInput
+        } else {
+            InputMode::CommandPicker
+        }
     } else if let Some(cs) = &model.content_search {
         if cs.input_focused {
             InputMode::ContentSearchInput
@@ -303,7 +314,42 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
         | InputMode::ContentSearchResults
         | InputMode::FileFindInput
         | InputMode::FileFindResults => intercept_search_mode(key, mode),
+        InputMode::CommandPicker | InputMode::CommandInput | InputMode::CapturePopup => {
+            intercept_command_mode(key, mode)
+        }
     }
+}
+
+/// Key handling for the preset-command picker, its `{input}` step, and the
+/// capture-output popup.
+fn intercept_command_mode(key: &KeyEvent, mode: &InputMode) -> ModeIntercept {
+    ModeIntercept::Consumed(match mode {
+        InputMode::CommandPicker => match key.code {
+            KeyCode::Esc => Some(Message::CommandPickerCancel),
+            KeyCode::Enter => Some(Message::CommandPickerConfirm),
+            KeyCode::Up | KeyCode::Char('k') => Some(Message::CommandPickerUp),
+            KeyCode::Down | KeyCode::Char('j') => Some(Message::CommandPickerDown),
+            _ => None,
+        },
+        InputMode::CommandInput => match key.code {
+            KeyCode::Esc => Some(Message::CommandInputCancel),
+            KeyCode::Enter => Some(Message::CommandInputConfirm),
+            KeyCode::Backspace => Some(Message::CommandInputBackspace),
+            KeyCode::Left => Some(Message::CommandInputCursorLeft),
+            KeyCode::Right => Some(Message::CommandInputCursorRight),
+            KeyCode::Char(c) => Some(Message::CommandInputChar(c)),
+            _ => None,
+        },
+        InputMode::CapturePopup => match key.code {
+            KeyCode::Esc | KeyCode::Enter => Some(Message::CapturePopupClose),
+            KeyCode::Up | KeyCode::Char('k') => Some(Message::CapturePopupScrollUp),
+            KeyCode::Down | KeyCode::Char('j') => Some(Message::CapturePopupScrollDown),
+            KeyCode::PageUp => Some(Message::CapturePopupPageUp),
+            KeyCode::PageDown => Some(Message::CapturePopupPageDown),
+            _ => None,
+        },
+        _ => None,
+    })
 }
 
 /// Key handling for the content-search and file-find popups, which share the
@@ -377,6 +423,9 @@ fn normal_key(key: &KeyEvent, active_panel: ActivePanel) -> Option<Message> {
         KeyCode::Char('z') if active_panel != ActivePanel::Pinned => Some(Message::ZipFiles),
         KeyCode::Char('u') if active_panel != ActivePanel::Pinned => Some(Message::UnzipFile),
         KeyCode::Char('e') if active_panel != ActivePanel::Pinned => Some(Message::OpenEditor),
+        KeyCode::Char('x') if active_panel != ActivePanel::Pinned => {
+            Some(Message::OpenCommandPicker)
+        }
         KeyCode::Char('o') if active_panel != ActivePanel::Pinned => Some(Message::OpenDefault),
         KeyCode::Char('r') if active_panel != ActivePanel::Pinned => Some(Message::RenameInPlace),
         KeyCode::Char('c') if active_panel != ActivePanel::Pinned => Some(Message::StartCopy),

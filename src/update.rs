@@ -1,12 +1,15 @@
+use std::ffi::OsString;
 use std::path::PathBuf;
 
 #[cfg(feature = "debug")]
 use crate::debug_log;
 use crate::message::Message;
 use crate::model::{
-    ActivePanel, ContentSearch, FileFind, Model, TransferMode, TransferOp, TransferProgress,
+    ActivePanel, CommandPicker, ContentSearch, FileFind, Model, TransferMode, TransferOp,
+    TransferProgress,
 };
-use crate::ui::{file_panel, help_panel, pinned_panel};
+use crate::presets::{self, ExecSpec, OutputMode};
+use crate::ui::{capture_popup, file_panel, help_panel, input_box, pinned_panel};
 
 pub enum Effect {
     None,
@@ -20,8 +23,18 @@ pub enum Effect {
     StartDelete(Vec<PathBuf>),
     StartContentSearch { root: PathBuf, query: String },
     StartFileFind { root: PathBuf, query: String },
+    RunCommand { spec: RunSpec },
 }
 
+pub struct RunSpec {
+    pub argv: Option<Vec<OsString>>,
+    pub shell: Option<String>,
+    pub cwd: PathBuf,
+    pub mode: OutputMode,
+    pub label: String,
+}
+
+#[allow(clippy::too_many_lines)]
 pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
     #[cfg(feature = "debug")]
     debug_log!("msg: {msg:?}");
@@ -113,6 +126,22 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
         | Message::FileFindUp
         | Message::FileFindDown
         | Message::FileFindConfirm => update_file_find(model, msg),
+        Message::OpenCommandPicker
+        | Message::CommandPickerUp
+        | Message::CommandPickerDown
+        | Message::CommandPickerCancel
+        | Message::CommandPickerConfirm
+        | Message::CommandInputChar(_)
+        | Message::CommandInputBackspace
+        | Message::CommandInputCursorLeft
+        | Message::CommandInputCursorRight
+        | Message::CommandInputCancel
+        | Message::CommandInputConfirm => update_command(model, msg),
+        Message::CapturePopupScrollUp
+        | Message::CapturePopupScrollDown
+        | Message::CapturePopupPageUp
+        | Message::CapturePopupPageDown
+        | Message::CapturePopupClose => update_capture_popup(model, msg),
         msg => {
             let (mut m, err) = dispatch_to_panel(model, msg);
             if let Some(e) = err {
@@ -733,4 +762,221 @@ fn confirm_file_find(mut model: Model) -> (Model, Effect) {
     }
     model.active_panel = ActivePanel::LeftFiles;
     (model, Effect::None)
+}
+
+fn refresh_both_panels(model: &mut Model) {
+    let left = model.left_files.current_dir.clone();
+    model.left_files.navigate_to(left);
+    let right = model.right_files.current_dir.clone();
+    model.right_files.navigate_to(right);
+}
+
+fn active_panel_dir(model: &Model) -> Option<PathBuf> {
+    match model.active_panel {
+        ActivePanel::LeftFiles => Some(model.left_files.current_dir.clone()),
+        ActivePanel::RightFiles => Some(model.right_files.current_dir.clone()),
+        ActivePanel::Pinned => None,
+    }
+}
+
+fn active_selection(model: &Model) -> Option<(Vec<String>, Vec<PathBuf>)> {
+    let panel = match model.active_panel {
+        ActivePanel::LeftFiles => &model.left_files,
+        ActivePanel::RightFiles => &model.right_files,
+        ActivePanel::Pinned => return None,
+    };
+    let targets = panel.action_targets();
+    let names = targets.iter().map(|t| t.name.clone()).collect();
+    let paths = targets.iter().map(|t| t.path.clone()).collect();
+    Some((names, paths))
+}
+
+fn update_command(mut model: Model, msg: Message) -> (Model, Effect) {
+    match msg {
+        Message::OpenCommandPicker => update_open_command_picker(model),
+        Message::CommandPickerUp => update_command_picker_move(model, true),
+        Message::CommandPickerDown => update_command_picker_move(model, false),
+        Message::CommandPickerCancel => {
+            model.command_picker = None;
+            (model, Effect::None)
+        }
+        Message::CommandPickerConfirm => update_command_picker_confirm(model),
+        Message::CommandInputChar(c) => {
+            if let Some(input) = command_input_mut(&mut model) {
+                input.insert(c);
+            }
+            (model, Effect::None)
+        }
+        Message::CommandInputBackspace => {
+            if let Some(input) = command_input_mut(&mut model) {
+                input.backspace();
+            }
+            (model, Effect::None)
+        }
+        Message::CommandInputCursorLeft => {
+            if let Some(input) = command_input_mut(&mut model) {
+                input.move_left();
+            }
+            (model, Effect::None)
+        }
+        Message::CommandInputCursorRight => {
+            if let Some(input) = command_input_mut(&mut model) {
+                input.move_right();
+            }
+            (model, Effect::None)
+        }
+        Message::CommandInputCancel => {
+            if let Some(cp) = &mut model.command_picker {
+                cp.input = None;
+            }
+            (model, Effect::None)
+        }
+        Message::CommandInputConfirm => update_command_input_confirm(model),
+        _ => (model, Effect::None),
+    }
+}
+
+fn command_input_mut(model: &mut Model) -> Option<&mut input_box::Model> {
+    model
+        .command_picker
+        .as_mut()
+        .and_then(|cp| cp.input.as_mut())
+}
+
+fn update_capture_popup(mut model: Model, msg: Message) -> (Model, Effect) {
+    let Some(p) = &mut model.capture_popup else {
+        return (model, Effect::None);
+    };
+    let max = capture_popup::line_count(p).saturating_sub(1);
+    match msg {
+        Message::CapturePopupScrollUp => {
+            p.scroll = p.scroll.saturating_sub(1);
+        }
+        Message::CapturePopupScrollDown => {
+            p.scroll = p.scroll.saturating_add(1).min(max);
+        }
+        Message::CapturePopupPageUp => {
+            p.scroll = p.scroll.saturating_sub(10);
+        }
+        Message::CapturePopupPageDown => {
+            p.scroll = p.scroll.saturating_add(10).min(max);
+        }
+        Message::CapturePopupClose => {
+            model.capture_popup = None;
+            refresh_both_panels(&mut model);
+        }
+        _ => {}
+    }
+    (model, Effect::None)
+}
+
+fn update_open_command_picker(mut model: Model) -> (Model, Effect) {
+    if model.active_panel == ActivePanel::Pinned {
+        return (model, Effect::None);
+    }
+    match presets::load_or_create() {
+        Ok(presets) => {
+            model.command_picker = Some(CommandPicker::new(presets));
+        }
+        Err(e) => {
+            model.error_message = Some(format!("commands.json: {e}"));
+        }
+    }
+    (model, Effect::None)
+}
+
+fn update_command_picker_move(mut model: Model, up: bool) -> (Model, Effect) {
+    if let Some(cp) = &mut model.command_picker
+        && cp.input.is_none()
+        && !cp.presets.is_empty()
+    {
+        if up {
+            cp.selection = cp.selection.saturating_sub(1);
+        } else {
+            cp.selection = (cp.selection + 1).min(cp.presets.len() - 1);
+        }
+    }
+    (model, Effect::None)
+}
+
+fn update_command_picker_confirm(mut model: Model) -> (Model, Effect) {
+    let needs_input = {
+        let Some(cp) = &model.command_picker else {
+            return (model, Effect::None);
+        };
+        let Some(preset) = cp.presets.get(cp.selection) else {
+            return (model, Effect::None);
+        };
+        preset.needs_input()
+    };
+    if needs_input {
+        if let Some(cp) = &mut model.command_picker {
+            let mut input = input_box::Model::new();
+            input.open();
+            cp.input = Some(input);
+        }
+        return (model, Effect::None);
+    }
+    run_selected_preset(model, "")
+}
+
+fn update_command_input_confirm(model: Model) -> (Model, Effect) {
+    let input_text = model
+        .command_picker
+        .as_ref()
+        .and_then(|cp| cp.input.as_ref())
+        .map(|i| i.text.clone())
+        .unwrap_or_default();
+    run_selected_preset(model, &input_text)
+}
+
+fn run_selected_preset(mut model: Model, input: &str) -> (Model, Effect) {
+    let (preset, cwd) = {
+        let Some(cp) = &model.command_picker else {
+            return (model, Effect::None);
+        };
+        let Some(preset) = cp.presets.get(cp.selection).cloned() else {
+            return (model, Effect::None);
+        };
+        let Some(cwd) = active_panel_dir(&model) else {
+            model.command_picker = None;
+            return (model, Effect::None);
+        };
+        (preset, cwd)
+    };
+
+    let (names, paths) = active_selection(&model).unwrap_or_default();
+
+    if preset.references_files() && names.is_empty() {
+        model.command_picker = None;
+        model.error_message = Some(format!(
+            "'{}' requires a selected file (none available)",
+            preset.label
+        ));
+        return (model, Effect::None);
+    }
+
+    let spec = match preset.expand(&names, &paths, input) {
+        Ok(s) => s,
+        Err(e) => {
+            model.command_picker = None;
+            model.error_message = Some(format!("'{}': {e}", preset.label));
+            return (model, Effect::None);
+        }
+    };
+
+    let (argv, shell) = match spec {
+        ExecSpec::Argv(v) => (Some(v), None),
+        ExecSpec::Shell(s) => (None, Some(s)),
+    };
+
+    let run = RunSpec {
+        argv,
+        shell,
+        cwd,
+        mode: preset.output,
+        label: preset.label.clone(),
+    };
+    model.command_picker = None;
+    (model, Effect::RunCommand { spec: run })
 }

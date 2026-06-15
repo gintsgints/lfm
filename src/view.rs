@@ -137,6 +137,14 @@ fn render_overlays(model: &Model, frame: &mut Frame, area: ratatui::layout::Rect
         ui::file_find_panel::render(frame, area, ff);
     }
 
+    if let Some(cp) = &model.command_picker {
+        ui::command_picker::render(frame, area, cp);
+    }
+
+    if let Some(pop) = &model.capture_popup {
+        ui::capture_popup::render(frame, area, pop);
+    }
+
     if let Some(msg) = &model.error_message {
         ui::error_box::render(frame, area, msg);
     }
@@ -225,6 +233,37 @@ fn active_panel_hints(model: &Model) -> Option<Line<'static>> {
 }
 
 fn hint_line(model: &Model) -> Line<'static> {
+    if model.capture_popup.is_some() {
+        return Line::from(vec![
+            key(" j/k"),
+            desc(" scroll  "),
+            key("PgUp/PgDn"),
+            desc(" page  "),
+            key("Esc"),
+            desc(" / "),
+            key("Enter"),
+            desc(" close"),
+        ]);
+    }
+    if let Some(cp) = &model.command_picker {
+        return if cp.input.is_some() {
+            Line::from(vec![
+                key(" Enter"),
+                desc(" run  "),
+                key("Esc"),
+                desc(" back"),
+            ])
+        } else {
+            Line::from(vec![
+                key(" j/k"),
+                desc(" move  "),
+                key("Enter"),
+                desc(" select  "),
+                key("Esc"),
+                desc(" close"),
+            ])
+        };
+    }
     if let Some(cs) = &model.content_search {
         content_search_hint(cs.input_focused)
     } else if let Some(ff) = &model.file_find {
@@ -361,6 +400,8 @@ fn normal_hint_spans() -> Vec<Span<'static>> {
         desc(" pins  "),
         key("e"),
         desc(" editor  "),
+        key("x"),
+        desc(" run  "),
         key("S"),
         desc(" search"),
     ]

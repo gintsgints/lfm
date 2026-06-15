@@ -89,6 +89,22 @@ pub enum Message {
     FileFindConfirm,
     /// Shift was pressed (`true`) or released (`false`); updates the hint bar.
     SetShiftHeld(bool),
+    OpenCommandPicker,
+    CommandPickerUp,
+    CommandPickerDown,
+    CommandPickerConfirm,
+    CommandPickerCancel,
+    CommandInputChar(char),
+    CommandInputBackspace,
+    CommandInputCursorLeft,
+    CommandInputCursorRight,
+    CommandInputConfirm,
+    CommandInputCancel,
+    CapturePopupScrollUp,
+    CapturePopupScrollDown,
+    CapturePopupPageUp,
+    CapturePopupPageDown,
+    CapturePopupClose,
     #[cfg(feature = "debug")]
     ToggleDebug,
 }
