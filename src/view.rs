@@ -430,8 +430,8 @@ fn normal_hint_spans() -> Vec<Span<'static>> {
         desc(" editor  "),
         key("x"),
         desc(" run  "),
-        key("S"),
-        desc(" search"),
+        key("s"),
+        desc(" sort"),
     ]
 }
 
