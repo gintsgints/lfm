@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.8.0
+
+### New features
+
+- **Preset commands** (`x`) — run user-defined shell commands on the selection, loaded from `~/.config/lfm/commands.json`; supports `{files}`, `{paths}`, `{cwd}`, and `{input}` placeholders plus background / block / capture output modes
+- **Fuzzy file find** (`F`) — find files by name in the current directory
+- **View file contents** (`v`) — open text files in a scrollable read-only popup
+- **Scrollable help panel** — the `?` help overlay now scrolls through all keybindings
+- **Shift-aware hint line** — the bottom hint line updates while Shift is held to show the shifted command set
+- **Focus switching in find/search popups** — `Tab` and arrow keys move focus between the query input and the results list
+
+### Fixes
+
+- Pin the current directory instead of the highlighted subdirectory
+- Pinned and file-view popups now share the single bottom hint line, which includes arrow and vim navigation keys
+- Hint line shows `s` sort (not `S` search) when Shift is not held
+- Normalize shifted punctuation so `/` and `?` stay distinct commands
+- Keep the UI responsive during content search
+- Unbreak `cargo install` by bumping a yanked dependency and adjusting version pins
+
+### Other
+
+- Extract keyboard handling into a dedicated `keys` module
+- Enable keyboard enhancement flags for reliable Shift detection
+
 ## v0.7.0
 
 ### New features
