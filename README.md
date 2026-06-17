@@ -16,6 +16,7 @@ A fast, keyboard-driven TUI file manager built in Rust, inspired by two-panel fi
 - Sort by name, date modified, extension, or size
 - Zip selected items; extract `.zip` and `.tar.gz` archives
 - Recursive content search (`S`) with live streaming results
+- Fuzzy-find files by name (`F`)
 - User-defined preset commands (`x`) — run any shell command on the selection, with optional `{input}` prompt
 - Error popup for failed file operations
 - Nerd Font icons in the file list
@@ -103,6 +104,7 @@ lfm() {
 | `z` | Zip selected or current item(s) |
 | `u` | Extract `.zip` or `.tar.gz` archive |
 | `S` | Search file contents recursively in current directory |
+| `F` | Fuzzy-find files by name in current directory |
 
 ### Filter
 
