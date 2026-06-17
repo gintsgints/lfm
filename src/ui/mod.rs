@@ -5,6 +5,7 @@ pub mod content_search_panel;
 pub mod error_box;
 pub mod file_find_panel;
 pub mod file_panel;
+pub mod file_view;
 pub mod help_panel;
 pub mod input_box;
 pub mod pinned_panel;

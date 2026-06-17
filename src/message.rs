@@ -105,6 +105,12 @@ pub enum Message {
     CapturePopupPageUp,
     CapturePopupPageDown,
     CapturePopupClose,
+    ViewFile,
+    FileViewScrollUp,
+    FileViewScrollDown,
+    FileViewPageUp,
+    FileViewPageDown,
+    FileViewClose,
     #[cfg(feature = "debug")]
     ToggleDebug,
 }

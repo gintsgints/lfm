@@ -5,11 +5,11 @@ use std::path::PathBuf;
 use crate::debug_log;
 use crate::message::Message;
 use crate::model::{
-    ActivePanel, CommandPicker, ContentSearch, FileFind, Model, TransferMode, TransferOp,
+    ActivePanel, CommandPicker, ContentSearch, FileFind, FileView, Model, TransferMode, TransferOp,
     TransferProgress,
 };
 use crate::presets::{self, ExecSpec, OutputMode};
-use crate::ui::{capture_popup, file_panel, help_panel, input_box, pinned_panel};
+use crate::ui::{capture_popup, file_panel, file_view, help_panel, input_box, pinned_panel};
 
 pub enum Effect {
     None,
@@ -142,6 +142,12 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
         | Message::CapturePopupPageUp
         | Message::CapturePopupPageDown
         | Message::CapturePopupClose => update_capture_popup(model, msg),
+        Message::ViewFile => update_view_file(model),
+        Message::FileViewScrollUp
+        | Message::FileViewScrollDown
+        | Message::FileViewPageUp
+        | Message::FileViewPageDown
+        | Message::FileViewClose => update_file_view(model, msg),
         msg => {
             let (mut m, err) = dispatch_to_panel(model, msg);
             if let Some(e) = err {
@@ -865,6 +871,71 @@ fn update_capture_popup(mut model: Model, msg: Message) -> (Model, Effect) {
             model.capture_popup = None;
             refresh_both_panels(&mut model);
         }
+        _ => {}
+    }
+    (model, Effect::None)
+}
+
+/// Upper bound on the size of a file the viewer will load into memory.
+const MAX_VIEW_BYTES: u64 = 5 * 1024 * 1024;
+
+fn update_view_file(mut model: Model) -> (Model, Effect) {
+    let target = {
+        let panel = match model.active_panel {
+            ActivePanel::LeftFiles => &model.left_files,
+            ActivePanel::RightFiles => &model.right_files,
+            ActivePanel::Pinned => return (model, Effect::None),
+        };
+        match panel.visible_entries().nth(panel.selection) {
+            Some((_, e)) if !e.is_dir => Some((panel.current_dir.join(&e.name), e.name.clone())),
+            _ => None,
+        }
+    };
+    let Some((path, name)) = target else {
+        return (model, Effect::None);
+    };
+    match read_text_file(&path) {
+        Ok(content) => {
+            model.file_view = Some(FileView {
+                name,
+                content,
+                scroll: 0,
+            });
+        }
+        Err(e) => model.error_message = Some(e),
+    }
+    (model, Effect::None)
+}
+
+/// Read `path` as UTF-8 text for the viewer, rejecting oversized or binary files.
+fn read_text_file(path: &std::path::Path) -> Result<String, String> {
+    let len = std::fs::metadata(path).map_err(|e| e.to_string())?.len();
+    if len > MAX_VIEW_BYTES {
+        return Err(format!("file too large to view ({len} bytes)"));
+    }
+    let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+    detect_text(bytes)
+}
+
+/// Interpret bytes as text, treating an embedded NUL or invalid UTF-8 as binary.
+pub(crate) fn detect_text(bytes: Vec<u8>) -> Result<String, String> {
+    if bytes.contains(&0) {
+        return Err("not a text file".to_owned());
+    }
+    String::from_utf8(bytes).map_err(|_| "not a text file".to_owned())
+}
+
+fn update_file_view(mut model: Model, msg: Message) -> (Model, Effect) {
+    let Some(v) = &mut model.file_view else {
+        return (model, Effect::None);
+    };
+    let max = file_view::line_count(v).saturating_sub(1);
+    match msg {
+        Message::FileViewScrollUp => v.scroll = v.scroll.saturating_sub(1),
+        Message::FileViewScrollDown => v.scroll = v.scroll.saturating_add(1).min(max),
+        Message::FileViewPageUp => v.scroll = v.scroll.saturating_sub(10),
+        Message::FileViewPageDown => v.scroll = v.scroll.saturating_add(10).min(max),
+        Message::FileViewClose => model.file_view = None,
         _ => {}
     }
     (model, Effect::None)

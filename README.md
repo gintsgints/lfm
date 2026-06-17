@@ -95,6 +95,7 @@ lfm() {
 | `d` | Delete selected or current item (with confirmation) |
 | `c` | Copy selected or current item — opens destination panel, `C` with rename before |
 | `m` | Move selected or current item — opens destination panel, `M` with rename before |
+| `v` | View file contents in a scrollable read-only popup (text files only) |
 | `e` | Open selected item in `$EDITOR` |
 | `o` | Open with default application |
 | `x` | Run a preset command on the selection (see [Preset commands](#preset-commands)) |

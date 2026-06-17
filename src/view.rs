@@ -145,6 +145,10 @@ fn render_overlays(model: &Model, frame: &mut Frame, area: ratatui::layout::Rect
         ui::capture_popup::render(frame, area, pop);
     }
 
+    if let Some(fv) = &model.file_view {
+        ui::file_view::render(frame, area, fv);
+    }
+
     if let Some(msg) = &model.error_message {
         ui::error_box::render(frame, area, msg);
     }
@@ -232,7 +236,23 @@ fn active_panel_hints(model: &Model) -> Option<Line<'static>> {
     }
 }
 
+fn file_view_hint() -> Line<'static> {
+    Line::from(vec![
+        key(" j/k"),
+        desc(" scroll  "),
+        key("PgUp/PgDn"),
+        desc(" page  "),
+        key("Esc"),
+        desc(" / "),
+        key("q"),
+        desc(" close"),
+    ])
+}
+
 fn hint_line(model: &Model) -> Line<'static> {
+    if model.file_view.is_some() {
+        return file_view_hint();
+    }
     if model.capture_popup.is_some() {
         return Line::from(vec![
             key(" j/k"),
@@ -398,6 +418,8 @@ fn normal_hint_spans() -> Vec<Span<'static>> {
         desc(" goto  "),
         key("p"),
         desc(" pins  "),
+        key("v"),
+        desc(" view  "),
         key("e"),
         desc(" editor  "),
         key("x"),

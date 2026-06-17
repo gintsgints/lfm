@@ -135,6 +135,13 @@ impl CommandPicker {
     }
 }
 
+/// Text contents of a file, displayed in a scrollable read-only viewer.
+pub struct FileView {
+    pub name: String,
+    pub content: String,
+    pub scroll: u16,
+}
+
 /// Output of a `capture`-mode preset, displayed in a scrollable popup.
 pub struct CapturePopup {
     pub label: String,
@@ -170,6 +177,7 @@ pub struct Model {
     pub file_find: Option<FileFind>,
     pub command_picker: Option<CommandPicker>,
     pub capture_popup: Option<CapturePopup>,
+    pub file_view: Option<FileView>,
 }
 
 impl Model {
@@ -195,6 +203,7 @@ impl Model {
             file_find: None,
             command_picker: None,
             capture_popup: None,
+            file_view: None,
         })
     }
 

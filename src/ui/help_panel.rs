@@ -31,6 +31,7 @@ const KEYBINDINGS: &[(&str, &str)] = &[
     ("Shift+C", "Copy single item — rename before placing"),
     ("m", "Move selected or current item"),
     ("Shift+M", "Move single item — rename before placing"),
+    ("v", "View file contents (text files)"),
     ("e", "Open selected item in $EDITOR"),
     ("o", "Open with default application"),
     ("x", "Run preset command (see ~/.config/lfm/commands.json)"),
