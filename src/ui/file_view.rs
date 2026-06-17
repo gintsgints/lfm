@@ -12,23 +12,11 @@ use crate::theme;
 pub fn render(frame: &mut Frame, area: Rect, view: &FileView) {
     let popup_area = centered_rect(90, 90, area);
 
-    let key = |s: &'static str| Span::styled(s, Style::default().fg(theme::ACTIVE_BORDER));
-    let dim = |s: &'static str| Span::styled(s, Style::default().fg(theme::INACTIVE_BORDER));
-    let bottom = Line::from(vec![
-        key("[j/k]"),
-        dim(" scroll  "),
-        key("[PgUp/PgDn]"),
-        dim(" page  "),
-        key("[Esc/q]"),
-        dim(" close "),
-    ]);
-
     let block = Block::default()
         .title(Span::styled(
             format!(" {} ", view.name),
             Style::default().fg(theme::ACTIVE_BORDER),
         ))
-        .title_bottom(bottom)
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme::POPUP_BORDER));
 

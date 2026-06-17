@@ -238,13 +238,30 @@ fn active_panel_hints(model: &Model) -> Option<Line<'static>> {
 
 fn file_view_hint() -> Line<'static> {
     Line::from(vec![
-        key(" j/k"),
+        key(" ↑/↓ j/k"),
         desc(" scroll  "),
         key("PgUp/PgDn"),
         desc(" page  "),
         key("Esc"),
         desc(" / "),
         key("q"),
+        desc(" close"),
+    ])
+}
+
+fn pinned_panel_hint() -> Line<'static> {
+    Line::from(vec![
+        key(" ↑/↓ j/k"),
+        desc(" move  "),
+        key("p"),
+        desc(" pin  "),
+        key("Enter"),
+        desc("/"),
+        key("Space"),
+        desc(" go  "),
+        key("d"),
+        desc(" delete  "),
+        key("Esc"),
         desc(" close"),
     ])
 }
@@ -334,18 +351,7 @@ fn hint_line(model: &Model) -> Line<'static> {
             desc(" cancel"),
         ])
     } else if model.active_panel == ActivePanel::Pinned {
-        Line::from(vec![
-            key(" p"),
-            desc(" pin  "),
-            key("Enter"),
-            desc("/"),
-            key("Space"),
-            desc(" go  "),
-            key("d"),
-            desc(" delete  "),
-            key("Esc"),
-            desc(" close"),
-        ])
+        pinned_panel_hint()
     } else {
         normal_hint_line(model.shift_held)
     }
