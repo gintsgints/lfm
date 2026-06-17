@@ -183,16 +183,7 @@ fn update_help_scroll(mut model: Model, step: fn(usize) -> usize) -> (Model, Eff
 }
 
 fn update_pin_current_dir(mut model: Model) -> (Model, Effect) {
-    let dir = {
-        let origin = origin_file_panel(&model);
-        if let Some(entry) = origin.entries.get(origin.selection)
-            && entry.is_dir
-        {
-            origin.current_dir.join(&entry.name)
-        } else {
-            origin.current_dir.clone()
-        }
-    };
+    let dir = origin_file_panel(&model).current_dir.clone();
     if !model.pinned_panel.pins.contains(&dir) {
         model.pinned_panel.pins.push(dir);
     }
