@@ -16,6 +16,7 @@ use ratatui::{
 use crate::archive;
 #[cfg(feature = "debug")]
 use crate::debug_log;
+use crate::icons;
 use crate::message::Message;
 use crate::theme;
 use crate::ui::{input_box, search_box};
@@ -516,9 +517,9 @@ pub fn render(
                 theme::text()
             };
             let name = if e.is_dir {
-                format!("󰉋 {}/", e.name)
+                format!("{} {}/", icons::DIR, e.name)
             } else {
-                format!("󰈙 {}", e.name)
+                format!("{} {}", icons::for_name(&e.name), e.name)
             };
             ListItem::new(Span::styled(name, Style::default().fg(fg)))
         })

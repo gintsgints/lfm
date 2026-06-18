@@ -5,6 +5,7 @@ use ratatui::{DefaultTerminal, crossterm::event};
 mod archive;
 pub mod debug;
 mod file_find;
+mod icons;
 mod keys;
 mod message;
 mod model;
