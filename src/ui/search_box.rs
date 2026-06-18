@@ -61,13 +61,13 @@ pub fn update(mut model: Model, msg: Message) -> (Model, bool) {
 
 pub fn render(frame: &mut Frame, area: Rect, model: &Model) {
     let border_style = if model.active {
-        Style::default().fg(theme::ACTIVE_BORDER)
+        Style::default().fg(theme::active_border())
     } else {
-        Style::default().fg(theme::INACTIVE_BORDER)
+        Style::default().fg(theme::inactive_border())
     };
 
     let text_style = Style::default()
-        .fg(theme::TEXT)
+        .fg(theme::text())
         .add_modifier(Modifier::BOLD);
     let cursor_style = text_style.add_modifier(Modifier::UNDERLINED);
 
@@ -83,7 +83,7 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(border_style)
-        .title(Span::styled(" filter ", Style::default().fg(theme::TEXT)));
+        .title(Span::styled(" filter ", Style::default().fg(theme::text())));
 
     frame.render_widget(Paragraph::new(content).block(block), area);
 }
@@ -91,6 +91,6 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model) {
 pub fn title(path_label: &str) -> Line<'static> {
     Line::from(Span::styled(
         format!(" {path_label} "),
-        Style::default().fg(theme::TEXT),
+        Style::default().fg(theme::text()),
     ))
 }

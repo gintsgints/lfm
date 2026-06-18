@@ -1,7 +1,7 @@
 use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
-    style::{Color, Style},
+    style::Style,
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
 };
@@ -13,16 +13,16 @@ pub fn render(frame: &mut Frame, area: Rect, popup: &CapturePopup) {
     let popup_area = centered_rect(90, 90, area);
 
     let header_fg = match popup.exit_code {
-        Some(0) => theme::ACTIVE_BORDER,
-        Some(_) | None => Color::Rgb(243, 139, 168), // Red
+        Some(0) => theme::active_border(),
+        Some(_) | None => theme::move_target_border(),
     };
     let header = match popup.exit_code {
         Some(code) => format!(" exit {code} — {} ", popup.label),
         None => format!(" spawn failed — {} ", popup.label),
     };
 
-    let key = |s: &'static str| Span::styled(s, Style::default().fg(theme::ACTIVE_BORDER));
-    let dim = |s: &'static str| Span::styled(s, Style::default().fg(theme::INACTIVE_BORDER));
+    let key = |s: &'static str| Span::styled(s, Style::default().fg(theme::active_border()));
+    let dim = |s: &'static str| Span::styled(s, Style::default().fg(theme::inactive_border()));
     let bottom = Line::from(vec![
         key("[j/k]"),
         dim(" scroll  "),
@@ -36,7 +36,7 @@ pub fn render(frame: &mut Frame, area: Rect, popup: &CapturePopup) {
         .title(Span::styled(header, Style::default().fg(header_fg)))
         .title_bottom(bottom)
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme::POPUP_BORDER));
+        .border_style(Style::default().fg(theme::popup_border()));
 
     let inner = block.inner(popup_area);
     frame.render_widget(Clear, popup_area);
@@ -49,7 +49,12 @@ pub fn render(frame: &mut Frame, area: Rect, popup: &CapturePopup) {
     };
     let lines: Vec<Line> = body
         .lines()
-        .map(|l| Line::from(Span::styled(l.to_owned(), Style::default().fg(theme::TEXT))))
+        .map(|l| {
+            Line::from(Span::styled(
+                l.to_owned(),
+                Style::default().fg(theme::text()),
+            ))
+        })
         .collect();
 
     let chunks = Layout::vertical([Constraint::Min(0)]).split(inner);

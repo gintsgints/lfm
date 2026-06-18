@@ -19,8 +19,8 @@ pub fn render(frame: &mut Frame, area: Rect, picker: &CommandPicker) {
         " Run command "
     };
 
-    let key = |s: &'static str| Span::styled(s, Style::default().fg(theme::ACTIVE_BORDER));
-    let dim = |s: &'static str| Span::styled(s, Style::default().fg(theme::INACTIVE_BORDER));
+    let key = |s: &'static str| Span::styled(s, Style::default().fg(theme::active_border()));
+    let dim = |s: &'static str| Span::styled(s, Style::default().fg(theme::inactive_border()));
 
     let bottom = if picker.input.is_some() {
         Line::from(vec![
@@ -41,10 +41,10 @@ pub fn render(frame: &mut Frame, area: Rect, picker: &CommandPicker) {
     };
 
     let block = Block::default()
-        .title(Span::styled(title, Style::default().fg(theme::TEXT)))
+        .title(Span::styled(title, Style::default().fg(theme::text())))
         .title_bottom(bottom)
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme::POPUP_BORDER));
+        .border_style(Style::default().fg(theme::popup_border()));
 
     let inner = block.inner(popup_area);
     frame.render_widget(Clear, popup_area);
@@ -65,7 +65,7 @@ fn render_list(frame: &mut Frame, area: Rect, picker: &CommandPicker) {
     if picker.presets.is_empty() {
         let msg = Line::from(Span::styled(
             "  No presets configured. Edit ~/.config/lfm/commands.json.",
-            Style::default().fg(theme::INACTIVE_BORDER),
+            Style::default().fg(theme::inactive_border()),
         ));
         frame.render_widget(ratatui::widgets::Paragraph::new(msg), area);
         return;
@@ -84,17 +84,17 @@ fn render_list(frame: &mut Frame, area: Rect, picker: &CommandPicker) {
             ListItem::new(Line::from(vec![
                 Span::styled(
                     format!("  {label:<label_width$}  "),
-                    Style::default().fg(theme::TEXT),
+                    Style::default().fg(theme::text()),
                 ),
-                Span::styled(preview, Style::default().fg(theme::INACTIVE_BORDER)),
+                Span::styled(preview, Style::default().fg(theme::inactive_border())),
             ]))
         })
         .collect();
 
     let list = List::new(items).highlight_style(
         Style::default()
-            .bg(theme::HIGHLIGHT_BG)
-            .fg(theme::HIGHLIGHT_FG)
+            .bg(theme::highlight_bg())
+            .fg(theme::highlight_fg())
             .add_modifier(Modifier::BOLD),
     );
 
@@ -113,13 +113,13 @@ fn render_input(frame: &mut Frame, area: Rect, input: &input_box::Model, prompt_
 
     let header = Line::from(Span::styled(
         format!("  {prompt_label}"),
-        Style::default().fg(theme::ACTIVE_BORDER),
+        Style::default().fg(theme::active_border()),
     ));
     frame.render_widget(ratatui::widgets::Paragraph::new(header), chunks[0]);
 
-    let prompt_style = Style::default().fg(theme::ACTIVE_BORDER);
+    let prompt_style = Style::default().fg(theme::active_border());
     let text_style = Style::default()
-        .fg(theme::TEXT)
+        .fg(theme::text())
         .add_modifier(Modifier::BOLD);
     let cursor_style = text_style.add_modifier(Modifier::UNDERLINED);
 

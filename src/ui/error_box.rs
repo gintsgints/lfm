@@ -16,19 +16,19 @@ pub fn render(frame: &mut Frame, area: Rect, message: &str) {
             " Error ",
             Style::default()
                 .fg(Color::Black)
-                .bg(theme::MOVE_TARGET_BORDER),
+                .bg(theme::move_target_border()),
         ))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme::MOVE_TARGET_BORDER));
+        .border_style(Style::default().fg(theme::move_target_border()));
 
     let text = Text::from(vec![
-        Line::from(Span::styled(message, Style::default().fg(theme::TEXT))),
+        Line::from(Span::styled(message, Style::default().fg(theme::text()))),
         Line::raw(""),
         Line::from(vec![
-            Span::styled("[Enter]", Style::default().fg(theme::ACTIVE_BORDER)),
-            Span::styled(" / ", Style::default().fg(theme::INACTIVE_BORDER)),
-            Span::styled("[Esc]", Style::default().fg(theme::ACTIVE_BORDER)),
-            Span::styled("  dismiss", Style::default().fg(theme::TEXT)),
+            Span::styled("[Enter]", Style::default().fg(theme::active_border())),
+            Span::styled(" / ", Style::default().fg(theme::inactive_border())),
+            Span::styled("[Esc]", Style::default().fg(theme::active_border())),
+            Span::styled("  dismiss", Style::default().fg(theme::text())),
         ]),
     ]);
 

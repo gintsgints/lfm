@@ -92,14 +92,14 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model, label: &str) {
     let block = Block::default()
         .title(Span::styled(
             format!(" {label} "),
-            Style::default().fg(theme::TEXT),
+            Style::default().fg(theme::text()),
         ))
         .borders(Borders::ALL)
-        .style(Style::default().fg(theme::ACTIVE_BORDER));
+        .style(Style::default().fg(theme::active_border()));
 
     let before = &model.text[..model.cursor];
     let text_style = Style::default()
-        .fg(theme::TEXT)
+        .fg(theme::text())
         .add_modifier(Modifier::BOLD);
     let cursor_style = text_style.add_modifier(Modifier::UNDERLINED);
 

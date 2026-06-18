@@ -21,11 +21,11 @@ pub fn render(frame: &mut Frame, area: Rect, state: &FileFind) {
         format!(" {} files  searching\u{2026}  ", state.results.len())
     };
 
-    let key = |s: &'static str| Span::styled(s, Style::default().fg(theme::ACTIVE_BORDER));
-    let dim = |s: &'static str| Span::styled(s, Style::default().fg(theme::INACTIVE_BORDER));
+    let key = |s: &'static str| Span::styled(s, Style::default().fg(theme::active_border()));
+    let dim = |s: &'static str| Span::styled(s, Style::default().fg(theme::inactive_border()));
 
     let bottom = Line::from(vec![
-        Span::styled(match_label, Style::default().fg(theme::INACTIVE_BORDER)),
+        Span::styled(match_label, Style::default().fg(theme::inactive_border())),
         key("[Tab]"),
         dim(" switch  "),
         key("[Enter]"),
@@ -37,11 +37,11 @@ pub fn render(frame: &mut Frame, area: Rect, state: &FileFind) {
     let block = Block::default()
         .title(Span::styled(
             " Find files ",
-            Style::default().fg(theme::TEXT),
+            Style::default().fg(theme::text()),
         ))
         .title_bottom(bottom)
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme::POPUP_BORDER));
+        .border_style(Style::default().fg(theme::popup_border()));
 
     let inner = block.inner(popup);
     frame.render_widget(Clear, popup);
@@ -60,7 +60,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &FileFind) {
     frame.render_widget(
         Paragraph::new(Span::styled(
             sep,
-            Style::default().fg(theme::INACTIVE_BORDER),
+            Style::default().fg(theme::inactive_border()),
         )),
         chunks[1],
     );
@@ -69,9 +69,9 @@ pub fn render(frame: &mut Frame, area: Rect, state: &FileFind) {
 }
 
 fn render_query_line(frame: &mut Frame, area: Rect, query: &input_box::Model, focused: bool) {
-    let prompt_style = Style::default().fg(theme::ACTIVE_BORDER);
+    let prompt_style = Style::default().fg(theme::active_border());
     let text_style = Style::default()
-        .fg(theme::TEXT)
+        .fg(theme::text())
         .add_modifier(Modifier::BOLD);
 
     let spans = if focused {
@@ -101,7 +101,7 @@ fn render_query_line(frame: &mut Frame, area: Rect, query: &input_box::Model, fo
             Span::styled("  ", prompt_style),
             Span::styled(
                 query.text.clone(),
-                Style::default().fg(theme::INACTIVE_BORDER),
+                Style::default().fg(theme::inactive_border()),
             ),
         ]
     };
@@ -115,14 +115,14 @@ fn render_results(frame: &mut Frame, area: Rect, state: &FileFind) {
         .iter()
         .map(|r| {
             let label = r.rel_path.display().to_string();
-            ListItem::new(Span::styled(label, Style::default().fg(theme::TEXT)))
+            ListItem::new(Span::styled(label, Style::default().fg(theme::text())))
         })
         .collect();
 
     let list = List::new(items).highlight_style(
         Style::default()
-            .bg(theme::HIGHLIGHT_BG)
-            .fg(theme::HIGHLIGHT_FG)
+            .bg(theme::highlight_bg())
+            .fg(theme::highlight_fg())
             .add_modifier(Modifier::BOLD),
     );
 

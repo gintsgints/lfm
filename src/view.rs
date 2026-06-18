@@ -167,11 +167,11 @@ fn render_overlays(model: &Model, frame: &mut Frame, area: ratatui::layout::Rect
 }
 
 fn key(label: &'static str) -> Span<'static> {
-    Span::styled(label, Style::default().fg(theme::ACTIVE_BORDER))
+    Span::styled(label, Style::default().fg(theme::active_border()))
 }
 
 fn desc(label: &'static str) -> Span<'static> {
-    Span::styled(label, Style::default().fg(theme::INACTIVE_BORDER))
+    Span::styled(label, Style::default().fg(theme::inactive_border()))
 }
 
 fn active_panel_hints(model: &Model) -> Option<Line<'static>> {
@@ -374,7 +374,7 @@ fn render_debug_panel(frame: &mut Frame, area: ratatui::layout::Rect) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme::INACTIVE_BORDER))
+                .border_style(Style::default().fg(theme::inactive_border()))
                 .title_alignment(Alignment::Left)
                 .title(" debug "),
         )

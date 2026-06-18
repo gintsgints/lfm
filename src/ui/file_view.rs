@@ -15,10 +15,10 @@ pub fn render(frame: &mut Frame, area: Rect, view: &FileView) {
     let block = Block::default()
         .title(Span::styled(
             format!(" {} ", view.name),
-            Style::default().fg(theme::ACTIVE_BORDER),
+            Style::default().fg(theme::active_border()),
         ))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme::POPUP_BORDER));
+        .border_style(Style::default().fg(theme::popup_border()));
 
     let inner = block.inner(popup_area);
     frame.render_widget(Clear, popup_area);
@@ -27,7 +27,12 @@ pub fn render(frame: &mut Frame, area: Rect, view: &FileView) {
     let lines: Vec<Line> = view
         .content
         .lines()
-        .map(|l| Line::from(Span::styled(l.to_owned(), Style::default().fg(theme::TEXT))))
+        .map(|l| {
+            Line::from(Span::styled(
+                l.to_owned(),
+                Style::default().fg(theme::text()),
+            ))
+        })
         .collect();
 
     let chunks = Layout::vertical([Constraint::Min(0)]).split(inner);

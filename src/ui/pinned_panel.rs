@@ -49,10 +49,10 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model) {
     let block = Block::default()
         .title(Span::styled(
             " Pinned Directories ",
-            Style::default().fg(theme::TEXT),
+            Style::default().fg(theme::text()),
         ))
         .borders(Borders::ALL)
-        .style(Style::default().fg(theme::POPUP_BORDER));
+        .style(Style::default().fg(theme::popup_border()));
 
     let items: Vec<ListItem> = model
         .pins
@@ -60,15 +60,15 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model) {
         .map(|p| {
             ListItem::new(Span::styled(
                 p.display().to_string(),
-                Style::default().fg(theme::DIR_FG),
+                Style::default().fg(theme::dir_fg()),
             ))
         })
         .collect();
 
     let list = List::new(items).block(block).highlight_style(
         Style::default()
-            .bg(theme::HIGHLIGHT_BG)
-            .fg(theme::HIGHLIGHT_FG)
+            .bg(theme::highlight_bg())
+            .fg(theme::highlight_fg())
             .add_modifier(Modifier::BOLD),
     );
 

@@ -12,17 +12,20 @@ pub fn render(frame: &mut Frame, area: Rect, message: &str) {
     let popup_area = centered_rect(60, area);
 
     let block = Block::default()
-        .title(Span::styled(" Confirm ", Style::default().fg(theme::TEXT)))
+        .title(Span::styled(
+            " Confirm ",
+            Style::default().fg(theme::text()),
+        ))
         .borders(Borders::ALL)
-        .style(Style::default().fg(theme::ACTIVE_BORDER));
+        .style(Style::default().fg(theme::active_border()));
 
     let line = Line::from(vec![
-        Span::styled(message, Style::default().fg(theme::TEXT)),
+        Span::styled(message, Style::default().fg(theme::text())),
         Span::raw("  "),
-        Span::styled("[Enter]", Style::default().fg(theme::ACTIVE_BORDER)),
-        Span::styled(" confirm  ", Style::default().fg(theme::TEXT)),
-        Span::styled("[Esc]", Style::default().fg(theme::ACTIVE_BORDER)),
-        Span::styled(" cancel", Style::default().fg(theme::TEXT)),
+        Span::styled("[Enter]", Style::default().fg(theme::active_border())),
+        Span::styled(" confirm  ", Style::default().fg(theme::text())),
+        Span::styled("[Esc]", Style::default().fg(theme::active_border())),
+        Span::styled(" cancel", Style::default().fg(theme::text())),
     ]);
 
     frame.render_widget(Clear, popup_area);

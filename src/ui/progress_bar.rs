@@ -27,8 +27,8 @@ pub fn render(frame: &mut Frame, area: Rect, progress: &TransferProgress) {
         TransferOp::Delete => " Deleting ",
     };
     let gauge_color = match progress.op {
-        TransferOp::Copy => theme::COPY_TARGET_BORDER,
-        TransferOp::Move | TransferOp::Delete => theme::MOVE_TARGET_BORDER,
+        TransferOp::Copy => theme::copy_target_border(),
+        TransferOp::Move | TransferOp::Delete => theme::move_target_border(),
     };
 
     let label = format!("{} / {}", progress.current, progress.total);
@@ -36,7 +36,7 @@ pub fn render(frame: &mut Frame, area: Rect, progress: &TransferProgress) {
     let block = Block::default()
         .title(title)
         .borders(Borders::ALL)
-        .style(Style::default().fg(theme::ACTIVE_BORDER));
+        .style(Style::default().fg(theme::active_border()));
 
     let gauge = Gauge::default()
         .block(block)

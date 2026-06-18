@@ -87,10 +87,10 @@ pub fn render(frame: &mut Frame, area: Rect, selection: usize) {
     let block = Block::default()
         .title(Span::styled(
             " Help  [↑/↓ scroll, Esc close] ",
-            Style::default().fg(theme::TEXT),
+            Style::default().fg(theme::text()),
         ))
         .borders(Borders::ALL)
-        .style(Style::default().fg(theme::POPUP_BORDER));
+        .style(Style::default().fg(theme::popup_border()));
 
     let items: Vec<ListItem> = KEYBINDINGS
         .iter()
@@ -101,12 +101,12 @@ pub fn render(frame: &mut Frame, area: Rect, selection: usize) {
                 // Section header
                 ListItem::new(Line::from(Span::styled(
                     key.to_string(),
-                    Style::default().fg(theme::ACTIVE_BORDER),
+                    Style::default().fg(theme::active_border()),
                 )))
             } else {
                 ListItem::new(Line::from(vec![
-                    Span::styled(format!("  {key:<20}"), Style::default().fg(theme::DIR_FG)),
-                    Span::styled(desc.to_string(), Style::default().fg(theme::TEXT)),
+                    Span::styled(format!("  {key:<20}"), Style::default().fg(theme::dir_fg())),
+                    Span::styled(desc.to_string(), Style::default().fg(theme::text())),
                 ]))
             }
         })
@@ -114,8 +114,8 @@ pub fn render(frame: &mut Frame, area: Rect, selection: usize) {
 
     let list = List::new(items).block(block).highlight_style(
         Style::default()
-            .bg(theme::HIGHLIGHT_BG)
-            .fg(theme::HIGHLIGHT_FG)
+            .bg(theme::highlight_bg())
+            .fg(theme::highlight_fg())
             .add_modifier(Modifier::BOLD),
     );
 

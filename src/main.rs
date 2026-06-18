@@ -31,6 +31,7 @@ use view::view;
 
 fn main() -> io::Result<()> {
     let choosedir = std::env::var_os("LFM_CHOOSEDIR").map(PathBuf::from);
+    theme::init(theme::load());
     let terminal = ratatui::init();
     let extended_keys = enable_extended_key_reporting();
     let result = run(terminal, extended_keys);

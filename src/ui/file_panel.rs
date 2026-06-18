@@ -470,13 +470,13 @@ pub fn render(
     let area = panel_area;
 
     let border_style = if is_move_target {
-        Style::default().fg(theme::MOVE_TARGET_BORDER)
+        Style::default().fg(theme::move_target_border())
     } else if is_copy_target {
-        Style::default().fg(theme::COPY_TARGET_BORDER)
+        Style::default().fg(theme::copy_target_border())
     } else if active {
-        Style::default().fg(theme::ACTIVE_BORDER)
+        Style::default().fg(theme::active_border())
     } else {
-        Style::default().fg(theme::INACTIVE_BORDER)
+        Style::default().fg(theme::inactive_border())
     };
 
     let path_label = if is_move_target {
@@ -509,11 +509,11 @@ pub fn render(
         .map(|(i, e)| {
             let is_selected = model.selected.contains(&i);
             let fg = if is_selected {
-                theme::SELECTED_FG
+                theme::selected_fg()
             } else if e.is_dir {
-                theme::DIR_FG
+                theme::dir_fg()
             } else {
-                theme::TEXT
+                theme::text()
             };
             let name = if e.is_dir {
                 format!("󰉋 {}/", e.name)
@@ -526,8 +526,8 @@ pub fn render(
 
     let list = List::new(items).block(block).highlight_style(
         Style::default()
-            .bg(theme::HIGHLIGHT_BG)
-            .fg(theme::HIGHLIGHT_FG)
+            .bg(theme::highlight_bg())
+            .fg(theme::highlight_fg())
             .add_modifier(Modifier::BOLD),
     );
 
