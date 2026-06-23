@@ -8,14 +8,10 @@ license = "GPL-3.0-or-later"
 debug = []
 
 [dependencies]
-ratatui = "0.30.0"
-# Pinned: time 0.3.48 adds an impl that collides with ratatui's `Into<Text>`
-# blanket impl, breaking ratatui-widgets with an E0119 coherence error. Cap at
-# 0.3.47 so a fresh `cargo install` (no --locked) still compiles.
-time = "=0.3.47"
+ratatui = "0.30.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.150"
 zip = "8.6.0"
 flate2 = "1"
 tar = "0.4.46"
-fff-search = "0.9.4"
+fff-search = "0.9.6"
