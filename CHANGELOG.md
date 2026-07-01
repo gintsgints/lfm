@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.9.0
+
+### New features
+
+- **Overwrite confirmation** — copy and move (including the rename variants and in-place rename) now prompt before overwriting an existing file or directory
+- **File type icons** — the file list shows an icon based on each entry's extension
+- **Configurable colors** — UI colors are loaded from a `colors.json` settings file
+
+### Other
+
+- Dependency update
+
 ## v0.8.0
 
 ### New features
