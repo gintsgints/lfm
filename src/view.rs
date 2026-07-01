@@ -149,6 +149,10 @@ fn render_overlays(model: &Model, frame: &mut Frame, area: ratatui::layout::Rect
         ui::file_view::render(frame, area, fv);
     }
 
+    if let Some(pending) = &model.pending_overwrite {
+        ui::confirm_box::render(frame, area, &overwrite_message(&pending.conflicts));
+    }
+
     if let Some(msg) = &model.error_message {
         ui::error_box::render(frame, area, msg);
     }
@@ -163,6 +167,13 @@ fn render_overlays(model: &Model, frame: &mut Frame, area: ratatui::layout::Rect
             format!("Delete {count} items?")
         };
         ui::confirm_box::render(frame, area, &msg);
+    }
+}
+
+fn overwrite_message(conflicts: &[String]) -> String {
+    match conflicts {
+        [name] => format!("Overwrite '{name}'?"),
+        _ => format!("Overwrite {} existing items?", conflicts.len()),
     }
 }
 
@@ -301,7 +312,14 @@ fn hint_line(model: &Model) -> Line<'static> {
             ])
         };
     }
-    if let Some(cs) = &model.content_search {
+    if model.pending_overwrite.is_some() {
+        Line::from(vec![
+            key(" Enter"),
+            desc(" overwrite  "),
+            key("Esc"),
+            desc(" cancel"),
+        ])
+    } else if let Some(cs) = &model.content_search {
         content_search_hint(cs.input_focused)
     } else if let Some(ff) = &model.file_find {
         content_search_hint(ff.input_focused)

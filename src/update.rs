@@ -5,8 +5,8 @@ use std::path::PathBuf;
 use crate::debug_log;
 use crate::message::Message;
 use crate::model::{
-    ActivePanel, CommandPicker, ContentSearch, FileFind, FileView, Model, TransferMode, TransferOp,
-    TransferProgress,
+    ActivePanel, CommandPicker, ContentSearch, FileFind, FileView, Model, PendingKind,
+    PendingOverwrite, TransferMode, TransferOp, TransferProgress,
 };
 use crate::presets::{self, ExecSpec, OutputMode};
 use crate::ui::{capture_popup, file_panel, file_view, help_panel, input_box, pinned_panel};
@@ -102,6 +102,13 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
         Message::DeleteConfirm => update_delete_confirm(model),
         Message::ProgressTick { current, total } => update_progress_tick(model, current, total),
         Message::ProgressDone => progress_done(model),
+        Message::OverwriteConfirm => overwrite_confirm(model),
+        Message::OverwriteCancel => {
+            model.pending_overwrite = None;
+            model.pending_select = None;
+            model.active_panel = ActivePanel::LeftFiles;
+            (model, Effect::None)
+        }
         Message::DismissError => {
             model.error_message = None;
             (model, Effect::None)
@@ -249,6 +256,44 @@ fn cancel_transfer(model: &mut Model) {
     model.active_panel = ActivePanel::LeftFiles;
 }
 
+fn pending_effect(kind: PendingKind) -> Effect {
+    match kind {
+        PendingKind::Copy(sources, dst) => Effect::StartCopy(sources, dst),
+        PendingKind::Move(sources, dst) => Effect::StartMove(sources, dst),
+        PendingKind::CopyRename(src, dst) => Effect::StartCopyRename(src, dst),
+        PendingKind::MoveRename(src, dst) => Effect::StartMoveRename(src, dst),
+    }
+}
+
+/// Launch a confirmed copy/move, or, if it would overwrite existing entries,
+/// hold it back behind an overwrite prompt instead.
+fn begin_transfer(model: &mut Model, kind: PendingKind) -> Effect {
+    let conflicts = kind.conflicts();
+    if conflicts.is_empty() {
+        model.progress = Some(TransferProgress {
+            op: kind.op(),
+            current: 0,
+            total: 0,
+        });
+        pending_effect(kind)
+    } else {
+        model.pending_overwrite = Some(PendingOverwrite { kind, conflicts });
+        Effect::None
+    }
+}
+
+fn overwrite_confirm(mut model: Model) -> (Model, Effect) {
+    let Some(pending) = model.pending_overwrite.take() else {
+        return (model, Effect::None);
+    };
+    model.progress = Some(TransferProgress {
+        op: pending.kind.op(),
+        current: 0,
+        total: 0,
+    });
+    (model, pending_effect(pending.kind))
+}
+
 fn update_copy(mut model: Model, msg: Message) -> (Model, Effect) {
     match msg {
         Message::StartCopy => {
@@ -290,26 +335,18 @@ fn update_copy(mut model: Model, msg: Message) -> (Model, Effect) {
                 return (model, Effect::None);
             }
             let dst = dest_dir(&model.right_files);
-            if model.transfer_mode.with_rename() {
-                let new_name = std::mem::take(&mut model.rename_input.text);
-                let src = sources.into_iter().next().unwrap();
-                model.transfer_mode = TransferMode::None;
-                model.active_panel = ActivePanel::LeftFiles;
-                model.progress = Some(TransferProgress {
-                    op: TransferOp::Copy,
-                    current: 0,
-                    total: 0,
-                });
-                return (model, Effect::StartCopyRename(src, dst.join(new_name)));
-            }
+            let with_rename = model.transfer_mode.with_rename();
             model.transfer_mode = TransferMode::None;
             model.active_panel = ActivePanel::LeftFiles;
-            model.progress = Some(TransferProgress {
-                op: TransferOp::Copy,
-                current: 0,
-                total: 0,
-            });
-            (model, Effect::StartCopy(sources, dst))
+            let kind = if with_rename {
+                let new_name = std::mem::take(&mut model.rename_input.text);
+                let src = sources.into_iter().next().unwrap();
+                PendingKind::CopyRename(src, dst.join(new_name))
+            } else {
+                PendingKind::Copy(sources, dst)
+            };
+            let effect = begin_transfer(&mut model, kind);
+            (model, effect)
         }
         _ => (model, Effect::None),
     }
@@ -356,26 +393,18 @@ fn update_move(mut model: Model, msg: Message) -> (Model, Effect) {
                 return (model, Effect::None);
             }
             let dst = dest_dir(&model.right_files);
-            if model.transfer_mode.with_rename() {
-                let new_name = std::mem::take(&mut model.rename_input.text);
-                let src = sources.into_iter().next().unwrap();
-                model.transfer_mode = TransferMode::None;
-                model.active_panel = ActivePanel::LeftFiles;
-                model.progress = Some(TransferProgress {
-                    op: TransferOp::Move,
-                    current: 0,
-                    total: 0,
-                });
-                return (model, Effect::StartMoveRename(src, dst.join(new_name)));
-            }
+            let with_rename = model.transfer_mode.with_rename();
             model.transfer_mode = TransferMode::None;
             model.active_panel = ActivePanel::LeftFiles;
-            model.progress = Some(TransferProgress {
-                op: TransferOp::Move,
-                current: 0,
-                total: 0,
-            });
-            (model, Effect::StartMove(sources, dst))
+            let kind = if with_rename {
+                let new_name = std::mem::take(&mut model.rename_input.text);
+                let src = sources.into_iter().next().unwrap();
+                PendingKind::MoveRename(src, dst.join(new_name))
+            } else {
+                PendingKind::Move(sources, dst)
+            };
+            let effect = begin_transfer(&mut model, kind);
+            (model, effect)
         }
         _ => (model, Effect::None),
     }
@@ -421,12 +450,8 @@ fn update_rename(mut model: Model, msg: Message) -> (Model, Effect) {
                     .parent()
                     .map_or_else(|| PathBuf::from(&new_name), |p| p.join(&new_name));
                 model.pending_select = Some(new_name);
-                model.progress = Some(TransferProgress {
-                    op: TransferOp::Move,
-                    current: 0,
-                    total: 0,
-                });
-                return (model, Effect::StartMoveRename(target.path, dst));
+                let effect = begin_transfer(&mut model, PendingKind::MoveRename(target.path, dst));
+                return (model, effect);
             }
             // Deactivate the dialog (keep text) and open the destination panel.
             model.rename_input.active = false;

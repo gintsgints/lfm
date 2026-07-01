@@ -54,7 +54,7 @@ impl FileFind {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum TransferOp {
     Copy,
     Move,
@@ -65,6 +65,57 @@ pub struct TransferProgress {
     pub op: TransferOp,
     pub current: u64,
     pub total: u64,
+}
+
+/// A copy or move that has been confirmed but not yet started, described by the
+/// exact sources and destination so it can be launched as-is once any overwrite
+/// prompt is resolved.
+pub enum PendingKind {
+    Copy(Vec<PathBuf>, PathBuf),
+    Move(Vec<PathBuf>, PathBuf),
+    CopyRename(PathBuf, PathBuf),
+    MoveRename(PathBuf, PathBuf),
+}
+
+impl PendingKind {
+    pub fn op(&self) -> TransferOp {
+        match self {
+            PendingKind::Copy(..) | PendingKind::CopyRename(..) => TransferOp::Copy,
+            PendingKind::Move(..) | PendingKind::MoveRename(..) => TransferOp::Move,
+        }
+    }
+
+    /// Names of destination entries that already exist and would be overwritten.
+    /// A source whose destination path is itself (copy/move onto the same
+    /// location) is not reported as a conflict.
+    pub fn conflicts(&self) -> Vec<String> {
+        match self {
+            PendingKind::Copy(sources, dst_dir) | PendingKind::Move(sources, dst_dir) => sources
+                .iter()
+                .filter_map(|src| {
+                    let name = src.file_name()?;
+                    let target = dst_dir.join(name);
+                    (target != *src && target.exists()).then(|| name.to_string_lossy().into_owned())
+                })
+                .collect(),
+            PendingKind::CopyRename(src, dst) | PendingKind::MoveRename(src, dst) => {
+                if dst != src && dst.exists() {
+                    vec![
+                        dst.file_name()
+                            .map_or_else(String::new, |n| n.to_string_lossy().into_owned()),
+                    ]
+                } else {
+                    Vec::new()
+                }
+            }
+        }
+    }
+}
+
+/// A transfer awaiting the user's answer to an overwrite prompt.
+pub struct PendingOverwrite {
+    pub kind: PendingKind,
+    pub conflicts: Vec<String>,
 }
 
 #[derive(Clone, Copy, PartialEq, Default)]
@@ -170,6 +221,8 @@ pub struct Model {
     #[cfg(feature = "debug")]
     pub show_debug: bool,
     pub progress: Option<TransferProgress>,
+    /// A confirmed copy/move held back while the user answers an overwrite prompt.
+    pub pending_overwrite: Option<PendingOverwrite>,
     /// Name to select in the left panel after the next `progress_done`.
     pub pending_select: Option<String>,
     pub error_message: Option<String>,
@@ -197,6 +250,7 @@ impl Model {
             #[cfg(feature = "debug")]
             show_debug: true,
             progress: None,
+            pending_overwrite: None,
             pending_select: None,
             error_message: None,
             content_search: None,

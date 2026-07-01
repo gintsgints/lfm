@@ -142,6 +142,7 @@ pub enum InputMode {
     NewPath,
     GotoPath,
     DeleteConfirm,
+    OverwriteConfirm,
     Copy,
     Move,
     Rename,
@@ -172,6 +173,8 @@ pub fn input_mode(model: &Model) -> InputMode {
 
     if model.error_message.is_some() {
         InputMode::Error
+    } else if model.pending_overwrite.is_some() {
+        InputMode::OverwriteConfirm
     } else if model.file_view.is_some() {
         InputMode::FileView
     } else if model.capture_popup.is_some() {
@@ -246,6 +249,11 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
         InputMode::DeleteConfirm => ModeIntercept::Consumed(match key.code {
             KeyCode::Enter => Some(Message::DeleteConfirm),
             KeyCode::Esc => Some(Message::DeleteCancel),
+            _ => None,
+        }),
+        InputMode::OverwriteConfirm => ModeIntercept::Consumed(match key.code {
+            KeyCode::Enter => Some(Message::OverwriteConfirm),
+            KeyCode::Esc => Some(Message::OverwriteCancel),
             _ => None,
         }),
         InputMode::NewPath => ModeIntercept::Consumed(match key.code {

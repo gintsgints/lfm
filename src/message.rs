@@ -66,6 +66,8 @@ pub enum Message {
         total: u64,
     },
     ProgressDone,
+    OverwriteConfirm,
+    OverwriteCancel,
     DismissError,
     ContentSearch,
     ContentSearchChar(char),
