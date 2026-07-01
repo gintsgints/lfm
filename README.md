@@ -6,6 +6,7 @@ A fast, keyboard-driven TUI file manager built in Rust, inspired by two-panel fi
 
 - Single-panel file browser with vim-style navigation
 - Copy and move files/directories — open a second panel to pick a destination
+- Overwrite confirmation before a copy or move clobbers an existing file or directory
 - Multi-item selection with shift-select
 - Live filter (`/`) to narrow directory listings
 - Pinned directories for quick access
@@ -20,7 +21,7 @@ A fast, keyboard-driven TUI file manager built in Rust, inspired by two-panel fi
 - User-defined preset commands (`x`) — run any shell command on the selection, with optional `{input}` prompt
 - Error popup for failed file operations
 - Nerd Font icons in the file list
-- Catppuccin Mocha colour theme
+- Catppuccin Mocha colour theme by default, customisable via `~/.config/lfm/colors.json`
 - Persists pinned directories across sessions
 - Exits to the active directory via a shell wrapper
 
