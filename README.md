@@ -130,8 +130,8 @@ lfm() {
 | Key | Action |
 |-----|--------|
 | `c` | Start copy — right panel opens at current directory |
-| `h/l/j/k` | Navigate destination panel |
-| `Enter` | Confirm copy into selected directory (or current dir) |
+| `h/l/j/k` | Navigate destination panel to the target folder |
+| `Enter` | Confirm copy into the folder shown in the destination panel |
 | `Esc` | Cancel copy |
 
 ### Move mode
@@ -139,8 +139,8 @@ lfm() {
 | Key | Action |
 |-----|--------|
 | `m` | Start move — right panel opens at current directory |
-| `h/l/j/k` | Navigate destination panel |
-| `Enter` | Confirm move into selected directory (or current dir) |
+| `h/l/j/k` | Navigate destination panel to the target folder |
+| `Enter` | Confirm move into the folder shown in the destination panel |
 | `Esc` | Cancel move |
 
 ### Content search

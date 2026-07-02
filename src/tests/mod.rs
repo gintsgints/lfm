@@ -1,4 +1,5 @@
 mod engine;
+mod copy_destination;
 mod file_find;
 mod file_view;
 mod help_panel;

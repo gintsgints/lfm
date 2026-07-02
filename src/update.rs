@@ -352,7 +352,7 @@ fn update_copy(mut model: Model, msg: Message) -> (Model, Effect) {
                 cancel_transfer(&mut model);
                 return (model, Effect::None);
             }
-            let dst = dest_dir(&model.right_files);
+            let dst = model.right_files.current_dir.clone();
             let with_rename = model.transfer_mode.with_rename();
             model.transfer_mode = TransferMode::None;
             model.active_panel = ActivePanel::LeftFiles;
@@ -410,7 +410,7 @@ fn update_move(mut model: Model, msg: Message) -> (Model, Effect) {
                 cancel_transfer(&mut model);
                 return (model, Effect::None);
             }
-            let dst = dest_dir(&model.right_files);
+            let dst = model.right_files.current_dir.clone();
             let with_rename = model.transfer_mode.with_rename();
             model.transfer_mode = TransferMode::None;
             model.active_panel = ActivePanel::LeftFiles;
@@ -544,13 +544,6 @@ fn update_delete_confirm(mut model: Model) -> (Model, Effect) {
         total: 0,
     });
     (model, Effect::StartDelete(sources))
-}
-
-fn dest_dir(right: &file_panel::Model) -> PathBuf {
-    match right.entries.get(right.selection) {
-        Some(e) if e.is_dir => right.current_dir.join(&e.name),
-        _ => right.current_dir.clone(),
-    }
 }
 
 fn origin_file_panel(model: &Model) -> &file_panel::Model {
