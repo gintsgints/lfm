@@ -98,6 +98,12 @@ fn copy_entry(
 ) {
     let Some(name) = src.file_name() else { return };
     let dst = dst_dir.join(name);
+    if same_path(src, &dst) {
+        // Copying an item onto itself would truncate it (`fs::copy` opens the
+        // destination for writing before reading the source). Skip it.
+        advance(current, count_path(src), total, tx);
+        return;
+    }
     if src.is_dir() {
         match std::fs::create_dir_all(&dst) {
             Ok(()) => copy_dir(src, &dst, current, total, tx, err),
@@ -165,6 +171,12 @@ fn move_entry(
     let dst = dst_dir.join(name);
     let file_count = count_path(src);
 
+    if same_path(src, &dst) {
+        // Moving an item onto itself is a no-op; skip it.
+        advance(current, file_count, total, tx);
+        return;
+    }
+
     if std::fs::rename(src, &dst).is_ok() {
         *current += file_count;
         let _ = tx.send(ProgressMsg::Tick {
@@ -210,6 +222,11 @@ fn copy_to(
     tx: &mpsc::Sender<ProgressMsg>,
     err: &mut Option<String>,
 ) {
+    if same_path(src, dst) {
+        // Copying an item onto itself would truncate it; skip.
+        advance(current, count_path(src), total, tx);
+        return;
+    }
     if src.is_dir() {
         match std::fs::create_dir_all(dst) {
             Ok(()) => copy_dir(src, dst, current, total, tx, err),
@@ -238,6 +255,11 @@ fn move_to(
     err: &mut Option<String>,
 ) {
     let file_count = count_path(src);
+    if same_path(src, dst) {
+        // Moving an item onto itself is a no-op; skip it.
+        advance(current, file_count, total, tx);
+        return;
+    }
     if std::fs::rename(src, dst).is_ok() {
         *current += file_count;
         let _ = tx.send(ProgressMsg::Tick {
@@ -273,6 +295,17 @@ fn move_to(
 }
 
 // ---
+
+/// Whether two paths refer to the same location, so a transfer would clobber
+/// its own source. Compares literally first, then by canonical path to catch
+/// `.`/`..` and symlink aliases.
+fn same_path(a: &Path, b: &Path) -> bool {
+    a == b
+        || matches!(
+            (a.canonicalize(), b.canonicalize()),
+            (Ok(x), Ok(y)) if x == y
+        )
+}
 
 fn record_error(first_error: &mut Option<String>, msg: String) {
     if first_error.is_none() {
