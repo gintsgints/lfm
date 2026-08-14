@@ -6,16 +6,22 @@ use crate::search::SearchResult;
 use crate::state::PersistedState;
 use crate::ui::{file_panel, input_box, pinned_panel};
 
-pub struct ContentSearch {
+/// State of a query popup backed by a background search engine: the content
+/// search (`ContentSearch`) and the file find (`FileFind`) differ only in what
+/// a result is.
+pub struct ResultPanel<T> {
     pub root: PathBuf,
     pub query: input_box::Model,
-    pub results: Vec<SearchResult>,
+    pub results: Vec<T>,
     pub selection: usize,
     pub done: bool,
+    /// The index for `root` is still being built; a query typed now runs as
+    /// soon as it is ready.
+    pub indexing: bool,
     pub input_focused: bool,
 }
 
-impl ContentSearch {
+impl<T> ResultPanel<T> {
     pub fn new(root: PathBuf) -> Self {
         let mut query = input_box::Model::new();
         query.open();
@@ -25,34 +31,14 @@ impl ContentSearch {
             results: Vec::new(),
             selection: 0,
             done: true,
+            indexing: false,
             input_focused: true,
         }
     }
 }
 
-pub struct FileFind {
-    pub root: PathBuf,
-    pub query: input_box::Model,
-    pub results: Vec<FileFindResult>,
-    pub selection: usize,
-    pub done: bool,
-    pub input_focused: bool,
-}
-
-impl FileFind {
-    pub fn new(root: PathBuf) -> Self {
-        let mut query = input_box::Model::new();
-        query.open();
-        Self {
-            root,
-            query,
-            results: Vec::new(),
-            selection: 0,
-            done: true,
-            input_focused: true,
-        }
-    }
-}
+pub type ContentSearch = ResultPanel<SearchResult>;
+pub type FileFind = ResultPanel<FileFindResult>;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum TransferOp {

@@ -1,13 +1,21 @@
 #[cfg(feature = "debug")]
 use std::time::Instant;
 use std::{
-    io::{BufRead, BufReader},
     path::{Path, PathBuf},
-    sync::mpsc,
+    sync::{Arc, atomic::AtomicBool},
 };
+
+use fff_search::file_picker::FilePicker;
+use fff_search::grep::{GrepMode, GrepSearchOptions, parse_grep_query};
 
 #[cfg(feature = "debug")]
 use crate::debug_log;
+/// Maximum number of matches collected for a single query.
+const MAX_RESULTS: usize = 200;
+
+/// Per-query wall-clock budget. A pathological pattern returns partial results
+/// instead of stalling the panel.
+const TIME_BUDGET_MS: u64 = 2_000;
 
 pub struct SearchResult {
     pub path: PathBuf,
@@ -16,118 +24,50 @@ pub struct SearchResult {
     pub line: String,
 }
 
-pub enum SearchMsg {
-    Hit(SearchResult),
-    Done,
-}
-
-/// Running tally of work done during a search, logged when the search finishes.
-#[cfg(feature = "debug")]
-#[derive(Default)]
-struct SearchStats {
-    files: usize,
-    hits: usize,
-}
-
-pub fn run_search(root: &Path, query: &str, tx: &mpsc::Sender<SearchMsg>) {
+/// Grep the indexed files for `query` as literal text.
+pub fn grep(
+    picker: &FilePicker,
+    root: &Path,
+    query: &str,
+    abort: &Arc<AtomicBool>,
+) -> Vec<SearchResult> {
     #[cfg(feature = "debug")]
     let start = Instant::now();
-    #[cfg(feature = "debug")]
-    let mut stats = SearchStats::default();
-    search_dir(
-        root,
-        root,
-        query,
-        tx,
-        #[cfg(feature = "debug")]
-        &mut stats,
-    );
+
+    let parsed = parse_grep_query(query);
+    let options = GrepSearchOptions {
+        page_limit: MAX_RESULTS,
+        mode: GrepMode::PlainText,
+        time_budget_ms: TIME_BUDGET_MS,
+        abort_signal: Some(Arc::clone(abort)),
+        ..Default::default()
+    };
+    let result = picker.grep(&parsed, &options);
+
+    let hits: Vec<SearchResult> = result
+        .matches
+        .iter()
+        .filter_map(|m| {
+            let file = result.files.get(m.file_index)?;
+            let rel_path = PathBuf::from(file.relative_path(picker));
+            Some(SearchResult {
+                path: root.join(&rel_path),
+                rel_path,
+                line_number: usize::try_from(m.line_number).unwrap_or(usize::MAX),
+                line: m.line_content.clone(),
+            })
+        })
+        .collect();
+
     #[cfg(feature = "debug")]
     debug_log!(
-        "search {:?} for {query:?}: {} hit(s) in {} file(s), {:.3}ms",
+        "grep {:?} for {query:?}: {} hit(s) in {} file(s) of {}, {:.3}ms",
         root,
-        stats.hits,
-        stats.files,
+        hits.len(),
+        result.files_with_matches,
+        result.total_files_searched,
         start.elapsed().as_secs_f64() * 1000.0,
     );
-    let _ = tx.send(SearchMsg::Done);
-}
 
-fn search_dir(
-    root: &Path,
-    dir: &Path,
-    query: &str,
-    tx: &mpsc::Sender<SearchMsg>,
-    #[cfg(feature = "debug")] stats: &mut SearchStats,
-) {
-    let Ok(rd) = std::fs::read_dir(dir) else {
-        return;
-    };
-    let mut entries: Vec<_> = rd.filter_map(Result::ok).collect();
-    entries.sort_by_key(std::fs::DirEntry::file_name);
-    for entry in entries {
-        let path = entry.path();
-        let Ok(ft) = entry.file_type() else { continue };
-        if ft.is_dir() {
-            if entry.file_name().to_string_lossy().starts_with('.') {
-                continue;
-            }
-            search_dir(
-                root,
-                &path,
-                query,
-                tx,
-                #[cfg(feature = "debug")]
-                stats,
-            );
-        } else if ft.is_file() {
-            search_file(
-                root,
-                &path,
-                query,
-                tx,
-                #[cfg(feature = "debug")]
-                stats,
-            );
-        }
-    }
-}
-
-fn search_file(
-    root: &Path,
-    path: &Path,
-    query: &str,
-    tx: &mpsc::Sender<SearchMsg>,
-    #[cfg(feature = "debug")] stats: &mut SearchStats,
-) {
-    let Ok(file) = std::fs::File::open(path) else {
-        return;
-    };
-    #[cfg(feature = "debug")]
-    {
-        stats.files += 1;
-    }
-    let reader = BufReader::new(file);
-    let rel_path = path.strip_prefix(root).unwrap_or(path).to_path_buf();
-    for (i, line_result) in reader.lines().enumerate() {
-        let Ok(line) = line_result else {
-            // Binary file or encoding error — stop reading this file.
-            break;
-        };
-        if line.contains(query) {
-            #[cfg(feature = "debug")]
-            {
-                stats.hits += 1;
-            }
-            let hit = SearchMsg::Hit(SearchResult {
-                path: path.to_path_buf(),
-                rel_path: rel_path.clone(),
-                line_number: i + 1,
-                line,
-            });
-            if tx.send(hit).is_err() {
-                return; // receiver dropped — search cancelled
-            }
-        }
-    }
+    hits
 }

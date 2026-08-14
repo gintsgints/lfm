@@ -1,9 +1,13 @@
 use std::{io, path::PathBuf, sync::mpsc, time::Duration};
 
-use ratatui::{DefaultTerminal, crossterm::event};
+use ratatui::{
+    DefaultTerminal,
+    crossterm::event::{self, Event},
+};
 
 mod archive;
 pub mod debug;
+mod engine;
 mod file_find;
 mod icons;
 mod keys;
@@ -20,15 +24,19 @@ mod ui;
 mod update;
 mod view;
 
+use engine::{EngineMsg, Kind, SearchEngine};
 use keys::{
     disable_extended_key_reporting, enable_extended_key_reporting, input_mode, normalize_key_event,
     to_message,
 };
 use message::Message;
-use model::{CapturePopup, Model};
+use model::{CapturePopup, Model, ResultPanel};
 use presets::OutputMode;
 use update::{Effect, RunSpec, update};
 use view::view;
+
+/// Poll interval while background work is running but has produced nothing yet.
+const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 fn main() -> io::Result<()> {
     let choosedir = std::env::var_os("LFM_CHOOSEDIR").map(PathBuf::from);
@@ -132,46 +140,46 @@ fn open_in_editor(terminal: &mut DefaultTerminal, path: &std::path::Path) {
     enable_extended_key_reporting();
 }
 
+fn open_with_default_app(path: &std::path::Path) {
+    #[cfg(target_os = "macos")]
+    let _ = std::process::Command::new("open").arg(path).spawn();
+    #[cfg(target_os = "windows")]
+    let _ = std::process::Command::new("cmd")
+        .args(["/c", "start", "", &path.to_string_lossy()])
+        .spawn();
+    #[cfg(target_os = "linux")]
+    let _ = std::process::Command::new("xdg-open").arg(path).spawn();
+}
+
 fn run(mut terminal: DefaultTerminal, extended_keys: bool) -> io::Result<PathBuf> {
     let mut model = Model::init(state::load())?;
     let mut progress_rx: Option<mpsc::Receiver<transfer::ProgressMsg>> = None;
-    let mut search_rx: Option<mpsc::Receiver<search::SearchMsg>> = None;
-    let mut file_find_rx: Option<mpsc::Receiver<file_find::FileFindMsg>> = None;
+    // Kept across panel sessions so a root is indexed once, not once per query.
+    let mut search_engine: Option<SearchEngine> = None;
 
     loop {
         terminal.draw(|frame| view(&model, frame))?;
 
         let (m, got_progress) = drain_progress(model, &mut progress_rx);
         model = m;
-        let (m, got_search) = drain_search(model, &mut search_rx);
-        model = m;
-        let (m, got_file_find) = drain_file_find(model, &mut file_find_rx);
-        model = m;
+        let got_results = drain_index(&mut model, &mut search_engine);
 
-        // Decide how long to wait for input.
-        //
-        // When we just drained progress/search results, redraw promptly with a
-        // zero-timeout poll — but still service the keyboard so a fast-producing
-        // background thread (e.g. a search matching many lines) can't starve
-        // input and freeze the UI. When a thread is running but idle, poll with
-        // a short timeout. Otherwise block until the next event.
-        let event = if got_progress || got_search || got_file_find {
-            if event::poll(Duration::ZERO)? {
-                Some(event::read()?)
-            } else {
-                None
-            }
-        } else if progress_rx.is_some() || search_rx.is_some() || file_find_rx.is_some() {
-            if event::poll(Duration::from_millis(50))? {
-                Some(event::read()?)
-            } else {
-                None
-            }
+        // A panel is outstanding while the index is still building or its query
+        // has not reported back yet. The engine itself is long-lived, so it must
+        // not keep the loop spinning once both panels are idle.
+        let search_pending =
+            pending(model.content_search.as_ref()) || pending(model.file_find.as_ref());
+
+        let timeout = if got_progress || got_results {
+            Some(Duration::ZERO)
+        } else if progress_rx.is_some() || search_pending {
+            Some(POLL_INTERVAL)
         } else {
-            Some(event::read()?)
+            None
         };
-
-        let Some(event) = event else { continue };
+        let Some(event) = next_event(timeout)? else {
+            continue;
+        };
 
         #[cfg(feature = "debug")]
         keys::log_key(&event);
@@ -203,16 +211,7 @@ fn run(mut terminal: DefaultTerminal, extended_keys: bool) -> io::Result<PathBuf
                     return Ok(model.left_files.current_dir.clone());
                 }
                 Effect::OpenEditor(path) => open_in_editor(&mut terminal, &path),
-                Effect::OpenDefault(path) => {
-                    #[cfg(target_os = "macos")]
-                    let _ = std::process::Command::new("open").arg(&path).spawn();
-                    #[cfg(target_os = "windows")]
-                    let _ = std::process::Command::new("cmd")
-                        .args(["/c", "start", "", &path.to_string_lossy()])
-                        .spawn();
-                    #[cfg(target_os = "linux")]
-                    let _ = std::process::Command::new("xdg-open").arg(&path).spawn();
-                }
+                Effect::OpenDefault(path) => open_with_default_app(&path),
                 Effect::StartCopy(sources, dst) => {
                     let (tx, rx) = mpsc::channel();
                     progress_rx = Some(rx);
@@ -238,18 +237,30 @@ fn run(mut terminal: DefaultTerminal, extended_keys: bool) -> io::Result<PathBuf
                     progress_rx = Some(rx);
                     std::thread::spawn(move || transfer::run_delete(&sources, &tx));
                 }
+                Effect::PrepareContentSearch { root } => {
+                    sync_indexing(
+                        model.content_search.as_mut(),
+                        ensure_engine(&mut search_engine, root),
+                    );
+                }
                 Effect::StartContentSearch { root, query } => {
-                    let (tx, rx) = mpsc::channel();
-                    search_rx = Some(rx);
-                    std::thread::spawn(move || search::run_search(&root, &query, &tx));
+                    let engine = ensure_engine(&mut search_engine, root);
+                    engine.search(Kind::Content, query);
+                    sync_indexing(model.content_search.as_mut(), engine);
                 }
                 Effect::RunCommand { spec } => {
                     model = run_preset_command(&mut terminal, model, spec);
                 }
+                Effect::PrepareFileFind { root } => {
+                    sync_indexing(
+                        model.file_find.as_mut(),
+                        ensure_engine(&mut search_engine, root),
+                    );
+                }
                 Effect::StartFileFind { root, query } => {
-                    let (tx, rx) = mpsc::channel();
-                    file_find_rx = Some(rx);
-                    std::thread::spawn(move || file_find::run_file_find(&root, &query, &tx));
+                    let engine = ensure_engine(&mut search_engine, root);
+                    engine.search(Kind::Files, query);
+                    sync_indexing(model.file_find.as_mut(), engine);
                 }
                 Effect::None => {}
             }
@@ -296,72 +307,140 @@ fn drain_progress(
     (model, got_progress)
 }
 
-fn drain_search(
-    mut model: Model,
-    search_rx: &mut Option<mpsc::Receiver<search::SearchMsg>>,
-) -> (Model, bool) {
-    if model.content_search.is_none() {
-        *search_rx = None;
-        return (model, false);
+/// Decide how long to wait for input.
+///
+/// Right after draining progress/search results, redraw promptly with a
+/// zero-timeout poll — but still service the keyboard so a fast-producing
+/// background thread (e.g. a search matching many lines) can't starve input and
+/// freeze the UI. `None` blocks until the next event.
+fn next_event(timeout: Option<Duration>) -> io::Result<Option<Event>> {
+    let Some(timeout) = timeout else {
+        return Ok(Some(event::read()?));
+    };
+    if event::poll(timeout)? {
+        Ok(Some(event::read()?))
+    } else {
+        Ok(None)
     }
-    let mut got_result = false;
-    loop {
-        let result = match search_rx.as_ref() {
-            None => break,
-            Some(rx) => rx.try_recv(),
-        };
-        match result {
-            Ok(search::SearchMsg::Hit(r)) => {
-                if let Some(cs) = &mut model.content_search {
-                    cs.results.push(r);
-                }
-                got_result = true;
-            }
-            Ok(search::SearchMsg::Done) | Err(mpsc::TryRecvError::Disconnected) => {
-                if let Some(cs) = &mut model.content_search {
-                    cs.done = true;
-                }
-                *search_rx = None;
-                got_result = true;
-                break;
-            }
-            Err(mpsc::TryRecvError::Empty) => break,
-        }
-    }
-    (model, got_result)
 }
 
-fn drain_file_find(
-    mut model: Model,
-    file_find_rx: &mut Option<mpsc::Receiver<file_find::FileFindMsg>>,
-) -> (Model, bool) {
-    if model.file_find.is_none() {
-        *file_find_rx = None;
-        return (model, false);
+/// Return the engine for `root`, spawning one (and dropping an engine indexing a
+/// different root) only when needed. Reusing the engine is what keeps a tree
+/// indexed once per root instead of once per query.
+fn ensure_engine(engine: &mut Option<SearchEngine>, root: PathBuf) -> &mut SearchEngine {
+    if engine.as_ref().is_none_or(|e| e.root() != root) {
+        *engine = Some(SearchEngine::spawn(root));
     }
-    let mut got_result = false;
+    engine.as_mut().expect("engine was just ensured")
+}
+
+/// Mirror the engine's indexing state onto the panel waiting on it.
+fn sync_indexing<T>(panel: Option<&mut ResultPanel<T>>, engine: &SearchEngine) {
+    if let Some(panel) = panel {
+        panel.indexing = engine.is_indexing();
+    }
+}
+
+/// Whether `panel` is still waiting on the engine.
+fn pending<T>(panel: Option<&ResultPanel<T>>) -> bool {
+    panel.is_some_and(|p| p.indexing || !p.done)
+}
+
+/// Move whatever the engine has produced into the panel that asked for it.
+/// Returns whether a panel changed.
+fn drain_index(model: &mut Model, engine: &mut Option<SearchEngine>) -> bool {
+    if engine.is_none() {
+        return false;
+    }
+    if model.content_search.is_none() && model.file_find.is_none() {
+        // Both panels closed: stop the in-flight query and throw away whatever
+        // it already produced, but keep the index for the next open.
+        if let Some(engine) = engine.as_ref() {
+            engine.abort_current();
+            while engine.try_recv().is_ok() {}
+        }
+        return false;
+    }
+
+    let mut changed = false;
     loop {
-        let result = match file_find_rx.as_ref() {
+        // Read everything needed off the engine up front, so the arms below are
+        // free to drop it.
+        let (content_gen, files_gen, indexing, msg) = match engine.as_ref() {
             None => break,
-            Some(rx) => rx.try_recv(),
+            Some(engine) => (
+                engine.generation(Kind::Content),
+                engine.generation(Kind::Files),
+                engine.is_indexing(),
+                engine.try_recv(),
+            ),
         };
-        match result {
-            Ok(file_find::FileFindMsg::Hit(r)) => {
-                if let Some(ff) = &mut model.file_find {
-                    ff.results.push(r);
-                }
-                got_result = true;
+        set_indexing(model, indexing);
+        match msg {
+            Ok(EngineMsg::Content {
+                generation,
+                results,
+            }) => {
+                changed |= apply(&mut model.content_search, generation, content_gen, results);
             }
-            Ok(file_find::FileFindMsg::Done) | Err(mpsc::TryRecvError::Disconnected) => {
-                if let Some(ff) = &mut model.file_find {
-                    ff.done = true;
-                }
-                *file_find_rx = None;
-                got_result = true;
+            Ok(EngineMsg::Files {
+                generation,
+                results,
+            }) => {
+                changed |= apply(&mut model.file_find, generation, files_gen, results);
+            }
+            // The worker is gone either way, so nothing is outstanding — leaving
+            // a flag set would spin the event loop.
+            Ok(EngineMsg::Failed(err)) => {
+                finish(model);
+                model.error_message = Some(err);
+                *engine = None;
+                changed = true;
+                break;
+            }
+            Err(mpsc::TryRecvError::Disconnected) => {
+                finish(model);
+                *engine = None;
+                changed = true;
                 break;
             }
             Err(mpsc::TryRecvError::Empty) => break,
         }
     }
-    (model, got_result)
+    changed
+}
+
+/// Replace a panel's results with a finished batch, ignoring a batch whose query
+/// has already been superseded — the panel cleared its list for the newer one.
+fn apply<T>(panel: &mut Option<ResultPanel<T>>, batch: u64, current: u64, results: Vec<T>) -> bool {
+    if batch != current {
+        return false;
+    }
+    let Some(panel) = panel.as_mut() else {
+        return false;
+    };
+    panel.results = results;
+    panel.selection = 0;
+    panel.done = true;
+    true
+}
+
+fn set_indexing(model: &mut Model, indexing: bool) {
+    if let Some(panel) = model.content_search.as_mut() {
+        panel.indexing = indexing;
+    }
+    if let Some(panel) = model.file_find.as_mut() {
+        panel.indexing = indexing;
+    }
+}
+
+/// Mark both panels as having nothing outstanding.
+fn finish(model: &mut Model) {
+    set_indexing(model, false);
+    if let Some(panel) = model.content_search.as_mut() {
+        panel.done = true;
+    }
+    if let Some(panel) = model.file_find.as_mut() {
+        panel.done = true;
+    }
 }

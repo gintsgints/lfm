@@ -21,9 +21,27 @@ pub enum Effect {
     StartCopyRename(PathBuf, PathBuf),
     StartMoveRename(PathBuf, PathBuf),
     StartDelete(Vec<PathBuf>),
-    StartContentSearch { root: PathBuf, query: String },
-    StartFileFind { root: PathBuf, query: String },
-    RunCommand { spec: RunSpec },
+    /// Make sure the content-search index for `root` exists (and start building
+    /// it if not) without running a query yet.
+    PrepareContentSearch {
+        root: PathBuf,
+    },
+    StartContentSearch {
+        root: PathBuf,
+        query: String,
+    },
+    /// Make sure the file-find index for `root` exists (and start building it if
+    /// not) without running a query yet.
+    PrepareFileFind {
+        root: PathBuf,
+    },
+    StartFileFind {
+        root: PathBuf,
+        query: String,
+    },
+    RunCommand {
+        spec: RunSpec,
+    },
 }
 
 pub struct RunSpec {
@@ -553,8 +571,9 @@ fn update_content_search(mut model: Model, msg: Message) -> (Model, Effect) {
             } else {
                 model.left_files.current_dir.clone()
             };
-            model.content_search = Some(ContentSearch::new(root));
-            (model, Effect::None)
+            model.content_search = Some(ContentSearch::new(root.clone()));
+            // Index up front so the first keystroke greps a ready index.
+            (model, Effect::PrepareContentSearch { root })
         }
         Message::ContentSearchChar(c) => {
             let (query, root) = {
@@ -675,8 +694,9 @@ fn update_file_find(mut model: Model, msg: Message) -> (Model, Effect) {
             } else {
                 model.left_files.current_dir.clone()
             };
-            model.file_find = Some(FileFind::new(root));
-            (model, Effect::None)
+            model.file_find = Some(FileFind::new(root.clone()));
+            // Index up front so the first keystroke searches a ready index.
+            (model, Effect::PrepareFileFind { root })
         }
         Message::FileFindChar(c) => {
             let (query, root) = {

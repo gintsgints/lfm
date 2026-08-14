@@ -13,7 +13,9 @@ use crate::ui::input_box;
 pub fn render(frame: &mut Frame, area: Rect, state: &ContentSearch) {
     let popup = centered_rect(90, 80, area);
 
-    let match_label = if state.query.text.is_empty() {
+    let match_label = if state.indexing {
+        " indexing\u{2026}  ".to_owned()
+    } else if state.query.text.is_empty() {
         String::new()
     } else if state.done {
         format!(" {} matches  ", state.results.len())
