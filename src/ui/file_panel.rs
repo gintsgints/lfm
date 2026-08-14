@@ -549,7 +549,7 @@ fn read_entries(path: &Path) -> io::Result<Vec<Entry>> {
             let meta = e.metadata().ok();
             Entry {
                 name: e.file_name().to_string_lossy().into_owned(),
-                is_dir: e.file_type().map(|t| t.is_dir()).unwrap_or(false),
+                is_dir: e.file_type().is_ok_and(|t| t.is_dir()),
                 size: meta.as_ref().map_or(0, std::fs::Metadata::len),
                 modified: meta.and_then(|m| m.modified().ok()),
             }
@@ -561,7 +561,7 @@ fn read_entries(path: &Path) -> io::Result<Vec<Entry>> {
 fn sort_entries(entries: &mut [Entry], order: SortOrder) {
     match order {
         SortOrder::Name => entries.sort_by(|a, b| a.name.cmp(&b.name)),
-        SortOrder::Modified => entries.sort_by(|a, b| b.modified.cmp(&a.modified)),
+        SortOrder::Modified => entries.sort_by_key(|e| std::cmp::Reverse(e.modified)),
         SortOrder::Extension => entries.sort_by(|a, b| {
             let ext_a = Path::new(&a.name)
                 .extension()
@@ -573,6 +573,6 @@ fn sort_entries(entries: &mut [Entry], order: SortOrder) {
                 .unwrap_or("");
             ext_a.cmp(ext_b).then_with(|| a.name.cmp(&b.name))
         }),
-        SortOrder::Size => entries.sort_by(|a, b| b.size.cmp(&a.size)),
+        SortOrder::Size => entries.sort_by_key(|e| std::cmp::Reverse(e.size)),
     }
 }
