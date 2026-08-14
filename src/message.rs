@@ -116,3 +116,15 @@ pub enum Message {
     #[cfg(feature = "debug")]
     ToggleDebug,
 }
+
+impl Message {
+    /// Whether handling this message writes to the filesystem, which makes a
+    /// built search index stale. Copies, moves, deletes and renames run in the
+    /// background instead and are noticed when their progress finishes.
+    pub fn mutates_filesystem(self) -> bool {
+        matches!(
+            self,
+            Self::NewPathConfirm | Self::ZipFiles | Self::UnzipFile
+        )
+    }
+}

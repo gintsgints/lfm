@@ -220,6 +220,16 @@ pub struct Model {
 }
 
 impl Model {
+    /// Directory the user is browsing right now — the root a search would use.
+    /// The pinned panel has no directory of its own, so it reports the left
+    /// panel's, matching where a search opened from it would run.
+    pub fn active_dir(&self) -> &std::path::Path {
+        match self.active_panel {
+            ActivePanel::RightFiles => &self.right_files.current_dir,
+            ActivePanel::LeftFiles | ActivePanel::Pinned => &self.left_files.current_dir,
+        }
+    }
+
     pub fn init(persisted: PersistedState) -> io::Result<Self> {
         let cwd = std::env::current_dir()?;
         Ok(Self {

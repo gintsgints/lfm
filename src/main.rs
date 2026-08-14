@@ -1,4 +1,9 @@
-use std::{io, path::PathBuf, sync::mpsc, time::Duration};
+use std::{
+    io,
+    path::{Path, PathBuf},
+    sync::mpsc,
+    time::{Duration, Instant},
+};
 
 use ratatui::{
     DefaultTerminal,
@@ -34,6 +39,11 @@ use model::{CapturePopup, Model, ResultPanel};
 use presets::OutputMode;
 use update::{Effect, RunSpec, update};
 use view::view;
+
+/// How long the browsed directory must stay put before its index is built. A
+/// filesystem walk cannot be cancelled once started, so stepping through
+/// directories must not start one per directory.
+const INDEX_DEBOUNCE: Duration = Duration::from_millis(300);
 
 /// Poll interval while background work is running but has produced nothing yet.
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
@@ -154,15 +164,27 @@ fn open_with_default_app(path: &std::path::Path) {
 fn run(mut terminal: DefaultTerminal, extended_keys: bool) -> io::Result<PathBuf> {
     let mut model = Model::init(state::load())?;
     let mut progress_rx: Option<mpsc::Receiver<transfer::ProgressMsg>> = None;
-    // Kept across panel sessions so a root is indexed once, not once per query.
-    let mut search_engine: Option<SearchEngine> = None;
+    let mut index = Index::default();
 
     loop {
         terminal.draw(|frame| view(&model, frame))?;
 
+        // A finished transfer means the tree changed under the index.
+        let was_transferring = progress_rx.is_some();
         let (m, got_progress) = drain_progress(model, &mut progress_rx);
         model = m;
-        let got_results = drain_index(&mut model, &mut search_engine);
+        index.stale |= was_transferring && progress_rx.is_none();
+
+        let got_results = drain_index(&mut model, &mut index);
+
+        // Start pre-warming the directory being browsed once it settles. Not
+        // while a panel is open — replacing the index under an open panel would
+        // strand the query it is waiting on — and not during a transfer, whose
+        // writes would make the fresh index stale anyway.
+        if model.content_search.is_none() && model.file_find.is_none() && progress_rx.is_none() {
+            index.schedule(model.active_dir());
+            index.tick();
+        }
 
         // A panel is outstanding while the index is still building or its query
         // has not reported back yet. The engine itself is long-lived, so it must
@@ -175,7 +197,7 @@ fn run(mut terminal: DefaultTerminal, extended_keys: bool) -> io::Result<PathBuf
         } else if progress_rx.is_some() || search_pending {
             Some(POLL_INTERVAL)
         } else {
-            None
+            index.debounce_remaining()
         };
         let Some(event) = next_event(timeout)? else {
             continue;
@@ -203,6 +225,7 @@ fn run(mut terminal: DefaultTerminal, extended_keys: bool) -> io::Result<PathBuf
         let mode = input_mode(&model);
 
         if let Some(msg) = to_message(&event, model.active_panel, &mode) {
+            index.stale |= msg.mutates_filesystem();
             let (next_model, effect) = update(model, msg);
             model = next_model;
             match effect {
@@ -238,27 +261,23 @@ fn run(mut terminal: DefaultTerminal, extended_keys: bool) -> io::Result<PathBuf
                     std::thread::spawn(move || transfer::run_delete(&sources, &tx));
                 }
                 Effect::PrepareContentSearch { root } => {
-                    sync_indexing(
-                        model.content_search.as_mut(),
-                        ensure_engine(&mut search_engine, root),
-                    );
+                    sync_indexing(model.content_search.as_mut(), index.of(root));
                 }
                 Effect::StartContentSearch { root, query } => {
-                    let engine = ensure_engine(&mut search_engine, root);
+                    let engine = index.of(root);
                     engine.search(Kind::Content, query);
                     sync_indexing(model.content_search.as_mut(), engine);
                 }
                 Effect::RunCommand { spec } => {
+                    // The command may write anywhere, so assume it did.
+                    index.stale = true;
                     model = run_preset_command(&mut terminal, model, spec);
                 }
                 Effect::PrepareFileFind { root } => {
-                    sync_indexing(
-                        model.file_find.as_mut(),
-                        ensure_engine(&mut search_engine, root),
-                    );
+                    sync_indexing(model.file_find.as_mut(), index.of(root));
                 }
                 Effect::StartFileFind { root, query } => {
-                    let engine = ensure_engine(&mut search_engine, root);
+                    let engine = index.of(root);
                     engine.search(Kind::Files, query);
                     sync_indexing(model.file_find.as_mut(), engine);
                 }
@@ -324,14 +343,71 @@ fn next_event(timeout: Option<Duration>) -> io::Result<Option<Event>> {
     }
 }
 
-/// Return the engine for `root`, spawning one (and dropping an engine indexing a
-/// different root) only when needed. Reusing the engine is what keeps a tree
-/// indexed once per root instead of once per query.
-fn ensure_engine(engine: &mut Option<SearchEngine>, root: PathBuf) -> &mut SearchEngine {
-    if engine.as_ref().is_none_or(|e| e.root() != root) {
-        *engine = Some(SearchEngine::spawn(root));
+/// The search index both query panels run against, plus the policy for when it
+/// gets built.
+///
+/// One index serves the content search and the file find, and it is built once
+/// per directory: browsing into a directory pre-warms it, so a panel opened
+/// there usually has results waiting instead of a directory walk.
+#[derive(Default)]
+struct Index {
+    engine: Option<SearchEngine>,
+    /// lfm wrote to the filesystem since the index was built, so a search would
+    /// answer from a stale picture of the tree. Cleared by the next rebuild.
+    stale: bool,
+    /// Directory queued for pre-warming, and when its debounce expires. A walk
+    /// cannot be cancelled once started, so stepping through directories must
+    /// not start one per directory.
+    pending: Option<(PathBuf, Instant)>,
+}
+
+impl Index {
+    /// Queue `dir` for pre-warming unless it is already indexed or queued.
+    fn schedule(&mut self, dir: &Path) {
+        if self.engine.as_ref().is_some_and(|e| e.root() == dir) {
+            self.pending = None;
+            return;
+        }
+        if self
+            .pending
+            .as_ref()
+            .is_some_and(|(queued, _)| queued == dir)
+        {
+            return; // already waiting on this directory — don't push the deadline out
+        }
+        self.pending = Some((dir.to_path_buf(), Instant::now() + INDEX_DEBOUNCE));
     }
-    engine.as_mut().expect("engine was just ensured")
+
+    /// Build the queued index once its directory has stayed put long enough.
+    fn tick(&mut self) {
+        if self
+            .pending
+            .as_ref()
+            .is_some_and(|(_, at)| Instant::now() >= *at)
+        {
+            let (dir, _) = self.pending.take().expect("pending was just checked");
+            self.engine = Some(SearchEngine::spawn(dir));
+            self.stale = false;
+        }
+    }
+
+    /// How long until the queued index starts, for the event poll.
+    fn debounce_remaining(&self) -> Option<Duration> {
+        self.pending
+            .as_ref()
+            .map(|(_, at)| at.saturating_duration_since(Instant::now()))
+    }
+
+    /// Return the engine for `root`, rebuilding when the pre-warmed index is for
+    /// a different directory or went stale under a filesystem change.
+    fn of(&mut self, root: PathBuf) -> &mut SearchEngine {
+        if self.stale || self.engine.as_ref().is_none_or(|e| e.root() != root) {
+            self.engine = Some(SearchEngine::spawn(root));
+            self.stale = false;
+        }
+        self.pending = None;
+        self.engine.as_mut().expect("engine was just ensured")
+    }
 }
 
 /// Mirror the engine's indexing state onto the panel waiting on it.
@@ -348,14 +424,14 @@ fn pending<T>(panel: Option<&ResultPanel<T>>) -> bool {
 
 /// Move whatever the engine has produced into the panel that asked for it.
 /// Returns whether a panel changed.
-fn drain_index(model: &mut Model, engine: &mut Option<SearchEngine>) -> bool {
-    if engine.is_none() {
+fn drain_index(model: &mut Model, index: &mut Index) -> bool {
+    if index.engine.is_none() {
         return false;
     }
     if model.content_search.is_none() && model.file_find.is_none() {
         // Both panels closed: stop the in-flight query and throw away whatever
         // it already produced, but keep the index for the next open.
-        if let Some(engine) = engine.as_ref() {
+        if let Some(engine) = index.engine.as_ref() {
             engine.abort_current();
             while engine.try_recv().is_ok() {}
         }
@@ -366,7 +442,7 @@ fn drain_index(model: &mut Model, engine: &mut Option<SearchEngine>) -> bool {
     loop {
         // Read everything needed off the engine up front, so the arms below are
         // free to drop it.
-        let (content_gen, files_gen, indexing, msg) = match engine.as_ref() {
+        let (content_gen, files_gen, indexing, msg) = match index.engine.as_ref() {
             None => break,
             Some(engine) => (
                 engine.generation(Kind::Content),
@@ -394,13 +470,13 @@ fn drain_index(model: &mut Model, engine: &mut Option<SearchEngine>) -> bool {
             Ok(EngineMsg::Failed(err)) => {
                 finish(model);
                 model.error_message = Some(err);
-                *engine = None;
+                index.engine = None;
                 changed = true;
                 break;
             }
             Err(mpsc::TryRecvError::Disconnected) => {
                 finish(model);
-                *engine = None;
+                index.engine = None;
                 changed = true;
                 break;
             }
