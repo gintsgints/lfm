@@ -11,33 +11,46 @@ use crate::message::Message;
 use crate::model::{Model, ViewContent};
 use crate::state::PersistedState;
 use crate::ui::file_panel;
-use crate::update::{detect_text, update};
+use crate::update::update;
 
-/// Plain UTF-8 bytes are accepted and returned verbatim.
-#[test]
-fn accepts_utf8_text() {
-    assert_eq!(
-        detect_text("hello\nworld".as_bytes().to_vec()),
-        Ok("hello\nworld".to_owned())
-    );
+/// The name of the view the open viewer picked.
+fn view_name(model: &Model) -> &str {
+    model.file_view.as_ref().unwrap().content.kind_name()
 }
 
-/// An embedded NUL byte marks the content as binary.
-#[test]
-fn rejects_nul_byte() {
-    assert!(detect_text(vec![b'a', 0, b'b']).is_err());
+/// A model whose left panel shows `name` with `contents`, cursor on it.
+fn model_with_file(name: &str, contents: &[u8]) -> Model {
+    let dir = temp_dir();
+    fs::write(dir.join(name), contents).unwrap();
+    let mut model = Model::init(PersistedState::default()).unwrap();
+    model.left_files = file_panel::Model::init(dir).unwrap();
+    model.left_files.selection = 0;
+    model
 }
 
-/// Invalid UTF-8 (a lone continuation byte) is rejected as binary.
+/// A binary file opens in the hex view rather than reporting that it is not
+/// text, whatever its extension says.
 #[test]
-fn rejects_invalid_utf8() {
-    assert!(detect_text(vec![0xff, 0xfe]).is_err());
+fn binary_file_opens_in_the_hex_view() {
+    let model = model_with_file("data.json", &[0x00, 0x01, 0xff, 0xfe]);
+    let (model, _) = update(model, Message::ViewFile);
+    assert_eq!(view_name(&model), "Hex");
 }
 
-/// Empty input is valid, empty text.
+/// A text file with an unknown extension still gets the plain-text view.
 #[test]
-fn accepts_empty() {
-    assert_eq!(detect_text(Vec::new()), Ok(String::new()));
+fn text_file_with_unknown_extension_opens_as_plain_text() {
+    let model = model_with_file("Makefile", b"all:\n\techo hi\n");
+    let (model, _) = update(model, Message::ViewFile);
+    assert_eq!(view_name(&model), "Plain text");
+}
+
+/// Extension still decides among text formats.
+#[test]
+fn markdown_file_opens_in_the_markdown_view() {
+    let model = model_with_file("notes.md", b"# Title\n");
+    let (model, _) = update(model, Message::ViewFile);
+    assert_eq!(view_name(&model), "Markdown");
 }
 
 /// The registry picks a per-format view by extension.
@@ -187,15 +200,16 @@ fn undecodable_image_reports_an_error() {
     assert!(view.error.is_some());
 }
 
-/// Without a picker — no terminal was queried — an image falls back to the text
-/// view, which reports it as binary instead of leaving the panel empty.
+/// Without a picker — no terminal was queried, or it draws no graphics — an
+/// image falls back to the hex view rather than an empty panel.
 #[test]
-fn image_file_without_a_picker_falls_back_to_text() {
+fn image_file_without_a_picker_falls_back_to_hex() {
     let mut model = model_with_an_image();
     model.picker = None;
     let (model, _) = update(model, Message::ViewFile);
     let view = model.file_view.as_ref().expect("viewer should be open");
     assert!(matches!(view.content, ViewContent::Text(_)));
+    assert_eq!(view.content.kind_name(), "Hex");
 }
 
 /// Scrolling keys are inert on an image: it is drawn to fit the panel.

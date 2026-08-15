@@ -940,9 +940,10 @@ fn view_target(model: &Model) -> Option<(PathBuf, String, bool)> {
     ))
 }
 
-/// Build the viewer contents for one entry. A directory, an oversized file or a
-/// binary file is not an error here — the viewer is a live preview of whatever
-/// the file list points at, so it shows the reason as its text instead.
+/// Build the viewer contents for one entry. A directory or an oversized file is
+/// not an error here — the viewer is a live preview of whatever the file list
+/// points at, so it shows the reason as its text instead. Binary content is not
+/// a problem at all: the registry hands it to the hex view.
 fn load_file_view(model: &Model, path: PathBuf, name: String, is_dir: bool) -> FileView {
     if !is_dir && let Some(content) = load_image_view(model, &path) {
         return FileView {
@@ -951,21 +952,23 @@ fn load_file_view(model: &Model, path: PathBuf, name: String, is_dir: bool) -> F
             content,
         };
     }
-    let content = if is_dir {
+    let bytes = if is_dir {
         Err("directory".to_owned())
     } else {
-        read_text_file(&path)
+        read_file(&path)
     };
-    let (content, view) = match content {
-        // Files with an unknown extension still get the plain-text view.
-        Ok(text) => (
-            text,
-            model
+    let state = match bytes {
+        // The registry picks by content first, so a binary file lands in the hex
+        // view whatever it is named. Nothing matching at all — a text file with
+        // an unknown extension — still gets the plain-text view.
+        Ok(bytes) => {
+            let view = model
                 .view_registry
-                .find(&path)
-                .unwrap_or_else(|| Arc::new(PlainTextView::new())),
-        ),
-        Err(reason) => (
+                .find_for(&path, &bytes)
+                .unwrap_or_else(|| Arc::new(PlainTextView::new()));
+            ViewState::from_bytes(bytes, view)
+        }
+        Err(reason) => ViewState::new(
             format!("<{reason}>"),
             Arc::new(PlainTextView::new()) as Arc<dyn FormatView>,
         ),
@@ -973,7 +976,7 @@ fn load_file_view(model: &Model, path: PathBuf, name: String, is_dir: bool) -> F
     FileView {
         name,
         path,
-        content: ViewContent::Text(ViewState::new(content, view)),
+        content: ViewContent::Text(state),
     }
 }
 
@@ -1019,22 +1022,14 @@ fn sync_file_view(model: &mut Model) {
     }
 }
 
-/// Read `path` as UTF-8 text for the viewer, rejecting oversized or binary files.
-fn read_text_file(path: &std::path::Path) -> Result<String, String> {
+/// Read `path` for the viewer, rejecting only files too big to hold in memory.
+/// Binary content is fine: the hex view renders it.
+fn read_file(path: &std::path::Path) -> Result<Vec<u8>, String> {
     let len = std::fs::metadata(path).map_err(|e| e.to_string())?.len();
     if len > MAX_VIEW_BYTES {
         return Err(format!("file too large to view ({len} bytes)"));
     }
-    let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
-    detect_text(bytes)
-}
-
-/// Interpret bytes as text, treating an embedded NUL or invalid UTF-8 as binary.
-pub(crate) fn detect_text(bytes: Vec<u8>) -> Result<String, String> {
-    if bytes.contains(&0) {
-        return Err("not a text file".to_owned());
-    }
-    String::from_utf8(bytes).map_err(|_| "not a text file".to_owned())
+    std::fs::read(path).map_err(|e| e.to_string())
 }
 
 fn update_file_view(mut model: Model, msg: Message) -> (Model, Effect) {
