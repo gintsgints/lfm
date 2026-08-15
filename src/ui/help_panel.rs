@@ -33,6 +33,7 @@ const KEYBINDINGS: &[(&str, &str)] = &[
     ("Shift+M", "Move single item — rename before placing"),
     ("v", "Toggle viewer panel (follows the file list)"),
     ("Tab (viewer open)", "Switch between file list and viewer"),
+    ("Esc (viewer open)", "Close viewer panel"),
     ("e", "Open selected item in $EDITOR"),
     ("o", "Open with default application"),
     ("x", "Run preset command (see ~/.config/lfm/commands.json)"),

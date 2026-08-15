@@ -157,6 +157,9 @@ pub enum InputMode {
     CommandInput,
     CapturePopup,
     FileView,
+    /// Viewer panel open but not focused: only Esc is claimed (to close it),
+    /// every other key falls through to the file list.
+    FileViewUnfocused,
 }
 
 pub fn input_mode(model: &Model) -> InputMode {
@@ -217,6 +220,8 @@ pub fn input_mode(model: &Model) -> InputMode {
         InputMode::Move
     } else if filter_locked {
         InputMode::FilteredNormal
+    } else if model.file_view.is_some() {
+        InputMode::FileViewUnfocused
     } else {
         InputMode::Normal
     }
@@ -329,6 +334,14 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
             intercept_command_mode(key, mode)
         }
         InputMode::FileView => ModeIntercept::Consumed(file_view_key(key)),
+        // Esc closes the viewer from the file list too, except while the pinned
+        // panel is up — there Esc still closes that panel first.
+        InputMode::FileViewUnfocused => match key.code {
+            KeyCode::Esc if active_panel != ActivePanel::Pinned => {
+                ModeIntercept::Consumed(Some(Message::FileViewClose))
+            }
+            _ => ModeIntercept::PassThrough,
+        },
     }
 }
 

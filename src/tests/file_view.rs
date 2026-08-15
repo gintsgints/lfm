@@ -3,10 +3,12 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
+use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use ratatui_image::picker::Picker;
 use tui_view::ViewRegistry;
 
 use crate::image_view::{self, ImageView};
+use crate::keys::{input_mode, to_message};
 use crate::message::Message;
 use crate::model::{Model, ViewContent};
 use crate::state::PersistedState;
@@ -16,6 +18,12 @@ use crate::update::update;
 /// The name of the view the open viewer picked.
 fn view_name(model: &Model) -> &str {
     model.file_view.as_ref().unwrap().content.kind_name()
+}
+
+/// The message `code` produces for `model`'s current input mode.
+fn key_message(model: &Model, code: KeyCode) -> Option<Message> {
+    let event = Event::Key(KeyEvent::new(code, KeyModifiers::NONE));
+    to_message(&event, model.active_panel, &input_mode(model))
 }
 
 /// A model whose left panel shows `name` with `contents`, cursor on it.
@@ -241,6 +249,30 @@ fn scrolling_an_image_leaves_it_open() {
         .as_ref()
         .expect("viewer should still be open");
     assert!(matches!(view.content, ViewContent::Image(_)));
+}
+
+/// Esc closes the viewer while the file list still holds the focus, the same
+/// way it cancels a pending copy from either panel.
+#[test]
+fn esc_from_the_file_list_closes_the_viewer() {
+    let model = model_with_two_files();
+    let (model, _) = update(model, Message::ViewFile);
+    assert!(!model.file_view_focused, "viewer opens unfocused");
+
+    let msg = key_message(&model, KeyCode::Esc).expect("Esc should close the viewer");
+    assert!(matches!(msg, Message::FileViewClose));
+
+    let (model, _) = update(model, msg);
+    assert!(model.file_view.is_none());
+}
+
+/// With the viewer open, keys other than Esc still reach the file list.
+#[test]
+fn other_keys_still_reach_the_file_list_with_the_viewer_open() {
+    let model = model_with_two_files();
+    let (model, _) = update(model, Message::ViewFile);
+    let msg = key_message(&model, KeyCode::Char('j')).expect("j should move the cursor");
+    assert!(matches!(msg, Message::SelectDown));
 }
 
 /// Closing the viewer also drops its focus, so the file list keeps the keys.

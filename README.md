@@ -155,6 +155,9 @@ lfm() {
 | `PgUp` / `PgDn` | Page up / down |
 | `Esc` / `Enter` / `q` / `v` | Close the viewer |
 
+`Esc` also closes the viewer while the file list holds the focus (except in the
+pinned panel, where `Esc` closes that panel first).
+
 While the viewer is open it follows the file-list cursor. Text files render through
 [tui-view](https://github.com/gintsgints/tui-view), images render inline with
 `ratatui-image`, and anything binary falls back to a hex view. Source files are
