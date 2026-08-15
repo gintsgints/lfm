@@ -28,7 +28,7 @@ fn copy_file_onto_itself_preserves_contents() {
     let file = dir.join("a.txt");
     fs::write(&file, b"KEEP").unwrap();
 
-    run(|tx| run_copy(&[file.clone()], &dir, tx));
+    run(|tx| run_copy(std::slice::from_ref(&file), &dir, tx));
 
     assert_eq!(fs::read(&file).unwrap(), b"KEEP");
     fs::remove_dir_all(&dir).unwrap();
@@ -42,7 +42,7 @@ fn copy_dir_into_its_parent_preserves_inner_files() {
     fs::create_dir_all(&sub).unwrap();
     fs::write(sub.join("inner.txt"), b"KEEP").unwrap();
 
-    run(|tx| run_copy(&[sub.clone()], &parent, tx));
+    run(|tx| run_copy(std::slice::from_ref(&sub), &parent, tx));
 
     assert_eq!(fs::read(sub.join("inner.txt")).unwrap(), b"KEEP");
     fs::remove_dir_all(&parent).unwrap();
@@ -55,7 +55,7 @@ fn move_file_onto_itself_preserves_contents() {
     let file = dir.join("a.txt");
     fs::write(&file, b"KEEP").unwrap();
 
-    run(|tx| run_move(&[file.clone()], &dir, tx));
+    run(|tx| run_move(std::slice::from_ref(&file), &dir, tx));
 
     assert!(file.exists());
     assert_eq!(fs::read(&file).unwrap(), b"KEEP");

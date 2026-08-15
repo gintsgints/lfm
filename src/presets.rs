@@ -363,7 +363,7 @@ mod tests {
     fn argv_embedded_placeholder_with_many_files_errors() {
         let p = argv_preset(&["mv", "{files}", "{paths}.bak"]);
         let Err(err) = p.expand(&names(&["a", "b"]), &paths(&["/x/a", "/x/b"]), cwd(), "") else {
-            panic!("expected error")
+            panic!("expected error");
         };
         assert!(err.contains("embedded"));
     }

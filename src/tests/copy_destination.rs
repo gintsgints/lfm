@@ -35,8 +35,8 @@ fn destination_is_right_panel_folder_not_highlighted_subdir() {
     let (_model, effect) = update(model, Message::ConfirmCopy);
 
     match effect {
-        Effect::StartCopy(_, dest) => {
-            assert_eq!(dest, dst, "destination should be the panel folder")
+        Effect::StartCopy(_, target) => {
+            assert_eq!(target, dst, "destination should be the panel folder");
         }
         _ => panic!("expected StartCopy effect, destination not retargeted into subdir"),
     }
