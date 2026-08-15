@@ -2,10 +2,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use ratatui_image::picker::Picker;
 use tui_view::ViewRegistry;
 
 use crate::message::Message;
-use crate::model::Model;
+use crate::model::{Model, ViewContent};
 use crate::state::PersistedState;
 use crate::ui::file_panel;
 use crate::update::{detect_text, update};
@@ -116,6 +117,55 @@ fn moving_in_the_file_list_updates_the_viewer() {
 
     let (model, _) = update(model, Message::SelectDown);
     assert_eq!(model.file_view.as_ref().unwrap().name, "b.txt");
+}
+
+/// A model whose left panel shows a 2x2 PNG, with a picker that renders it as
+/// halfblocks — the one protocol that needs no terminal to query.
+fn model_with_an_image() -> Model {
+    let dir = temp_dir();
+    image::RgbaImage::new(2, 2)
+        .save(dir.join("pic.png"))
+        .unwrap();
+    let mut model = Model::init(PersistedState::default()).unwrap();
+    model.left_files = file_panel::Model::init(dir).unwrap();
+    model.left_files.selection = 0;
+    model.picker = Some(Picker::halfblocks());
+    model
+}
+
+/// An image file opens in the image view rather than as text.
+#[test]
+fn image_file_opens_in_the_image_view() {
+    let model = model_with_an_image();
+    let (model, _) = update(model, Message::ViewFile);
+    let view = model.file_view.as_ref().expect("viewer should be open");
+    assert!(matches!(view.content, ViewContent::Image(_)));
+    assert_eq!(view.content.kind_name(), "Image");
+}
+
+/// Without a picker — no terminal was queried — an image falls back to the text
+/// view, which reports it as binary instead of leaving the panel empty.
+#[test]
+fn image_file_without_a_picker_falls_back_to_text() {
+    let mut model = model_with_an_image();
+    model.picker = None;
+    let (model, _) = update(model, Message::ViewFile);
+    let view = model.file_view.as_ref().expect("viewer should be open");
+    assert!(matches!(view.content, ViewContent::Text(_)));
+}
+
+/// Scrolling keys are inert on an image: it is drawn to fit the panel.
+#[test]
+fn scrolling_an_image_leaves_it_open() {
+    let model = model_with_an_image();
+    let (model, _) = update(model, Message::ViewFile);
+    let (model, _) = update(model, Message::FileViewScrollDown);
+    let (model, _) = update(model, Message::FileViewPageDown);
+    let view = model
+        .file_view
+        .as_ref()
+        .expect("viewer should still be open");
+    assert!(matches!(view.content, ViewContent::Image(_)));
 }
 
 /// Closing the viewer also drops its focus, so the file list keeps the keys.

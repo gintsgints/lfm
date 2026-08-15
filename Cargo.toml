@@ -16,3 +16,5 @@ flate2 = "1"
 tar = "0.4.46"
 fff-search = "0.9.6"
 tui-view = { git = "https://github.com/gintsgints/tui-view.git" }
+ratatui-image = { version = "11.0.6", default-features = false, features = ["crossterm", "image-defaults"] }
+image = "0.25"

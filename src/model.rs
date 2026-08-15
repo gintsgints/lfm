@@ -5,6 +5,8 @@ use crate::presets::Preset;
 use crate::search::SearchResult;
 use crate::state::PersistedState;
 use crate::ui::{file_panel, input_box, pinned_panel};
+use ratatui_image::picker::Picker;
+use ratatui_image::protocol::StatefulProtocol;
 use tui_view::{ViewRegistry, ViewState};
 
 /// State of a query popup backed by a background search engine: the content
@@ -173,16 +175,39 @@ impl CommandPicker {
     }
 }
 
-/// Text contents of a file, displayed in the viewer panel on the right.
+/// What the viewer panel is showing: either text rendered by `tui-view`, or a
+/// decoded image handed to the terminal's graphics protocol.
 ///
-/// Rendering, scroll position and the width cache live in the `tui-view`
-/// [`ViewState`], which picks a per-format view (Markdown, JSON, plain text)
-/// for the file. `path` is the entry the contents were read from; it is what
-/// tells the viewer that the file panel has moved on to another file.
+/// For text, rendering, scroll position and the width cache live in the
+/// `tui-view` [`ViewState`], which picks a per-format view (Markdown, JSON,
+/// plain text) for the file. For an image, the [`StatefulProtocol`] owns the
+/// decoded pixels and caches the encoding for the last render area, so it is
+/// re-encoded only when the panel is resized.
+pub enum ViewContent {
+    Text(ViewState),
+    /// Boxed because a `StatefulProtocol` carries the decoded image and is far
+    /// larger than the text variant.
+    Image(Box<StatefulProtocol>),
+}
+
+impl ViewContent {
+    /// Label for the panel title, standing in for the format view's name.
+    pub fn kind_name(&self) -> &str {
+        match self {
+            Self::Text(state) => state.view().name(),
+            Self::Image(_) => "Image",
+        }
+    }
+}
+
+/// Contents of a file, displayed in the viewer panel on the right.
+///
+/// `path` is the entry the contents were read from; it is what tells the viewer
+/// that the file panel has moved on to another file.
 pub struct FileView {
     pub name: String,
     pub path: PathBuf,
-    pub state: ViewState,
+    pub content: ViewContent,
 }
 
 /// Output of a `capture`-mode preset, displayed in a scrollable popup.
@@ -228,6 +253,10 @@ pub struct Model {
     pub file_view_focused: bool,
     /// Per-format views the file viewer picks from, by file extension.
     pub view_registry: ViewRegistry,
+    /// Terminal graphics capabilities and font size, queried once at startup.
+    /// `None` until then — and in tests, where there is no terminal to query —
+    /// which makes the viewer fall back to its text path for image files.
+    pub picker: Option<Picker>,
 }
 
 impl Model {
@@ -267,6 +296,7 @@ impl Model {
             file_view: None,
             file_view_focused: false,
             view_registry: ViewRegistry::with_defaults(),
+            picker: None,
         })
     }
 

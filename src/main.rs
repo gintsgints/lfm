@@ -9,6 +9,7 @@ use ratatui::{
     DefaultTerminal,
     crossterm::event::{self, Event},
 };
+use ratatui_image::picker::Picker;
 
 mod archive;
 pub mod debug;
@@ -52,8 +53,13 @@ fn main() -> io::Result<()> {
     let choosedir = std::env::var_os("LFM_CHOOSEDIR").map(PathBuf::from);
     theme::init(theme::load());
     let terminal = ratatui::init();
+    // Query the terminal's graphics support and font size before any other
+    // escape sequence is exchanged with it: the query writes to stdio and reads
+    // the answer back. A terminal that does not answer leaves the viewer
+    // without images rather than failing.
+    let picker = Picker::from_query_stdio().ok();
     let extended_keys = enable_extended_key_reporting();
-    let result = run(terminal, extended_keys);
+    let result = run(terminal, extended_keys, picker);
     disable_extended_key_reporting();
     ratatui::restore();
     let dir = result?;
@@ -161,8 +167,13 @@ fn open_with_default_app(path: &std::path::Path) {
     let _ = std::process::Command::new("xdg-open").arg(path).spawn();
 }
 
-fn run(mut terminal: DefaultTerminal, extended_keys: bool) -> io::Result<PathBuf> {
+fn run(
+    mut terminal: DefaultTerminal,
+    extended_keys: bool,
+    picker: Option<Picker>,
+) -> io::Result<PathBuf> {
     let mut model = Model::init(state::load())?;
+    model.picker = picker;
     let mut progress_rx: Option<mpsc::Receiver<transfer::ProgressMsg>> = None;
     let mut index = Index::default();
 

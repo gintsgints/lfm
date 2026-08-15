@@ -9,7 +9,7 @@ use crate::debug_log;
 use crate::message::Message;
 use crate::model::{
     ActivePanel, CommandPicker, ContentSearch, FileFind, FileView, Model, PendingKind,
-    PendingOverwrite, TransferMode, TransferOp, TransferProgress,
+    PendingOverwrite, TransferMode, TransferOp, TransferProgress, ViewContent,
 };
 use crate::presets::{self, ExecSpec, OutputMode};
 use crate::ui::{capture_popup, file_panel, help_panel, input_box, pinned_panel};
@@ -923,6 +923,11 @@ fn update_capture_popup(mut model: Model, msg: Message) -> (Model, Effect) {
 /// Upper bound on the size of a file the viewer will load into memory.
 const MAX_VIEW_BYTES: u64 = 5 * 1024 * 1024;
 
+/// Upper bound on the size of an image the viewer will decode. Higher than the
+/// text limit because encoded images are compressed, but still bounded: moving
+/// the selection decodes whatever it lands on.
+const MAX_IMAGE_BYTES: u64 = 32 * 1024 * 1024;
+
 /// The entry highlighted in the active file panel: its path, display name and
 /// whether it is a directory.
 fn view_target(model: &Model) -> Option<(PathBuf, String, bool)> {
@@ -943,6 +948,13 @@ fn view_target(model: &Model) -> Option<(PathBuf, String, bool)> {
 /// binary file is not an error here — the viewer is a live preview of whatever
 /// the file list points at, so it shows the reason as its text instead.
 fn load_file_view(model: &Model, path: PathBuf, name: String, is_dir: bool) -> FileView {
+    if !is_dir && let Some(content) = load_image_view(model, &path) {
+        return FileView {
+            name,
+            path,
+            content,
+        };
+    }
     let content = if is_dir {
         Err("directory".to_owned())
     } else {
@@ -965,8 +977,26 @@ fn load_file_view(model: &Model, path: PathBuf, name: String, is_dir: bool) -> F
     FileView {
         name,
         path,
-        state: ViewState::new(content, view),
+        content: ViewContent::Text(ViewState::new(content, view)),
     }
+}
+
+/// Build the image contents for `path`, or `None` when it is not an image the
+/// terminal can be asked to draw — an unrecognised extension, no picker (no
+/// terminal was queried, as in tests), an oversized file or a decode failure.
+/// `None` sends the entry down the text path, which reports the reason itself.
+fn load_image_view(model: &Model, path: &std::path::Path) -> Option<ViewContent> {
+    let picker = model.picker.as_ref()?;
+    let format = image::ImageFormat::from_path(path).ok()?;
+    let len = std::fs::metadata(path).ok()?.len();
+    if len > MAX_IMAGE_BYTES {
+        return None;
+    }
+    let bytes = std::fs::read(path).ok()?;
+    let image = image::load_from_memory_with_format(&bytes, format).ok()?;
+    Some(ViewContent::Image(Box::new(
+        picker.new_resize_protocol(image),
+    )))
 }
 
 /// `v` toggles the viewer panel: it closes an open viewer, and otherwise opens
@@ -1023,12 +1053,17 @@ fn update_file_view(mut model: Model, msg: Message) -> (Model, Effect) {
     let Some(v) = &mut model.file_view else {
         return (model, Effect::None);
     };
-    match msg {
-        Message::FileViewScrollUp => v.state.scroll_up(1),
-        Message::FileViewScrollDown => v.state.scroll_down(1),
-        Message::FileViewPageUp => v.state.page_up(),
-        Message::FileViewPageDown => v.state.page_down(),
-        Message::FileViewClose => {
+    // An image is always drawn to fit the panel, so scrolling has nothing to do.
+    let text = match &mut v.content {
+        ViewContent::Text(state) => Some(state),
+        ViewContent::Image(_) => None,
+    };
+    match (msg, text) {
+        (Message::FileViewScrollUp, Some(state)) => state.scroll_up(1),
+        (Message::FileViewScrollDown, Some(state)) => state.scroll_down(1),
+        (Message::FileViewPageUp, Some(state)) => state.page_up(),
+        (Message::FileViewPageDown, Some(state)) => state.page_down(),
+        (Message::FileViewClose, _) => {
             close_file_view(&mut model);
         }
         _ => {}
