@@ -13,6 +13,7 @@ A fast, keyboard-driven TUI file manager built in Rust, inspired by two-panel fi
 - Navigate to any path instantly with `g` (supports `~` expansion)
 - Create files and directories with full path support (`test/a/b.txt`)
 - Delete files and directories with confirmation
+- Toggleable viewer panel (`v`) that follows the file list — syntax-aware text, inline image rendering, and a hex view for binary files
 - Open items in `$EDITOR` or with the default application
 - Sort by name, date modified, extension, or size
 - Zip selected items; extract `.zip` and `.tar.gz` archives
@@ -97,7 +98,7 @@ lfm() {
 | `d` | Delete selected or current item (with confirmation) |
 | `c` | Copy selected or current item — opens destination panel, `C` with rename before |
 | `m` | Move selected or current item — opens destination panel, `M` with rename before |
-| `v` | View file contents in a scrollable read-only popup (text files only) |
+| `v` | Toggle the viewer panel on the right (see [Viewer panel](#viewer-panel)) |
 | `e` | Open selected item in `$EDITOR` |
 | `o` | Open with default application |
 | `x` | Run a preset command on the selection (see [Preset commands](#preset-commands)) |
@@ -142,6 +143,23 @@ lfm() {
 | `h/l/j/k` | Navigate destination panel to the target folder |
 | `Enter` | Confirm move into the folder shown in the destination panel |
 | `Esc` | Cancel move |
+
+### Viewer panel
+
+| Key | Action |
+|-----|--------|
+| `v` | Toggle the viewer panel |
+| `Tab` | Switch focus between the file list and the viewer |
+| `j` / `↓` | Scroll down |
+| `k` / `↑` | Scroll up |
+| `PgUp` / `PgDn` | Page up / down |
+| `Esc` / `Enter` / `q` / `v` | Close the viewer |
+
+While the viewer is open it follows the file-list cursor. Text files render through
+[tui-view](https://github.com/gintsgints/tui-view), images render inline with
+`ratatui-image`, and anything binary falls back to a hex view. Image decoding and
+encoding happen off the UI thread, so browsing a directory of large images stays
+responsive.
 
 ### Content search
 
