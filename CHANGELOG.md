@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.10.0
+
+### New features
+
+- **Viewer panel** (`v`) — the file viewer is now a toggleable right-hand panel that follows the file-list cursor instead of a modal popup; `Tab` switches focus between the list and the viewer
+- **tui-view rendering** — text files render through the `tui-view` widget
+- **Inline images** — image files are rendered in the viewer panel with `ratatui-image`
+- **Hex view** — binary files open in `tui-view`'s hex view
+- **Shared search index** — content search (`S`) and file find (`F`) are backed by a single `fff-search` index, built once per directory change
+
+### Fixes
+
+- Copying or moving a file onto itself no longer destroys it
+- Copy/move now always targets the destination panel's folder
+- Viewer images are decoded and encoded off the UI thread, keeping input responsive
+- Restored the search test helpers dropped from `tests/mod.rs`
+
+### Other
+
+- Fixed clippy pedantic findings across the existing code
+
 ## v0.9.0
 
 ### New features
