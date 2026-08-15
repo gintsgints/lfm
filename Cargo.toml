@@ -15,6 +15,8 @@ zip = "8.6.0"
 flate2 = "1"
 tar = "0.4.46"
 fff-search = "0.9.6"
-tui-view = { git = "https://github.com/gintsgints/tui-view.git" }
+# `languages` turns on every bundled Tree-sitter grammar, so source files get
+# syntax highlighting in the viewer instead of falling back to plain text.
+tui-view = { git = "https://github.com/gintsgints/tui-view.git", features = ["languages"] }
 ratatui-image = { version = "11.0.6", default-features = false, features = ["crossterm", "image-defaults"] }
 image = "0.25"

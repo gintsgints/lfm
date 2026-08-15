@@ -157,7 +157,10 @@ lfm() {
 
 While the viewer is open it follows the file-list cursor. Text files render through
 [tui-view](https://github.com/gintsgints/tui-view), images render inline with
-`ratatui-image`, and anything binary falls back to a hex view. Image decoding and
+`ratatui-image`, and anything binary falls back to a hex view. Source files are
+syntax-highlighted by their own Tree-sitter grammar — Rust, Python, JavaScript,
+TypeScript (with JSX/TSX), Go, C, Bash, TOML, YAML, HTML, and CSS — while
+Markdown and JSON keep their dedicated views. Image decoding and
 encoding happen off the UI thread, so browsing a directory of large images stays
 responsive.
 

@@ -53,6 +53,15 @@ fn markdown_file_opens_in_the_markdown_view() {
     assert_eq!(view_name(&model), "Markdown");
 }
 
+/// Source files go to the Tree-sitter view for their language, so they render
+/// highlighted instead of as plain text.
+#[test]
+fn source_file_opens_in_the_tree_sitter_view() {
+    let model = model_with_file("main.rs", b"fn main() {}\n");
+    let (model, _) = update(model, Message::ViewFile);
+    assert_eq!(view_name(&model), "Rust");
+}
+
 /// The registry picks a per-format view by extension.
 #[test]
 fn registry_picks_view_by_extension() {
@@ -64,6 +73,14 @@ fn registry_picks_view_by_extension() {
     assert_eq!(
         registry.find(Path::new("data.json")).map(|v| v.name()),
         Some("JSON")
+    );
+    assert_eq!(
+        registry.find(Path::new("lib.rs")).map(|v| v.name()),
+        Some("Rust")
+    );
+    assert_eq!(
+        registry.find(Path::new("setup.py")).map(|v| v.name()),
+        Some("Python")
     );
 }
 
