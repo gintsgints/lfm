@@ -5,9 +5,10 @@ use ratatui::{
     text::Span,
     widgets::{Block, Borders, Paragraph},
 };
-use ratatui_image::{StatefulImage, protocol::StatefulProtocol};
+use ratatui_image::{StatefulImage, thread::ThreadProtocol};
 use tui_view::TuiView;
 
+use crate::image_view::ImageView;
 use crate::model::{FileView, ViewContent};
 use crate::theme;
 
@@ -32,24 +33,36 @@ pub fn render(frame: &mut Frame, area: Rect, view: &mut FileView, focused: bool)
         ViewContent::Text(state) => {
             frame.render_stateful_widget(TuiView::new().block(block), area, state);
         }
-        ViewContent::Image(protocol) => {
+        ViewContent::Image(view) => {
             let inner = block.inner(area);
             frame.render_widget(block, area);
-            render_image(frame, inner, protocol);
+            render_image(frame, inner, view);
         }
     }
 }
 
-/// Draw the image inside the panel's borders. Encoding happens during the
-/// render and can fail (an unsupported protocol, a terminal that rejected the
-/// sequence), so the error is reported in place of the image on the next frame.
-fn render_image(frame: &mut Frame, area: Rect, protocol: &mut StatefulProtocol) {
-    frame.render_stateful_widget(StatefulImage::default(), area, protocol);
-    if let Some(Err(err)) = protocol.last_encoding_result() {
+/// Draw the image inside the panel's borders.
+///
+/// The widget only draws what the worker has already encoded: while a decode or
+/// a resize is outstanding it draws nothing, so the panel says so instead of
+/// going blank. Rendering never resizes or encodes on this thread — it only
+/// posts the request the worker picks up.
+fn render_image(frame: &mut Frame, area: Rect, view: &mut ImageView) {
+    let status = match &view.error {
+        Some(err) => Some(format!("<image error: {err}>")),
+        None if !view.is_decoded() => Some("<decoding…>".to_owned()),
+        None => None,
+    };
+    if let Some(status) = status {
         frame.render_widget(
-            Paragraph::new(format!("<image error: {err}>"))
-                .style(Style::default().fg(theme::text())),
+            Paragraph::new(status).style(Style::default().fg(theme::text())),
             area,
         );
+        return;
     }
+    frame.render_stateful_widget(
+        StatefulImage::<ThreadProtocol>::default(),
+        area,
+        &mut view.protocol,
+    );
 }

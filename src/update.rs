@@ -6,6 +6,7 @@ use tui_view::{FormatView, ViewState, plugins::plaintext::PlainTextView};
 
 #[cfg(feature = "debug")]
 use crate::debug_log;
+use crate::image_view;
 use crate::message::Message;
 use crate::model::{
     ActivePanel, CommandPicker, ContentSearch, FileFind, FileView, Model, PendingKind,
@@ -923,11 +924,6 @@ fn update_capture_popup(mut model: Model, msg: Message) -> (Model, Effect) {
 /// Upper bound on the size of a file the viewer will load into memory.
 const MAX_VIEW_BYTES: u64 = 5 * 1024 * 1024;
 
-/// Upper bound on the size of an image the viewer will decode. Higher than the
-/// text limit because encoded images are compressed, but still bounded: moving
-/// the selection decodes whatever it lands on.
-const MAX_IMAGE_BYTES: u64 = 32 * 1024 * 1024;
-
 /// The entry highlighted in the active file panel: its path, display name and
 /// whether it is a directory.
 fn view_target(model: &Model) -> Option<(PathBuf, String, bool)> {
@@ -981,22 +977,14 @@ fn load_file_view(model: &Model, path: PathBuf, name: String, is_dir: bool) -> F
     }
 }
 
-/// Build the image contents for `path`, or `None` when it is not an image the
-/// terminal can be asked to draw — an unrecognised extension, no picker (no
-/// terminal was queried, as in tests), an oversized file or a decode failure.
-/// `None` sends the entry down the text path, which reports the reason itself.
+/// Start decoding `path` as an image, or return `None` when it is not one the
+/// terminal can be asked to draw: an unrecognised extension, or no picker (no
+/// terminal was queried). `None` sends the entry down the text path, which
+/// reports the reason itself. Decoding runs on the view's worker thread, so
+/// this returns before the image is available.
 fn load_image_view(model: &Model, path: &std::path::Path) -> Option<ViewContent> {
     let picker = model.picker.as_ref()?;
-    let format = image::ImageFormat::from_path(path).ok()?;
-    let len = std::fs::metadata(path).ok()?.len();
-    if len > MAX_IMAGE_BYTES {
-        return None;
-    }
-    let bytes = std::fs::read(path).ok()?;
-    let image = image::load_from_memory_with_format(&bytes, format).ok()?;
-    Some(ViewContent::Image(Box::new(
-        picker.new_resize_protocol(image),
-    )))
+    image_view::open(picker, path).map(|view| ViewContent::Image(Box::new(view)))
 }
 
 /// `v` toggles the viewer panel: it closes an open viewer, and otherwise opens

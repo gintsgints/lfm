@@ -16,6 +16,7 @@ pub mod debug;
 mod engine;
 mod file_find;
 mod icons;
+mod image_view;
 mod keys;
 mod message;
 mod model;
@@ -188,6 +189,9 @@ fn run(
 
         let got_results = drain_index(&mut model, &mut index);
 
+        // Pick up whatever the open image's worker has decoded or re-encoded.
+        let got_image = image_view::drain(&mut model);
+
         // Start pre-warming the directory being browsed once it settles. Not
         // while a panel is open — replacing the index under an open panel would
         // strand the query it is waiting on — and not during a transfer, whose
@@ -203,9 +207,13 @@ fn run(
         let search_pending =
             pending(model.content_search.as_ref()) || pending(model.file_find.as_ref());
 
-        let timeout = if got_progress || got_results {
+        // The image worker answers on its own channel, so the loop polls while
+        // it owes an answer instead of blocking on the keyboard.
+        let image_pending = image_view::pending(&model);
+
+        let timeout = if got_progress || got_results || got_image {
             Some(Duration::ZERO)
-        } else if progress_rx.is_some() || search_pending {
+        } else if progress_rx.is_some() || search_pending || image_pending {
             Some(POLL_INTERVAL)
         } else {
             index.debounce_remaining()

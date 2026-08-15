@@ -6,8 +6,9 @@ use crate::search::SearchResult;
 use crate::state::PersistedState;
 use crate::ui::{file_panel, input_box, pinned_panel};
 use ratatui_image::picker::Picker;
-use ratatui_image::protocol::StatefulProtocol;
 use tui_view::{ViewRegistry, ViewState};
+
+use crate::image_view::ImageView;
 
 /// State of a query popup backed by a background search engine: the content
 /// search (`ContentSearch`) and the file find (`FileFind`) differ only in what
@@ -180,14 +181,13 @@ impl CommandPicker {
 ///
 /// For text, rendering, scroll position and the width cache live in the
 /// `tui-view` [`ViewState`], which picks a per-format view (Markdown, JSON,
-/// plain text) for the file. For an image, the [`StatefulProtocol`] owns the
-/// decoded pixels and caches the encoding for the last render area, so it is
-/// re-encoded only when the panel is resized.
+/// plain text) for the file. For an image, the [`ImageView`] owns a worker
+/// thread that decodes the file and re-encodes it whenever the panel's size
+/// changes, so neither ever runs during a render.
 pub enum ViewContent {
     Text(ViewState),
-    /// Boxed because a `StatefulProtocol` carries the decoded image and is far
-    /// larger than the text variant.
-    Image(Box<StatefulProtocol>),
+    /// Boxed because a decoded image protocol dwarfs the text state.
+    Image(Box<ImageView>),
 }
 
 impl ViewContent {

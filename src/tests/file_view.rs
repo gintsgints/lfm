@@ -1,10 +1,12 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::time::{Duration, Instant};
 
 use ratatui_image::picker::Picker;
 use tui_view::ViewRegistry;
 
+use crate::image_view::{self, ImageView};
 use crate::message::Message;
 use crate::model::{Model, ViewContent};
 use crate::state::PersistedState;
@@ -133,14 +135,56 @@ fn model_with_an_image() -> Model {
     model
 }
 
-/// An image file opens in the image view rather than as text.
+/// Run the event loop's drain step until the image worker has answered, so the
+/// test does not depend on how fast the thread gets there.
+fn wait_for_decode(model: &mut Model) -> &ImageView {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        image_view::drain(model);
+        let ViewContent::Image(view) = &model.file_view.as_ref().unwrap().content else {
+            panic!("viewer should be showing an image");
+        };
+        if view.is_decoded() {
+            break;
+        }
+        assert!(Instant::now() < deadline, "image worker never answered");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let ViewContent::Image(view) = &model.file_view.as_ref().unwrap().content else {
+        unreachable!("checked above");
+    };
+    view
+}
+
+/// An image file opens in the image view rather than as text, and its worker
+/// decodes it without the UI thread doing the work.
 #[test]
 fn image_file_opens_in_the_image_view() {
     let model = model_with_an_image();
-    let (model, _) = update(model, Message::ViewFile);
-    let view = model.file_view.as_ref().expect("viewer should be open");
-    assert!(matches!(view.content, ViewContent::Image(_)));
-    assert_eq!(view.content.kind_name(), "Image");
+    let (mut model, _) = update(model, Message::ViewFile);
+    assert_eq!(
+        model.file_view.as_ref().unwrap().content.kind_name(),
+        "Image"
+    );
+
+    let view = wait_for_decode(&mut model);
+    assert_eq!(view.error, None, "the 2x2 PNG should decode");
+}
+
+/// A file with an image extension that does not decode reports the failure in
+/// the panel instead of leaving it blank.
+#[test]
+fn undecodable_image_reports_an_error() {
+    let dir = temp_dir();
+    fs::write(dir.join("broken.png"), b"not really a png").unwrap();
+    let mut model = Model::init(PersistedState::default()).unwrap();
+    model.left_files = file_panel::Model::init(dir).unwrap();
+    model.left_files.selection = 0;
+    model.picker = Some(Picker::halfblocks());
+
+    let (mut model, _) = update(model, Message::ViewFile);
+    let view = wait_for_decode(&mut model);
+    assert!(view.error.is_some());
 }
 
 /// Without a picker — no terminal was queried — an image falls back to the text
