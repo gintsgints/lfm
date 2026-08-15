@@ -1,44 +1,31 @@
 use ratatui::{
     Frame,
-    layout::{Constraint, Layout, Rect},
+    layout::Rect,
     style::Style,
     text::Span,
-    widgets::{Block, Borders, Clear},
+    widgets::{Block, Borders},
 };
 use tui_view::TuiView;
 
 use crate::model::FileView;
 use crate::theme;
 
-pub fn render(frame: &mut Frame, area: Rect, view: &mut FileView) {
-    let popup_area = centered_rect(90, 90, area);
+/// Render the viewer as the right-hand panel. `focused` follows Tab and picks
+/// the border colour the same way the file panels do.
+pub fn render(frame: &mut Frame, area: Rect, view: &mut FileView, focused: bool) {
+    let border = if focused {
+        theme::active_border()
+    } else {
+        theme::inactive_border()
+    };
 
     let block = Block::default()
         .title(Span::styled(
             format!(" {} — {} ", view.name, view.state.view().name()),
-            Style::default().fg(theme::active_border()),
+            Style::default().fg(border),
         ))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme::popup_border()));
+        .border_style(Style::default().fg(border));
 
-    frame.render_widget(Clear, popup_area);
-    frame.render_stateful_widget(TuiView::new().block(block), popup_area, &mut view.state);
-}
-
-fn centered_rect(width_percent: u16, height_percent: u16, area: Rect) -> Rect {
-    let margin_h = (100 - width_percent) / 2;
-    let margin_v = (100 - height_percent) / 2;
-    let vertical = Layout::vertical([
-        Constraint::Percentage(margin_v),
-        Constraint::Percentage(height_percent),
-        Constraint::Percentage(margin_v),
-    ])
-    .split(area);
-
-    Layout::horizontal([
-        Constraint::Percentage(margin_h),
-        Constraint::Percentage(width_percent),
-        Constraint::Percentage(margin_h),
-    ])
-    .split(vertical[1])[1]
+    frame.render_stateful_widget(TuiView::new().block(block), area, &mut view.state);
 }

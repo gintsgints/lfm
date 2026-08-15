@@ -62,6 +62,19 @@ pub fn view(model: &mut Model, frame: &mut Frame) {
             model.transfer_mode.is_copy(),
             model.transfer_mode.is_move(),
         );
+    } else if model.file_view.is_some() {
+        // The viewer takes the right half and mirrors whatever the file list
+        // has highlighted.
+        let panels = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(main_area);
+        let focused = model.file_view_focused;
+
+        ui::file_panel::render(frame, panels[0], &model.left_files, !focused, false, false);
+        if let Some(fv) = &mut model.file_view {
+            ui::file_view::render(frame, panels[1], fv, focused);
+        }
     } else {
         ui::file_panel::render(frame, main_area, &model.left_files, true, false, false);
     }
@@ -137,10 +150,6 @@ fn render_overlays(model: &mut Model, frame: &mut Frame, area: ratatui::layout::
 
     if let Some(pop) = &model.capture_popup {
         ui::capture_popup::render(frame, area, pop);
-    }
-
-    if let Some(fv) = &mut model.file_view {
-        ui::file_view::render(frame, area, fv);
     }
 
     if let Some(pending) = &model.pending_overwrite {
@@ -252,10 +261,12 @@ fn file_view_hint() -> Line<'static> {
         desc(" scroll  "),
         key("PgUp/PgDn"),
         desc(" page  "),
-        key("Esc"),
+        key("Tab"),
+        desc(" file list  "),
+        key("v"),
         desc(" / "),
-        key("q"),
-        desc(" close"),
+        key("Esc"),
+        desc(" close viewer"),
     ])
 }
 
@@ -277,7 +288,7 @@ fn pinned_panel_hint() -> Line<'static> {
 }
 
 fn hint_line(model: &Model) -> Line<'static> {
-    if model.file_view.is_some() {
+    if model.file_view.is_some() && model.file_view_focused {
         return file_view_hint();
     }
     if model.capture_popup.is_some() {

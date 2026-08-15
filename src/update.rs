@@ -2,7 +2,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use tui_view::{ViewState, plugins::plaintext::PlainTextView};
+use tui_view::{FormatView, ViewState, plugins::plaintext::PlainTextView};
 
 #[cfg(feature = "debug")]
 use crate::debug_log;
@@ -55,18 +55,30 @@ pub struct RunSpec {
     pub label: String,
 }
 
+pub fn update(model: Model, msg: Message) -> (Model, Effect) {
+    let (mut model, effect) = update_message(model, msg);
+    // Whatever the message did, the viewer panel follows the file list: if the
+    // highlighted file changed, reload the viewer for it.
+    sync_file_view(&mut model);
+    (model, effect)
+}
+
 #[allow(clippy::too_many_lines)]
-pub fn update(mut model: Model, msg: Message) -> (Model, Effect) {
+fn update_message(mut model: Model, msg: Message) -> (Model, Effect) {
     #[cfg(feature = "debug")]
     debug_log!("msg: {msg:?}");
     match msg {
         Message::Quit => (model, Effect::Quit),
-        Message::NextPanel => {
-            model.active_panel = model.active_panel.next();
-            (model, Effect::None)
-        }
-        Message::PrevPanel => {
-            model.active_panel = model.active_panel.prev();
+        Message::NextPanel | Message::PrevPanel => {
+            // While the viewer panel occupies the right half, Tab moves between
+            // the file list and the viewer instead of between the two lists.
+            if model.file_view.is_some() && model.transfer_mode == TransferMode::None {
+                model.file_view_focused = !model.file_view_focused;
+            } else if matches!(msg, Message::NextPanel) {
+                model.active_panel = model.active_panel.next();
+            } else {
+                model.active_panel = model.active_panel.prev();
+            }
             (model, Effect::None)
         }
         Message::TogglePinnedPanel => {
@@ -911,36 +923,82 @@ fn update_capture_popup(mut model: Model, msg: Message) -> (Model, Effect) {
 /// Upper bound on the size of a file the viewer will load into memory.
 const MAX_VIEW_BYTES: u64 = 5 * 1024 * 1024;
 
-fn update_view_file(mut model: Model) -> (Model, Effect) {
-    let target = {
-        let panel = match model.active_panel {
-            ActivePanel::LeftFiles => &model.left_files,
-            ActivePanel::RightFiles => &model.right_files,
-            ActivePanel::Pinned => return (model, Effect::None),
-        };
-        match panel.visible_entries().nth(panel.selection) {
-            Some((_, e)) if !e.is_dir => Some((panel.current_dir.join(&e.name), e.name.clone())),
-            _ => None,
-        }
+/// The entry highlighted in the active file panel: its path, display name and
+/// whether it is a directory.
+fn view_target(model: &Model) -> Option<(PathBuf, String, bool)> {
+    let panel = match model.active_panel {
+        ActivePanel::LeftFiles => &model.left_files,
+        ActivePanel::RightFiles => &model.right_files,
+        ActivePanel::Pinned => return None,
     };
-    let Some((path, name)) = target else {
-        return (model, Effect::None);
+    let (_, entry) = panel.visible_entries().nth(panel.selection)?;
+    Some((
+        panel.current_dir.join(&entry.name),
+        entry.name.clone(),
+        entry.is_dir,
+    ))
+}
+
+/// Build the viewer contents for one entry. A directory, an oversized file or a
+/// binary file is not an error here — the viewer is a live preview of whatever
+/// the file list points at, so it shows the reason as its text instead.
+fn load_file_view(model: &Model, path: PathBuf, name: String, is_dir: bool) -> FileView {
+    let content = if is_dir {
+        Err("directory".to_owned())
+    } else {
+        read_text_file(&path)
     };
-    match read_text_file(&path) {
-        Ok(content) => {
-            // Files with an unknown extension still get the plain-text view.
-            let view = model
+    let (content, view) = match content {
+        // Files with an unknown extension still get the plain-text view.
+        Ok(text) => (
+            text,
+            model
                 .view_registry
                 .find(&path)
-                .unwrap_or_else(|| Arc::new(PlainTextView::new()));
-            model.file_view = Some(FileView {
-                name,
-                state: ViewState::new(content, view),
-            });
-        }
-        Err(e) => model.error_message = Some(e),
+                .unwrap_or_else(|| Arc::new(PlainTextView::new())),
+        ),
+        Err(reason) => (
+            format!("<{reason}>"),
+            Arc::new(PlainTextView::new()) as Arc<dyn FormatView>,
+        ),
+    };
+    FileView {
+        name,
+        path,
+        state: ViewState::new(content, view),
     }
+}
+
+/// `v` toggles the viewer panel: it closes an open viewer, and otherwise opens
+/// one on the highlighted entry.
+fn update_view_file(mut model: Model) -> (Model, Effect) {
+    if model.file_view.is_some() {
+        close_file_view(&mut model);
+        return (model, Effect::None);
+    }
+    let Some((path, name, is_dir)) = view_target(&model) else {
+        return (model, Effect::None);
+    };
+    model.file_view = Some(load_file_view(&model, path, name, is_dir));
     (model, Effect::None)
+}
+
+fn close_file_view(model: &mut Model) {
+    model.file_view = None;
+    model.file_view_focused = false;
+}
+
+/// Reload the open viewer when the file list has moved to a different entry.
+fn sync_file_view(model: &mut Model) {
+    let Some(current) = model.file_view.as_ref().map(|v| v.path.clone()) else {
+        return;
+    };
+    let Some((path, name, is_dir)) = view_target(model) else {
+        return;
+    };
+    if path != current {
+        model.file_view = Some(load_file_view(model, path, name, is_dir));
+    }
 }
 
 /// Read `path` as UTF-8 text for the viewer, rejecting oversized or binary files.
@@ -970,7 +1028,9 @@ fn update_file_view(mut model: Model, msg: Message) -> (Model, Effect) {
         Message::FileViewScrollDown => v.state.scroll_down(1),
         Message::FileViewPageUp => v.state.page_up(),
         Message::FileViewPageDown => v.state.page_down(),
-        Message::FileViewClose => model.file_view = None,
+        Message::FileViewClose => {
+            close_file_view(&mut model);
+        }
         _ => {}
     }
     (model, Effect::None)

@@ -173,13 +173,15 @@ impl CommandPicker {
     }
 }
 
-/// Text contents of a file, displayed in a scrollable read-only viewer.
+/// Text contents of a file, displayed in the viewer panel on the right.
 ///
 /// Rendering, scroll position and the width cache live in the `tui-view`
 /// [`ViewState`], which picks a per-format view (Markdown, JSON, plain text)
-/// for the file.
+/// for the file. `path` is the entry the contents were read from; it is what
+/// tells the viewer that the file panel has moved on to another file.
 pub struct FileView {
     pub name: String,
+    pub path: PathBuf,
     pub state: ViewState,
 }
 
@@ -221,6 +223,9 @@ pub struct Model {
     pub command_picker: Option<CommandPicker>,
     pub capture_popup: Option<CapturePopup>,
     pub file_view: Option<FileView>,
+    /// Whether keys go to the viewer panel rather than the file list. Only
+    /// meaningful while `file_view` is open; Tab flips it.
+    pub file_view_focused: bool,
     /// Per-format views the file viewer picks from, by file extension.
     pub view_registry: ViewRegistry,
 }
@@ -260,6 +265,7 @@ impl Model {
             command_picker: None,
             capture_popup: None,
             file_view: None,
+            file_view_focused: false,
             view_registry: ViewRegistry::with_defaults(),
         })
     }

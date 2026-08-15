@@ -175,7 +175,7 @@ pub fn input_mode(model: &Model) -> InputMode {
         InputMode::Error
     } else if model.pending_overwrite.is_some() {
         InputMode::OverwriteConfirm
-    } else if model.file_view.is_some() {
+    } else if model.file_view.is_some() && model.file_view_focused {
         InputMode::FileView
     } else if model.capture_popup.is_some() {
         InputMode::CapturePopup
@@ -328,14 +328,22 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
         InputMode::CommandPicker | InputMode::CommandInput | InputMode::CapturePopup => {
             intercept_command_mode(key, mode)
         }
-        InputMode::FileView => ModeIntercept::Consumed(match key.code {
-            KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => Some(Message::FileViewClose),
-            KeyCode::Up | KeyCode::Char('k') => Some(Message::FileViewScrollUp),
-            KeyCode::Down | KeyCode::Char('j') => Some(Message::FileViewScrollDown),
-            KeyCode::PageUp => Some(Message::FileViewPageUp),
-            KeyCode::PageDown => Some(Message::FileViewPageDown),
-            _ => None,
-        }),
+        InputMode::FileView => ModeIntercept::Consumed(file_view_key(key)),
+    }
+}
+
+/// Key handling for the viewer panel while it holds the focus. Tab hands the
+/// focus back to the file list; `v`, `q` and Esc close the panel.
+fn file_view_key(key: &KeyEvent) -> Option<Message> {
+    match key.code {
+        KeyCode::Tab => Some(Message::NextPanel),
+        KeyCode::BackTab => Some(Message::PrevPanel),
+        KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q' | 'v') => Some(Message::FileViewClose),
+        KeyCode::Up | KeyCode::Char('k') => Some(Message::FileViewScrollUp),
+        KeyCode::Down | KeyCode::Char('j') => Some(Message::FileViewScrollDown),
+        KeyCode::PageUp => Some(Message::FileViewPageUp),
+        KeyCode::PageDown => Some(Message::FileViewPageDown),
+        _ => None,
     }
 }
 
