@@ -10,7 +10,7 @@ use crate::model::{ActivePanel, Model};
 use crate::theme;
 use crate::ui;
 
-pub fn view(model: &Model, frame: &mut Frame) {
+pub fn view(model: &mut Model, frame: &mut Frame) {
     let area = frame.area();
 
     #[cfg(feature = "debug")]
@@ -77,7 +77,7 @@ pub fn view(model: &Model, frame: &mut Frame) {
     render_overlays(model, frame, area);
 }
 
-fn render_overlays(model: &Model, frame: &mut Frame, area: ratatui::layout::Rect) {
+fn render_overlays(model: &mut Model, frame: &mut Frame, area: ratatui::layout::Rect) {
     if model.active_panel == ActivePanel::Pinned {
         ui::pinned_panel::render(frame, area, &model.pinned_panel);
     }
@@ -103,12 +103,6 @@ fn render_overlays(model: &Model, frame: &mut Frame, area: ratatui::layout::Rect
     {
         ui::input_box::render(frame, area, input, "Go to path");
     }
-
-    let active_file_panel = match model.active_panel {
-        ActivePanel::LeftFiles => Some(&model.left_files),
-        ActivePanel::RightFiles => Some(&model.right_files),
-        ActivePanel::Pinned => None,
-    };
 
     if model.rename_input.active {
         let title = if model.transfer_mode.is_copy() {
@@ -145,7 +139,7 @@ fn render_overlays(model: &Model, frame: &mut Frame, area: ratatui::layout::Rect
         ui::capture_popup::render(frame, area, pop);
     }
 
-    if let Some(fv) = &model.file_view {
+    if let Some(fv) = &mut model.file_view {
         ui::file_view::render(frame, area, fv);
     }
 
@@ -157,6 +151,11 @@ fn render_overlays(model: &Model, frame: &mut Frame, area: ratatui::layout::Rect
         ui::error_box::render(frame, area, msg);
     }
 
+    let active_file_panel = match model.active_panel {
+        ActivePanel::LeftFiles => Some(&model.left_files),
+        ActivePanel::RightFiles => Some(&model.right_files),
+        ActivePanel::Pinned => None,
+    };
     if let Some(fp) = active_file_panel
         && fp.delete_confirm
     {

@@ -1,5 +1,8 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
+use std::sync::Arc;
+
+use tui_view::{ViewState, plugins::plaintext::PlainTextView};
 
 #[cfg(feature = "debug")]
 use crate::debug_log;
@@ -9,7 +12,7 @@ use crate::model::{
     PendingOverwrite, TransferMode, TransferOp, TransferProgress,
 };
 use crate::presets::{self, ExecSpec, OutputMode};
-use crate::ui::{capture_popup, file_panel, file_view, help_panel, input_box, pinned_panel};
+use crate::ui::{capture_popup, file_panel, help_panel, input_box, pinned_panel};
 
 pub enum Effect {
     None,
@@ -925,10 +928,14 @@ fn update_view_file(mut model: Model) -> (Model, Effect) {
     };
     match read_text_file(&path) {
         Ok(content) => {
+            // Files with an unknown extension still get the plain-text view.
+            let view = model
+                .view_registry
+                .find(&path)
+                .unwrap_or_else(|| Arc::new(PlainTextView::new()));
             model.file_view = Some(FileView {
                 name,
-                content,
-                scroll: 0,
+                state: ViewState::new(content, view),
             });
         }
         Err(e) => model.error_message = Some(e),
@@ -958,12 +965,11 @@ fn update_file_view(mut model: Model, msg: Message) -> (Model, Effect) {
     let Some(v) = &mut model.file_view else {
         return (model, Effect::None);
     };
-    let max = file_view::line_count(v).saturating_sub(1);
     match msg {
-        Message::FileViewScrollUp => v.scroll = v.scroll.saturating_sub(1),
-        Message::FileViewScrollDown => v.scroll = v.scroll.saturating_add(1).min(max),
-        Message::FileViewPageUp => v.scroll = v.scroll.saturating_sub(10),
-        Message::FileViewPageDown => v.scroll = v.scroll.saturating_add(10).min(max),
+        Message::FileViewScrollUp => v.state.scroll_up(1),
+        Message::FileViewScrollDown => v.state.scroll_down(1),
+        Message::FileViewPageUp => v.state.page_up(),
+        Message::FileViewPageDown => v.state.page_down(),
         Message::FileViewClose => model.file_view = None,
         _ => {}
     }

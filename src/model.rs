@@ -5,6 +5,7 @@ use crate::presets::Preset;
 use crate::search::SearchResult;
 use crate::state::PersistedState;
 use crate::ui::{file_panel, input_box, pinned_panel};
+use tui_view::{ViewRegistry, ViewState};
 
 /// State of a query popup backed by a background search engine: the content
 /// search (`ContentSearch`) and the file find (`FileFind`) differ only in what
@@ -173,10 +174,13 @@ impl CommandPicker {
 }
 
 /// Text contents of a file, displayed in a scrollable read-only viewer.
+///
+/// Rendering, scroll position and the width cache live in the `tui-view`
+/// [`ViewState`], which picks a per-format view (Markdown, JSON, plain text)
+/// for the file.
 pub struct FileView {
     pub name: String,
-    pub content: String,
-    pub scroll: u16,
+    pub state: ViewState,
 }
 
 /// Output of a `capture`-mode preset, displayed in a scrollable popup.
@@ -217,6 +221,8 @@ pub struct Model {
     pub command_picker: Option<CommandPicker>,
     pub capture_popup: Option<CapturePopup>,
     pub file_view: Option<FileView>,
+    /// Per-format views the file viewer picks from, by file extension.
+    pub view_registry: ViewRegistry,
 }
 
 impl Model {
@@ -254,6 +260,7 @@ impl Model {
             command_picker: None,
             capture_popup: None,
             file_view: None,
+            view_registry: ViewRegistry::with_defaults(),
         })
     }
 

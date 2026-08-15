@@ -2,47 +2,27 @@ use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
     style::Style,
-    text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph},
+    text::Span,
+    widgets::{Block, Borders, Clear},
 };
+use tui_view::TuiView;
 
 use crate::model::FileView;
 use crate::theme;
 
-pub fn render(frame: &mut Frame, area: Rect, view: &FileView) {
+pub fn render(frame: &mut Frame, area: Rect, view: &mut FileView) {
     let popup_area = centered_rect(90, 90, area);
 
     let block = Block::default()
         .title(Span::styled(
-            format!(" {} ", view.name),
+            format!(" {} — {} ", view.name, view.state.view().name()),
             Style::default().fg(theme::active_border()),
         ))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme::popup_border()));
 
-    let inner = block.inner(popup_area);
     frame.render_widget(Clear, popup_area);
-    frame.render_widget(block, popup_area);
-
-    let lines: Vec<Line> = view
-        .content
-        .lines()
-        .map(|l| {
-            Line::from(Span::styled(
-                l.to_owned(),
-                Style::default().fg(theme::text()),
-            ))
-        })
-        .collect();
-
-    let chunks = Layout::vertical([Constraint::Min(0)]).split(inner);
-    frame.render_widget(Paragraph::new(lines).scroll((view.scroll, 0)), chunks[0]);
-}
-
-/// Total number of text rows in the file, used by update logic to clamp
-/// [`FileView::scroll`].
-pub fn line_count(view: &FileView) -> u16 {
-    u16::try_from(view.content.lines().count()).unwrap_or(u16::MAX)
+    frame.render_stateful_widget(TuiView::new().block(block), popup_area, &mut view.state);
 }
 
 fn centered_rect(width_percent: u16, height_percent: u16, area: Rect) -> Rect {

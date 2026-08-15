@@ -167,7 +167,7 @@ fn run(mut terminal: DefaultTerminal, extended_keys: bool) -> io::Result<PathBuf
     let mut index = Index::default();
 
     loop {
-        terminal.draw(|frame| view(&model, frame))?;
+        terminal.draw(|frame| view(&mut model, frame))?;
 
         // A finished transfer means the tree changed under the index.
         let was_transferring = progress_rx.is_some();
