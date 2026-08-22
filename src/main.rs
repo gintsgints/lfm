@@ -1,6 +1,7 @@
 use std::{
     io,
     path::{Path, PathBuf},
+    process::Stdio,
     sync::mpsc,
     time::{Duration, Instant},
 };
@@ -12,6 +13,7 @@ use ratatui::{
 use ratatui_image::picker::Picker;
 
 mod archive;
+mod capture;
 pub mod debug;
 mod engine;
 mod file_find;
@@ -93,6 +95,11 @@ fn run_preset_command(terminal: &mut DefaultTerminal, mut model: Model, spec: Ru
     match spec.mode {
         OutputMode::Background => {
             let mut cmd = build_command(&spec);
+            // Detach every stream: a background child sharing our terminal
+            // would draw its output over the TUI.
+            cmd.stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null());
             if let Err(e) = cmd.spawn() {
                 model.error_message = Some(format!("spawn '{}' failed: {e}", spec.label));
             }
@@ -100,6 +107,9 @@ fn run_preset_command(terminal: &mut DefaultTerminal, mut model: Model, spec: Ru
         }
         OutputMode::Capture => {
             let mut cmd = build_command(&spec);
+            // The terminal is in raw mode and owned by the TUI: a child reading
+            // stdin would swallow our keys and hang the UI.
+            cmd.stdin(Stdio::null());
             match cmd.output() {
                 Ok(out) => {
                     let mut buf = String::new();
@@ -110,7 +120,7 @@ fn run_preset_command(terminal: &mut DefaultTerminal, mut model: Model, spec: Ru
                     model.capture_view = Some(CaptureView {
                         label: spec.label,
                         exit_code: out.status.code(),
-                        output: buf,
+                        output: capture::sanitize(&buf),
                         scroll: 0,
                         viewport_width: 0,
                         viewport_height: 0,
