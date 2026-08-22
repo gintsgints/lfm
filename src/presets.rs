@@ -20,7 +20,7 @@ pub enum OutputMode {
     /// for a keypress before restoring.
     Block,
     /// Run the command with stdout/stderr piped, then show the merged output
-    /// in a scrollable popup.
+    /// on a scrollable full-screen view.
     Capture,
     /// Spawn the command and return immediately. Output is discarded.
     #[default]

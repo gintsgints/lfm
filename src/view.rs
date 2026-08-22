@@ -38,6 +38,20 @@ pub fn view(model: &mut Model, frame: &mut Frame) {
     let main_area = vertical[0];
     let hint_area = vertical[vertical.len() - 1];
 
+    // Captured command output owns the whole screen — the file panels are not
+    // drawn behind it, so nothing shifts under the output.
+    if model.capture_view.is_some() {
+        let hint = hint_line(model);
+        if let Some(cv) = &model.capture_view {
+            ui::capture_view::render(frame, main_area, cv);
+        }
+        frame.render_widget(Paragraph::new(hint), hint_area);
+        if let Some(msg) = &model.error_message {
+            ui::error_box::render(frame, area, msg);
+        }
+        return;
+    }
+
     if (model.transfer_mode.is_copy() || model.transfer_mode.is_move())
         && !model.rename_input.active
     {
@@ -146,10 +160,6 @@ fn render_overlays(model: &mut Model, frame: &mut Frame, area: ratatui::layout::
 
     if let Some(cp) = &model.command_picker {
         ui::command_picker::render(frame, area, cp);
-    }
-
-    if let Some(pop) = &model.capture_popup {
-        ui::capture_popup::render(frame, area, pop);
     }
 
     if let Some(pending) = &model.pending_overwrite {
@@ -291,7 +301,7 @@ fn hint_line(model: &Model) -> Line<'static> {
     if model.file_view.is_some() && model.file_view_focused {
         return file_view_hint();
     }
-    if model.capture_popup.is_some() {
+    if model.capture_view.is_some() {
         return Line::from(vec![
             key(" j/k"),
             desc(" scroll  "),

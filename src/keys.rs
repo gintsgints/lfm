@@ -155,7 +155,7 @@ pub enum InputMode {
     FileFindResults,
     CommandPicker,
     CommandInput,
-    CapturePopup,
+    CaptureView,
     FileView,
     /// Viewer panel open but not focused: only Esc is claimed (to close it),
     /// every other key falls through to the file list.
@@ -180,8 +180,8 @@ pub fn input_mode(model: &Model) -> InputMode {
         InputMode::OverwriteConfirm
     } else if model.file_view.is_some() && model.file_view_focused {
         InputMode::FileView
-    } else if model.capture_popup.is_some() {
-        InputMode::CapturePopup
+    } else if model.capture_view.is_some() {
+        InputMode::CaptureView
     } else if let Some(cp) = &model.command_picker {
         if cp.input.is_some() {
             InputMode::CommandInput
@@ -330,7 +330,7 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
         | InputMode::ContentSearchResults
         | InputMode::FileFindInput
         | InputMode::FileFindResults => intercept_search_mode(key, mode),
-        InputMode::CommandPicker | InputMode::CommandInput | InputMode::CapturePopup => {
+        InputMode::CommandPicker | InputMode::CommandInput | InputMode::CaptureView => {
             intercept_command_mode(key, mode)
         }
         InputMode::FileView => ModeIntercept::Consumed(file_view_key(key)),
@@ -361,7 +361,7 @@ fn file_view_key(key: &KeyEvent) -> Option<Message> {
 }
 
 /// Key handling for the preset-command picker, its `{input}` step, and the
-/// capture-output popup.
+/// capture-output view.
 fn intercept_command_mode(key: &KeyEvent, mode: &InputMode) -> ModeIntercept {
     ModeIntercept::Consumed(match mode {
         InputMode::CommandPicker => match key.code {
@@ -380,12 +380,12 @@ fn intercept_command_mode(key: &KeyEvent, mode: &InputMode) -> ModeIntercept {
             KeyCode::Char(c) => Some(Message::CommandInputChar(c)),
             _ => None,
         },
-        InputMode::CapturePopup => match key.code {
-            KeyCode::Esc | KeyCode::Enter => Some(Message::CapturePopupClose),
-            KeyCode::Up | KeyCode::Char('k') => Some(Message::CapturePopupScrollUp),
-            KeyCode::Down | KeyCode::Char('j') => Some(Message::CapturePopupScrollDown),
-            KeyCode::PageUp => Some(Message::CapturePopupPageUp),
-            KeyCode::PageDown => Some(Message::CapturePopupPageDown),
+        InputMode::CaptureView => match key.code {
+            KeyCode::Esc | KeyCode::Enter => Some(Message::CaptureViewClose),
+            KeyCode::Up | KeyCode::Char('k') => Some(Message::CaptureViewScrollUp),
+            KeyCode::Down | KeyCode::Char('j') => Some(Message::CaptureViewScrollDown),
+            KeyCode::PageUp => Some(Message::CaptureViewPageUp),
+            KeyCode::PageDown => Some(Message::CaptureViewPageDown),
             _ => None,
         },
         _ => None,

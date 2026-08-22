@@ -1,4 +1,4 @@
-pub mod capture_popup;
+pub mod capture_view;
 pub mod command_picker;
 pub mod confirm_box;
 pub mod content_search_panel;

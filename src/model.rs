@@ -210,8 +210,8 @@ pub struct FileView {
     pub content: ViewContent,
 }
 
-/// Output of a `capture`-mode preset, displayed in a scrollable popup.
-pub struct CapturePopup {
+/// Output of a `capture`-mode preset, displayed on its own full screen.
+pub struct CaptureView {
     pub label: String,
     /// `None` means the command failed to spawn (binary not found, etc.).
     pub exit_code: Option<i32>,
@@ -246,7 +246,7 @@ pub struct Model {
     pub content_search: Option<ContentSearch>,
     pub file_find: Option<FileFind>,
     pub command_picker: Option<CommandPicker>,
-    pub capture_popup: Option<CapturePopup>,
+    pub capture_view: Option<CaptureView>,
     pub file_view: Option<FileView>,
     /// Whether keys go to the viewer panel rather than the file list. Only
     /// meaningful while `file_view` is open; Tab flips it.
@@ -292,7 +292,7 @@ impl Model {
             content_search: None,
             file_find: None,
             command_picker: None,
-            capture_popup: None,
+            capture_view: None,
             file_view: None,
             file_view_focused: false,
             view_registry: ViewRegistry::with_defaults(),

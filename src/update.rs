@@ -13,7 +13,7 @@ use crate::model::{
     PendingOverwrite, TransferMode, TransferOp, TransferProgress, ViewContent,
 };
 use crate::presets::{self, ExecSpec, OutputMode};
-use crate::ui::{capture_popup, file_panel, help_panel, input_box, pinned_panel};
+use crate::ui::{capture_view, file_panel, help_panel, input_box, pinned_panel};
 
 pub enum Effect {
     None,
@@ -178,11 +178,11 @@ fn update_message(mut model: Model, msg: Message) -> (Model, Effect) {
         | Message::CommandInputCursorRight
         | Message::CommandInputCancel
         | Message::CommandInputConfirm => update_command(model, msg),
-        Message::CapturePopupScrollUp
-        | Message::CapturePopupScrollDown
-        | Message::CapturePopupPageUp
-        | Message::CapturePopupPageDown
-        | Message::CapturePopupClose => update_capture_popup(model, msg),
+        Message::CaptureViewScrollUp
+        | Message::CaptureViewScrollDown
+        | Message::CaptureViewPageUp
+        | Message::CaptureViewPageDown
+        | Message::CaptureViewClose => update_capture_view(model, msg),
         Message::ViewFile => update_view_file(model),
         Message::FileViewScrollUp
         | Message::FileViewScrollDown
@@ -894,26 +894,26 @@ fn command_input_mut(model: &mut Model) -> Option<&mut input_box::Model> {
         .and_then(|cp| cp.input.as_mut())
 }
 
-fn update_capture_popup(mut model: Model, msg: Message) -> (Model, Effect) {
-    let Some(p) = &mut model.capture_popup else {
+fn update_capture_view(mut model: Model, msg: Message) -> (Model, Effect) {
+    let Some(p) = &mut model.capture_view else {
         return (model, Effect::None);
     };
-    let max = capture_popup::line_count(p).saturating_sub(1);
+    let max = capture_view::line_count(p).saturating_sub(1);
     match msg {
-        Message::CapturePopupScrollUp => {
+        Message::CaptureViewScrollUp => {
             p.scroll = p.scroll.saturating_sub(1);
         }
-        Message::CapturePopupScrollDown => {
+        Message::CaptureViewScrollDown => {
             p.scroll = p.scroll.saturating_add(1).min(max);
         }
-        Message::CapturePopupPageUp => {
+        Message::CaptureViewPageUp => {
             p.scroll = p.scroll.saturating_sub(10);
         }
-        Message::CapturePopupPageDown => {
+        Message::CaptureViewPageDown => {
             p.scroll = p.scroll.saturating_add(10).min(max);
         }
-        Message::CapturePopupClose => {
-            model.capture_popup = None;
+        Message::CaptureViewClose => {
+            model.capture_view = None;
             refresh_both_panels(&mut model);
         }
         _ => {}

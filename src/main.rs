@@ -37,7 +37,7 @@ use keys::{
     to_message,
 };
 use message::Message;
-use model::{CapturePopup, Model, ResultPanel};
+use model::{CaptureView, Model, ResultPanel};
 use presets::OutputMode;
 use update::{Effect, RunSpec, update};
 use view::view;
@@ -88,7 +88,7 @@ fn build_command(spec: &RunSpec) -> std::process::Command {
 }
 
 /// Execute a preset command and update the model with any UI-visible result
-/// (capture popup, error modal, refreshed panels).
+/// (capture view, error modal, refreshed panels).
 fn run_preset_command(terminal: &mut DefaultTerminal, mut model: Model, spec: RunSpec) -> Model {
     match spec.mode {
         OutputMode::Background => {
@@ -107,7 +107,7 @@ fn run_preset_command(terminal: &mut DefaultTerminal, mut model: Model, spec: Ru
                     if !out.stderr.is_empty() {
                         buf.push_str(&String::from_utf8_lossy(&out.stderr));
                     }
-                    model.capture_popup = Some(CapturePopup {
+                    model.capture_view = Some(CaptureView {
                         label: spec.label,
                         exit_code: out.status.code(),
                         output: buf,
