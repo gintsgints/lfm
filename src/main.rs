@@ -112,6 +112,8 @@ fn run_preset_command(terminal: &mut DefaultTerminal, mut model: Model, spec: Ru
                         exit_code: out.status.code(),
                         output: buf,
                         scroll: 0,
+                        viewport_width: 0,
+                        viewport_height: 0,
                     });
                 }
                 Err(e) => {

@@ -42,7 +42,7 @@ pub fn view(model: &mut Model, frame: &mut Frame) {
     // drawn behind it, so nothing shifts under the output.
     if model.capture_view.is_some() {
         let hint = hint_line(model);
-        if let Some(cv) = &model.capture_view {
+        if let Some(cv) = &mut model.capture_view {
             ui::capture_view::render(frame, main_area, cv);
         }
         frame.render_widget(Paragraph::new(hint), hint_area);

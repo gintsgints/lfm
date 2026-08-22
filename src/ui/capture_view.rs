@@ -11,7 +11,7 @@ use crate::theme;
 
 /// Render the captured output as its own full-screen view: the file panels are
 /// not drawn behind it, so long output never lands on top of panel rows.
-pub fn render(frame: &mut Frame, area: Rect, view: &CaptureView) {
+pub fn render(frame: &mut Frame, area: Rect, view: &mut CaptureView) {
     let header_fg = match view.exit_code {
         Some(0) => theme::active_border(),
         Some(_) | None => theme::move_target_border(),
@@ -29,6 +29,12 @@ pub fn render(frame: &mut Frame, area: Rect, view: &CaptureView) {
     let inner = block.inner(area);
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
+
+    // Remember the body size so the update logic can clamp scrolling to the
+    // wrapped row count rather than guessing.
+    view.viewport_width = inner.width;
+    view.viewport_height = inner.height;
+    view.scroll = view.scroll.min(max_scroll(view));
 
     let lines: Vec<Line> = body(view)
         .lines()
@@ -56,8 +62,27 @@ fn body(view: &CaptureView) -> &str {
     }
 }
 
-/// Total scrollable rows in the body, used by update logic to clamp
-/// [`CaptureView::scroll`].
-pub fn line_count(view: &CaptureView) -> u16 {
-    u16::try_from(body(view).lines().count()).unwrap_or(u16::MAX)
+/// Rows the wrapped body occupies at the last rendered width.
+fn row_count(view: &CaptureView) -> u16 {
+    let width = usize::from(view.viewport_width);
+    let rows: usize = body(view)
+        .lines()
+        .map(|l| {
+            if width == 0 {
+                return 1;
+            }
+            Line::raw(l).width().max(1).div_ceil(width)
+        })
+        .sum();
+    u16::try_from(rows).unwrap_or(u16::MAX)
+}
+
+/// Largest scroll offset that still keeps the last row on screen.
+pub fn max_scroll(view: &CaptureView) -> u16 {
+    row_count(view).saturating_sub(view.viewport_height)
+}
+
+/// How far PgUp/PgDn move — one screenful, minus a row of overlap.
+pub fn page_step(view: &CaptureView) -> u16 {
+    view.viewport_height.saturating_sub(1).max(1)
 }

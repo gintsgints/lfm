@@ -898,7 +898,8 @@ fn update_capture_view(mut model: Model, msg: Message) -> (Model, Effect) {
     let Some(p) = &mut model.capture_view else {
         return (model, Effect::None);
     };
-    let max = capture_view::line_count(p).saturating_sub(1);
+    let max = capture_view::max_scroll(p);
+    let page = capture_view::page_step(p);
     match msg {
         Message::CaptureViewScrollUp => {
             p.scroll = p.scroll.saturating_sub(1);
@@ -907,10 +908,10 @@ fn update_capture_view(mut model: Model, msg: Message) -> (Model, Effect) {
             p.scroll = p.scroll.saturating_add(1).min(max);
         }
         Message::CaptureViewPageUp => {
-            p.scroll = p.scroll.saturating_sub(10);
+            p.scroll = p.scroll.saturating_sub(page);
         }
         Message::CaptureViewPageDown => {
-            p.scroll = p.scroll.saturating_add(10).min(max);
+            p.scroll = p.scroll.saturating_add(page).min(max);
         }
         Message::CaptureViewClose => {
             model.capture_view = None;

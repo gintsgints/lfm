@@ -1,3 +1,4 @@
+mod capture_view;
 mod copy_destination;
 mod engine;
 mod file_find;

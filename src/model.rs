@@ -217,6 +217,10 @@ pub struct CaptureView {
     pub exit_code: Option<i32>,
     pub output: String,
     pub scroll: u16,
+    /// Body size of the last render, used to clamp `scroll` to the wrapped
+    /// output. Both are 0 until the view has been drawn once.
+    pub viewport_width: u16,
+    pub viewport_height: u16,
 }
 
 pub struct Model {
