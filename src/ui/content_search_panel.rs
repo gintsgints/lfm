@@ -8,7 +8,7 @@ use ratatui::{
 
 use crate::model::ContentSearch;
 use crate::theme;
-use crate::ui::input_box;
+use crate::ui::query_row;
 
 pub fn render(frame: &mut Frame, area: Rect, state: &ContentSearch) {
     let popup = centered_rect(90, 80, area);
@@ -28,6 +28,8 @@ pub fn render(frame: &mut Frame, area: Rect, state: &ContentSearch) {
 
     let bottom = Line::from(vec![
         Span::styled(match_label, Style::default().fg(theme::inactive_border())),
+        key("[\u{2190}/\u{2192}]"),
+        dim(" mask  "),
         key("[Tab]"),
         dim(" switch  "),
         key("[Enter]"),
@@ -56,7 +58,14 @@ pub fn render(frame: &mut Frame, area: Rect, state: &ContentSearch) {
     ])
     .split(inner);
 
-    render_query_line(frame, chunks[0], &state.query, state.input_focused);
+    query_row::render(
+        frame,
+        chunks[0],
+        &state.query,
+        &state.mask,
+        state.input_focused,
+        state.input_field,
+    );
 
     let sep = "─".repeat(usize::from(chunks[1].width));
     frame.render_widget(
@@ -68,47 +77,6 @@ pub fn render(frame: &mut Frame, area: Rect, state: &ContentSearch) {
     );
 
     render_results(frame, chunks[2], state);
-}
-
-fn render_query_line(frame: &mut Frame, area: Rect, query: &input_box::Model, focused: bool) {
-    let prompt_style = Style::default().fg(theme::active_border());
-    let text_style = Style::default()
-        .fg(theme::text())
-        .add_modifier(Modifier::BOLD);
-
-    let spans = if focused {
-        let cursor_style = text_style.add_modifier(Modifier::UNDERLINED);
-        let before = query.text[..query.cursor()].to_owned();
-        let (cursor_span, after_span) = if query.cursor() < query.text.len() {
-            let c = query.text[query.cursor()..].chars().next().unwrap();
-            let end = query.cursor() + c.len_utf8();
-            (
-                Span::styled(query.text[query.cursor()..end].to_owned(), cursor_style),
-                Span::styled(query.text[end..].to_owned(), text_style),
-            )
-        } else {
-            (
-                Span::styled("_", cursor_style),
-                Span::styled(String::new(), text_style),
-            )
-        };
-        vec![
-            Span::styled("> ", prompt_style),
-            Span::styled(before, text_style),
-            cursor_span,
-            after_span,
-        ]
-    } else {
-        vec![
-            Span::styled("  ", prompt_style),
-            Span::styled(
-                query.text.clone(),
-                Style::default().fg(theme::inactive_border()),
-            ),
-        ]
-    };
-
-    frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
 fn render_results(frame: &mut Frame, area: Rect, state: &ContentSearch) {

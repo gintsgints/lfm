@@ -423,7 +423,9 @@ fn render_debug_panel(frame: &mut Frame, area: ratatui::layout::Rect) {
 fn content_search_hint(input_focused: bool) -> Line<'static> {
     if input_focused {
         Line::from(vec![
-            key(" Tab"),
+            key(" \u{2190}/\u{2192}"),
+            desc(" query/mask  "),
+            key("Tab"),
             desc(" results  "),
             key("Esc"),
             desc(" cancel search"),
