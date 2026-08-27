@@ -310,23 +310,72 @@ fn pending_effect(kind: PendingKind) -> Effect {
     }
 }
 
+/// What to tell the user about a transfer that would land its sources exactly
+/// where they already are, or `None` when there is real work to do. Reported
+/// before any state is torn down, so the picker or the rename dialog it came
+/// from is still open once the message is dismissed.
+fn same_location_message(kind: &PendingKind) -> Option<String> {
+    if !kind.is_same_location() {
+        return None;
+    }
+    Some(
+        match kind {
+            PendingKind::Copy(..) => "Copy target is the source folder — pick another folder.",
+            PendingKind::Move(..) => "Move target is the source folder — pick another folder.",
+            // Reached either from the rename dialog (in-place rename to the
+            // same name) or from the destination picker, so name both ways out.
+            PendingKind::CopyRename(..) | PendingKind::MoveRename(..) => {
+                "Target is the source itself — pick another folder or name."
+            }
+        }
+        .to_owned(),
+    )
+}
+
+/// Build the transfer for the destination now shown in the right panel and
+/// launch it. A destination that is the folder the sources already live in
+/// leaves the picker exactly as it is, so the user can dismiss the message and
+/// walk to another folder.
+fn confirm_transfer(model: &mut Model, op: TransferOp) -> Effect {
+    let sources: Vec<PathBuf> = model
+        .left_files
+        .action_targets()
+        .into_iter()
+        .map(|t| t.path)
+        .collect();
+    if sources.is_empty() {
+        cancel_transfer(model);
+        return Effect::None;
+    }
+    let dst = model.right_files.current_dir.clone();
+    let moving = op == TransferOp::Move;
+    let kind = if model.transfer_mode.with_rename() {
+        let target = dst.join(&model.rename_input.text);
+        let src = sources.into_iter().next().unwrap();
+        if moving {
+            PendingKind::MoveRename(src, target)
+        } else {
+            PendingKind::CopyRename(src, target)
+        }
+    } else if moving {
+        PendingKind::Move(sources, dst)
+    } else {
+        PendingKind::Copy(sources, dst)
+    };
+    if let Some(message) = same_location_message(&kind) {
+        model.error_message = Some(message);
+        return Effect::None;
+    }
+    model.transfer_mode = TransferMode::None;
+    model.rename_input.close();
+    model.right_files.set_dirs_only(false);
+    model.active_panel = ActivePanel::LeftFiles;
+    begin_transfer(model, kind)
+}
+
 /// Launch a confirmed copy/move, or, if it would overwrite existing entries,
 /// hold it back behind an overwrite prompt instead.
 fn begin_transfer(model: &mut Model, kind: PendingKind) -> Effect {
-    if kind.is_same_location() {
-        model.pending_select = None;
-        model.error_message = Some(
-            match &kind {
-                PendingKind::Copy(..) => "Copy target is the source folder — nothing to copy.",
-                PendingKind::Move(..) => "Move target is the source folder — nothing to move.",
-                PendingKind::CopyRename(..) | PendingKind::MoveRename(..) => {
-                    "Target is the source itself — nothing to do."
-                }
-            }
-            .to_owned(),
-        );
-        return Effect::None;
-    }
     let conflicts = kind.conflicts();
     if conflicts.is_empty() {
         model.progress = Some(TransferProgress {
@@ -377,29 +426,7 @@ fn update_copy(mut model: Model, msg: Message) -> (Model, Effect) {
             (model, Effect::None)
         }
         Message::ConfirmCopy => {
-            let sources: Vec<PathBuf> = model
-                .left_files
-                .action_targets()
-                .into_iter()
-                .map(|t| t.path)
-                .collect();
-            if sources.is_empty() {
-                cancel_transfer(&mut model);
-                return (model, Effect::None);
-            }
-            let dst = model.right_files.current_dir.clone();
-            let with_rename = model.transfer_mode.with_rename();
-            model.transfer_mode = TransferMode::None;
-            model.right_files.set_dirs_only(false);
-            model.active_panel = ActivePanel::LeftFiles;
-            let kind = if with_rename {
-                let new_name = std::mem::take(&mut model.rename_input.text);
-                let src = sources.into_iter().next().unwrap();
-                PendingKind::CopyRename(src, dst.join(new_name))
-            } else {
-                PendingKind::Copy(sources, dst)
-            };
-            let effect = begin_transfer(&mut model, kind);
+            let effect = confirm_transfer(&mut model, TransferOp::Copy);
             (model, effect)
         }
         _ => (model, Effect::None),
@@ -430,29 +457,7 @@ fn update_move(mut model: Model, msg: Message) -> (Model, Effect) {
             (model, Effect::None)
         }
         Message::ConfirmMove => {
-            let sources: Vec<PathBuf> = model
-                .left_files
-                .action_targets()
-                .into_iter()
-                .map(|t| t.path)
-                .collect();
-            if sources.is_empty() {
-                cancel_transfer(&mut model);
-                return (model, Effect::None);
-            }
-            let dst = model.right_files.current_dir.clone();
-            let with_rename = model.transfer_mode.with_rename();
-            model.transfer_mode = TransferMode::None;
-            model.right_files.set_dirs_only(false);
-            model.active_panel = ActivePanel::LeftFiles;
-            let kind = if with_rename {
-                let new_name = std::mem::take(&mut model.rename_input.text);
-                let src = sources.into_iter().next().unwrap();
-                PendingKind::MoveRename(src, dst.join(new_name))
-            } else {
-                PendingKind::Move(sources, dst)
-            };
-            let effect = begin_transfer(&mut model, kind);
+            let effect = confirm_transfer(&mut model, TransferOp::Move);
             (model, effect)
         }
         _ => (model, Effect::None),
@@ -488,18 +493,26 @@ fn update_rename(mut model: Model, msg: Message) -> (Model, Effect) {
             }
             if model.transfer_mode == TransferMode::Rename {
                 // In-place rename: move the file to the same directory under the new name.
-                let new_name = std::mem::take(&mut model.rename_input.text);
-                model.rename_input.active = false;
-                model.transfer_mode = TransferMode::None;
                 let Some(target) = model.left_files.action_targets().into_iter().next() else {
+                    cancel_transfer(&mut model);
                     return (model, Effect::None);
                 };
+                let new_name = model.rename_input.text.clone();
                 let dst = target
                     .path
                     .parent()
                     .map_or_else(|| PathBuf::from(&new_name), |p| p.join(&new_name));
+                let kind = PendingKind::MoveRename(target.path, dst);
+                if let Some(message) = same_location_message(&kind) {
+                    // Leave the dialog open behind the message, so the name can
+                    // be edited rather than typed again from scratch.
+                    model.error_message = Some(message);
+                    return (model, Effect::None);
+                }
+                model.rename_input.close();
+                model.transfer_mode = TransferMode::None;
                 model.pending_select = Some(new_name);
-                let effect = begin_transfer(&mut model, PendingKind::MoveRename(target.path, dst));
+                let effect = begin_transfer(&mut model, kind);
                 return (model, effect);
             }
             // Deactivate the dialog (keep text) and open the destination panel.

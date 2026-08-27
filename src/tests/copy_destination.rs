@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::message::Message;
-use crate::model::Model;
+use crate::model::{ActivePanel, Model, TransferMode};
 use crate::state::PersistedState;
 use crate::ui::file_panel;
 use crate::update::{Effect, update};
@@ -44,15 +44,17 @@ fn destination_is_right_panel_folder_not_highlighted_subdir() {
 
 /// Confirming a copy or move whose destination is the folder the sources
 /// already live in reports it instead of running a transfer that would do
-/// nothing.
+/// nothing — and leaves the destination picker open, so another folder can be
+/// chosen once the message is dismissed.
 #[test]
-fn same_folder_destination_reports_a_message() {
+fn same_folder_destination_reports_a_message_and_keeps_the_picker_open() {
     for (start, confirm) in [
         (Message::StartCopy, Message::ConfirmCopy),
         (Message::StartMove, Message::ConfirmMove),
     ] {
         let src = temp_dir();
         fs::write(src.join("a.txt"), b"new").unwrap();
+        let dst = temp_dir();
 
         let mut model = Model::init(PersistedState::default()).unwrap();
         model.left_files = file_panel::Model::init(src).unwrap();
@@ -70,6 +72,21 @@ fn same_folder_destination_reports_a_message() {
             "the user should be told the target is the source folder"
         );
         assert!(model.progress.is_none(), "no transfer should be running");
+
+        // Dismiss the message and carry on picking a destination.
+        let (mut model, _) = update(model, Message::DismissError);
+        assert!(model.transfer_mode != TransferMode::None, "still picking");
+        assert!(model.active_panel == ActivePanel::RightFiles);
+        assert!(model.right_files.dirs_only, "still listing folders only");
+
+        model.right_files.navigate_to(dst.clone());
+        let (_model, effect) = update(model, confirm);
+        match effect {
+            Effect::StartCopy(_, target) | Effect::StartMove(_, target) => {
+                assert_eq!(target, dst, "the second destination should be used");
+            }
+            _ => panic!("expected the transfer to run after choosing another folder"),
+        }
     }
 }
 
