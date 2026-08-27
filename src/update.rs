@@ -547,7 +547,9 @@ fn update_progress_tick(mut model: Model, current: u64, total: u64) -> (Model, E
 
 fn progress_done(mut model: Model) -> (Model, Effect) {
     model.progress = None;
-    model.active_panel = ActivePanel::LeftFiles;
+    // Focus is not touched here: a copy or move already handed it back to the
+    // source panel when the destination was confirmed, and a delete never left
+    // the panel it ran in.
     model.left_files.reload_keeping_selection();
     model.right_files.reload_keeping_selection();
     if let Some(name) = model.pending_select.take() {

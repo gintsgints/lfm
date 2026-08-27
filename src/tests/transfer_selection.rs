@@ -3,10 +3,10 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::message::Message;
-use crate::model::Model;
+use crate::model::{ActivePanel, Model};
 use crate::state::PersistedState;
 use crate::ui::file_panel;
-use crate::update::update;
+use crate::update::{Effect, update};
 
 fn temp_dir() -> PathBuf {
     static COUNTER: AtomicU32 = AtomicU32::new(0);
@@ -68,6 +68,44 @@ fn moved_entry_leaves_cursor_in_place() {
     assert_eq!(model.left_files.selection, 1);
     assert_eq!(highlighted(&model), "c");
     fs::remove_dir_all(&src).unwrap();
+}
+
+/// A delete leaves the cursor where the deleted entry was, and leaves the focus
+/// in the panel the delete ran in.
+#[test]
+fn delete_keeps_the_cursor_and_the_focused_panel() {
+    let dir = temp_dir();
+    for name in ["a", "b", "c"] {
+        fs::create_dir_all(dir.join(name)).unwrap();
+    }
+
+    let mut model = model_at(temp_dir());
+    model.right_files = file_panel::Model::init(dir.clone()).unwrap();
+    model.active_panel = ActivePanel::RightFiles;
+    model.right_files.selection = 1; // "b"
+
+    let (model, _) = update(model, Message::DeleteFiles);
+    let (model, effect) = update(model, Message::DeleteConfirm);
+    match effect {
+        Effect::StartDelete(sources) => assert_eq!(sources, vec![dir.join("b")]),
+        _ => panic!("expected a StartDelete effect"),
+    }
+
+    fs::remove_dir_all(dir.join("b")).unwrap(); // the worker's side of the delete
+    let (model, _) = update(model, Message::ProgressDone);
+
+    assert!(
+        matches!(model.active_panel, ActivePanel::RightFiles),
+        "focus should stay in the panel the delete ran in"
+    );
+    assert_eq!(model.right_files.selection, 1);
+    let panel = &model.right_files;
+    let name = panel
+        .visible_entries()
+        .nth(panel.selection)
+        .map(|(_, e)| e.name.clone());
+    assert_eq!(name.as_deref(), Some("c"));
+    fs::remove_dir_all(&dir).unwrap();
 }
 
 /// Removing the last entry clamps the cursor to the new end of the list.
