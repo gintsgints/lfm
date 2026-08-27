@@ -76,6 +76,9 @@ pub struct Model {
     pub delete_confirm: bool,
     pub delete_targets: Vec<DeleteTarget>,
     pub sort_order: SortOrder,
+    /// Hide files and list directories only. Set while the panel serves as a
+    /// copy/move destination, where only a directory is a valid target.
+    pub dirs_only: bool,
 }
 
 impl Model {
@@ -95,6 +98,7 @@ impl Model {
             delete_confirm: false,
             delete_targets: Vec::new(),
             sort_order,
+            dirs_only: false,
         })
     }
 
@@ -148,10 +152,22 @@ impl Model {
 
     pub fn visible_entries(&self) -> impl Iterator<Item = (usize, &Entry)> {
         let filter = self.search.text.to_lowercase();
-        self.entries
-            .iter()
-            .enumerate()
-            .filter(move |(_, e)| filter.is_empty() || e.name.to_lowercase().contains(&filter))
+        let dirs_only = self.dirs_only;
+        self.entries.iter().enumerate().filter(move |(_, e)| {
+            (!dirs_only || e.is_dir)
+                && (filter.is_empty() || e.name.to_lowercase().contains(&filter))
+        })
+    }
+
+    /// Switch the panel between listing everything and listing directories
+    /// only. The cursor and any marks are dropped, since the rows they pointed
+    /// at may no longer be shown.
+    pub fn set_dirs_only(&mut self, dirs_only: bool) {
+        if self.dirs_only != dirs_only {
+            self.dirs_only = dirs_only;
+            self.selection = 0;
+            self.selected.clear();
+        }
     }
 }
 

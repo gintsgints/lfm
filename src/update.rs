@@ -284,9 +284,20 @@ fn open_rename_dialog(model: &mut Model, mode: TransferMode) {
     model.transfer_mode = mode;
 }
 
+/// Open the right panel as the destination for `mode`. It lists directories
+/// only: a copy or move target is always a directory.
+fn open_target_panel(model: &mut Model, mode: TransferMode) {
+    let start_dir = model.left_files.current_dir.clone();
+    model.right_files.navigate_to(start_dir);
+    model.right_files.set_dirs_only(true);
+    model.transfer_mode = mode;
+    model.active_panel = ActivePanel::RightFiles;
+}
+
 fn cancel_transfer(model: &mut Model) {
     model.transfer_mode = TransferMode::None;
     model.rename_input.close();
+    model.right_files.set_dirs_only(false);
     model.active_panel = ActivePanel::LeftFiles;
 }
 
@@ -331,10 +342,7 @@ fn overwrite_confirm(mut model: Model) -> (Model, Effect) {
 fn update_copy(mut model: Model, msg: Message) -> (Model, Effect) {
     match msg {
         Message::StartCopy => {
-            let start_dir = model.left_files.current_dir.clone();
-            model.right_files.navigate_to(start_dir);
-            model.transfer_mode = TransferMode::Copy;
-            model.active_panel = ActivePanel::RightFiles;
+            open_target_panel(&mut model, TransferMode::Copy);
             (model, Effect::None)
         }
         Message::StartCopyRename => {
@@ -344,10 +352,7 @@ fn update_copy(mut model: Model, msg: Message) -> (Model, Effect) {
             }
             if targets.len() != 1 {
                 // Multi-selection: fall back to regular copy.
-                let start_dir = model.left_files.current_dir.clone();
-                model.right_files.navigate_to(start_dir);
-                model.transfer_mode = TransferMode::Copy;
-                model.active_panel = ActivePanel::RightFiles;
+                open_target_panel(&mut model, TransferMode::Copy);
                 return (model, Effect::None);
             }
             open_rename_dialog(&mut model, TransferMode::CopyRename);
@@ -371,6 +376,7 @@ fn update_copy(mut model: Model, msg: Message) -> (Model, Effect) {
             let dst = model.right_files.current_dir.clone();
             let with_rename = model.transfer_mode.with_rename();
             model.transfer_mode = TransferMode::None;
+            model.right_files.set_dirs_only(false);
             model.active_panel = ActivePanel::LeftFiles;
             let kind = if with_rename {
                 let new_name = std::mem::take(&mut model.rename_input.text);
@@ -389,10 +395,7 @@ fn update_copy(mut model: Model, msg: Message) -> (Model, Effect) {
 fn update_move(mut model: Model, msg: Message) -> (Model, Effect) {
     match msg {
         Message::StartMove => {
-            let start_dir = model.left_files.current_dir.clone();
-            model.right_files.navigate_to(start_dir);
-            model.transfer_mode = TransferMode::Move;
-            model.active_panel = ActivePanel::RightFiles;
+            open_target_panel(&mut model, TransferMode::Move);
             (model, Effect::None)
         }
         Message::StartMoveRename => {
@@ -402,10 +405,7 @@ fn update_move(mut model: Model, msg: Message) -> (Model, Effect) {
             }
             if targets.len() != 1 {
                 // Multi-selection: fall back to regular move.
-                let start_dir = model.left_files.current_dir.clone();
-                model.right_files.navigate_to(start_dir);
-                model.transfer_mode = TransferMode::Move;
-                model.active_panel = ActivePanel::RightFiles;
+                open_target_panel(&mut model, TransferMode::Move);
                 return (model, Effect::None);
             }
             open_rename_dialog(&mut model, TransferMode::MoveRename);
@@ -429,6 +429,7 @@ fn update_move(mut model: Model, msg: Message) -> (Model, Effect) {
             let dst = model.right_files.current_dir.clone();
             let with_rename = model.transfer_mode.with_rename();
             model.transfer_mode = TransferMode::None;
+            model.right_files.set_dirs_only(false);
             model.active_panel = ActivePanel::LeftFiles;
             let kind = if with_rename {
                 let new_name = std::mem::take(&mut model.rename_input.text);
@@ -489,9 +490,8 @@ fn update_rename(mut model: Model, msg: Message) -> (Model, Effect) {
             }
             // Deactivate the dialog (keep text) and open the destination panel.
             model.rename_input.active = false;
-            let start_dir = model.left_files.current_dir.clone();
-            model.right_files.navigate_to(start_dir);
-            model.active_panel = ActivePanel::RightFiles;
+            let mode = model.transfer_mode;
+            open_target_panel(&mut model, mode);
             (model, Effect::None)
         }
         _ => (model, Effect::None),
