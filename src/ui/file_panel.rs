@@ -121,6 +121,23 @@ impl Model {
         }
     }
 
+    /// Re-read the current directory in place, keeping the cursor on the entry
+    /// it was on. If that entry is gone — moved away, deleted — the cursor
+    /// keeps its position in the list instead, clamped to the new length.
+    pub fn reload_keeping_selection(&mut self) {
+        let name = self
+            .visible_entries()
+            .nth(self.selection)
+            .map(|(_, e)| e.name.clone());
+        let index = self.selection;
+        let dir = self.current_dir.clone();
+        self.navigate_to(dir);
+        let found = name.and_then(|name| self.visible_entries().position(|(_, e)| e.name == name));
+        self.selection = found
+            .unwrap_or(index)
+            .min(self.entry_count().saturating_sub(1));
+    }
+
     pub fn action_targets(&self) -> Vec<DeleteTarget> {
         if self.selected.is_empty() {
             self.visible_entries()

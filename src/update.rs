@@ -548,10 +548,8 @@ fn update_progress_tick(mut model: Model, current: u64, total: u64) -> (Model, E
 fn progress_done(mut model: Model) -> (Model, Effect) {
     model.progress = None;
     model.active_panel = ActivePanel::LeftFiles;
-    let left_dir = model.left_files.current_dir.clone();
-    model.left_files.navigate_to(left_dir);
-    let right_dir = model.right_files.current_dir.clone();
-    model.right_files.navigate_to(right_dir);
+    model.left_files.reload_keeping_selection();
+    model.right_files.reload_keeping_selection();
     if let Some(name) = model.pending_select.take() {
         let pos = model
             .left_files

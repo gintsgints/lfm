@@ -11,6 +11,7 @@ mod pending_overwrite;
 mod search;
 mod theme;
 mod transfer;
+mod transfer_selection;
 use std::{path::PathBuf, sync::mpsc, time::Duration};
 
 use crate::engine::{EngineMsg, Kind, SearchEngine};
