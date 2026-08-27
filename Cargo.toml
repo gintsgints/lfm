@@ -15,6 +15,8 @@ zip = "8.6.0"
 flate2 = "1"
 tar = "0.4.46"
 fff-search = "0.10.5"
+# Already in the tree via fff-search; used for the search panels' file mask.
+globset = "0.4"
 # `languages` turns on every bundled Tree-sitter grammar, so source files get
 # syntax highlighting in the viewer instead of falling back to plain text.
 tui-view = { git = "https://github.com/gintsgints/tui-view.git", features = ["languages"] }

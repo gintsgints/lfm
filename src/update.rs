@@ -9,8 +9,8 @@ use crate::debug_log;
 use crate::image_view;
 use crate::message::Message;
 use crate::model::{
-    ActivePanel, CommandPicker, ContentSearch, FileFind, FileView, Model, PendingKind,
-    PendingOverwrite, TransferMode, TransferOp, TransferProgress, ViewContent,
+    ActivePanel, CommandPicker, ContentSearch, FileFind, FileView, InputField, Model, PendingKind,
+    PendingOverwrite, ResultPanel, TransferMode, TransferOp, TransferProgress, ViewContent,
 };
 use crate::presets::{self, ExecSpec, OutputMode};
 use crate::ui::{capture_view, file_panel, help_panel, input_box, pinned_panel};
@@ -33,6 +33,8 @@ pub enum Effect {
     StartContentSearch {
         root: PathBuf,
         query: String,
+        /// Glob patterns limiting which files are grepped; empty means all.
+        mask: String,
     },
     /// Make sure the file-find index for `root` exists (and start building it if
     /// not) without running a query yet.
@@ -42,6 +44,8 @@ pub enum Effect {
     StartFileFind {
         root: PathBuf,
         query: String,
+        /// Glob patterns limiting which names are ranked; empty means all.
+        mask: String,
     },
     RunCommand {
         spec: RunSpec,
@@ -596,6 +600,51 @@ fn origin_file_panel(model: &Model) -> &file_panel::Model {
     }
 }
 
+/// Apply an edit to whichever of a result panel's two input fields has the
+/// focus, then report the root, query and mask the search should re-run with.
+/// `None` while the query is empty — a mask on its own has nothing to look for.
+fn edit_query_panel<T>(
+    panel: Option<&mut ResultPanel<T>>,
+    edit: impl FnOnce(&mut input_box::Model),
+) -> Option<(PathBuf, String, String)> {
+    let panel = panel?;
+    match panel.input_field {
+        InputField::Query => edit(&mut panel.query),
+        InputField::Mask => edit(&mut panel.mask),
+    }
+    panel.results.clear();
+    panel.selection = 0;
+    panel.done = panel.query.text.is_empty();
+    (!panel.query.text.is_empty()).then(|| {
+        (
+            panel.root.clone(),
+            panel.query.text.clone(),
+            panel.mask.text.clone(),
+        )
+    })
+}
+
+/// Move the cursor within the focused field, crossing into the other one when
+/// it runs off the end: Right past the query enters the mask at its start, Left
+/// before the mask returns to the end of the query.
+fn move_query_cursor<T>(panel: Option<&mut ResultPanel<T>>, right: bool) {
+    let Some(panel) = panel else { return };
+    match (panel.input_field, right) {
+        (InputField::Query, true) if panel.query.cursor() == panel.query.text.len() => {
+            panel.input_field = InputField::Mask;
+            panel.mask.cursor_home();
+        }
+        (InputField::Mask, false) if panel.mask.cursor() == 0 => {
+            panel.input_field = InputField::Query;
+            panel.query.cursor_end();
+        }
+        (InputField::Query, true) => panel.query.move_right(),
+        (InputField::Query, false) => panel.query.move_left(),
+        (InputField::Mask, true) => panel.mask.move_right(),
+        (InputField::Mask, false) => panel.mask.move_left(),
+    }
+}
+
 fn update_content_search(mut model: Model, msg: Message) -> (Model, Effect) {
     match msg {
         Message::ContentSearch => {
@@ -612,49 +661,27 @@ fn update_content_search(mut model: Model, msg: Message) -> (Model, Effect) {
             (model, Effect::PrepareContentSearch { root })
         }
         Message::ContentSearchChar(c) => {
-            let (query, root) = {
-                let Some(cs) = &mut model.content_search else {
-                    return (model, Effect::None);
-                };
-                cs.query.insert(c);
-                cs.results.clear();
-                cs.selection = 0;
-                cs.done = cs.query.text.is_empty();
-                (cs.query.text.clone(), cs.root.clone())
-            };
-            if query.is_empty() {
-                (model, Effect::None)
-            } else {
-                (model, Effect::StartContentSearch { root, query })
+            match edit_query_panel(model.content_search.as_mut(), |field| field.insert(c)) {
+                Some((root, query, mask)) => {
+                    (model, Effect::StartContentSearch { root, query, mask })
+                }
+                None => (model, Effect::None),
             }
         }
         Message::ContentSearchBackspace => {
-            let (query, root) = {
-                let Some(cs) = &mut model.content_search else {
-                    return (model, Effect::None);
-                };
-                cs.query.backspace();
-                cs.results.clear();
-                cs.selection = 0;
-                cs.done = cs.query.text.is_empty();
-                (cs.query.text.clone(), cs.root.clone())
-            };
-            if query.is_empty() {
-                (model, Effect::None)
-            } else {
-                (model, Effect::StartContentSearch { root, query })
+            match edit_query_panel(model.content_search.as_mut(), input_box::Model::backspace) {
+                Some((root, query, mask)) => {
+                    (model, Effect::StartContentSearch { root, query, mask })
+                }
+                None => (model, Effect::None),
             }
         }
         Message::ContentSearchCursorLeft => {
-            if let Some(cs) = &mut model.content_search {
-                cs.query.move_left();
-            }
+            move_query_cursor(model.content_search.as_mut(), false);
             (model, Effect::None)
         }
         Message::ContentSearchCursorRight => {
-            if let Some(cs) = &mut model.content_search {
-                cs.query.move_right();
-            }
+            move_query_cursor(model.content_search.as_mut(), true);
             (model, Effect::None)
         }
         Message::ContentSearchToggleFocus => {
@@ -735,49 +762,23 @@ fn update_file_find(mut model: Model, msg: Message) -> (Model, Effect) {
             (model, Effect::PrepareFileFind { root })
         }
         Message::FileFindChar(c) => {
-            let (query, root) = {
-                let Some(ff) = &mut model.file_find else {
-                    return (model, Effect::None);
-                };
-                ff.query.insert(c);
-                ff.results.clear();
-                ff.selection = 0;
-                ff.done = ff.query.text.is_empty();
-                (ff.query.text.clone(), ff.root.clone())
-            };
-            if query.is_empty() {
-                (model, Effect::None)
-            } else {
-                (model, Effect::StartFileFind { root, query })
+            match edit_query_panel(model.file_find.as_mut(), |field| field.insert(c)) {
+                Some((root, query, mask)) => (model, Effect::StartFileFind { root, query, mask }),
+                None => (model, Effect::None),
             }
         }
         Message::FileFindBackspace => {
-            let (query, root) = {
-                let Some(ff) = &mut model.file_find else {
-                    return (model, Effect::None);
-                };
-                ff.query.backspace();
-                ff.results.clear();
-                ff.selection = 0;
-                ff.done = ff.query.text.is_empty();
-                (ff.query.text.clone(), ff.root.clone())
-            };
-            if query.is_empty() {
-                (model, Effect::None)
-            } else {
-                (model, Effect::StartFileFind { root, query })
+            match edit_query_panel(model.file_find.as_mut(), input_box::Model::backspace) {
+                Some((root, query, mask)) => (model, Effect::StartFileFind { root, query, mask }),
+                None => (model, Effect::None),
             }
         }
         Message::FileFindCursorLeft => {
-            if let Some(ff) = &mut model.file_find {
-                ff.query.move_left();
-            }
+            move_query_cursor(model.file_find.as_mut(), false);
             (model, Effect::None)
         }
         Message::FileFindCursorRight => {
-            if let Some(ff) = &mut model.file_find {
-                ff.query.move_right();
-            }
+            move_query_cursor(model.file_find.as_mut(), true);
             (model, Effect::None)
         }
         Message::FileFindToggleFocus => {

@@ -1547,6 +1547,7 @@ version = "0.10.0"
 dependencies = [
  "fff-search",
  "flate2",
+ "globset",
  "image",
  "ratatui",
  "ratatui-image",

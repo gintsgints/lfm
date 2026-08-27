@@ -10,15 +10,21 @@ use fff_search::{PaginationArgs, QueryParser};
 
 #[cfg(feature = "debug")]
 use crate::debug_log;
+use crate::file_mask::FileMask;
 /// Maximum number of fuzzy matches returned for a single query.
 const MAX_RESULTS: usize = 200;
+
+/// Upper bound on pages walked while filling a masked batch, so a mask that
+/// admits almost nothing cannot walk the whole index.
+const MAX_PAGES: usize = 20;
 
 pub struct FileFindResult {
     pub path: PathBuf,
     pub rel_path: PathBuf,
 }
 
-/// Rank the indexed file names against `query` and return the top matches.
+/// Rank the indexed file names against `query` and return the top matches that
+/// `mask` admits.
 ///
 /// Ranking is a pass over the in-memory index, so there is nothing worth
 /// aborting part-way through.
@@ -26,6 +32,7 @@ pub fn fuzzy_find(
     picker: &FilePicker,
     root: &Path,
     query: &str,
+    mask: &FileMask,
     _abort: &Arc<AtomicBool>,
 ) -> Vec<FileFindResult> {
     #[cfg(feature = "debug")]
@@ -33,33 +40,52 @@ pub fn fuzzy_find(
 
     let parser = QueryParser::default();
     let parsed = parser.parse(query);
-    let result = picker.fuzzy_search(
-        &parsed,
-        None,
-        FuzzySearchOptions {
-            max_threads: 0,
-            pagination: PaginationArgs {
-                offset: 0,
-                limit: MAX_RESULTS,
-            },
-            ..Default::default()
-        },
-    );
+    let mut hits: Vec<FileFindResult> = Vec::new();
+    let mut offset = 0;
 
     #[cfg(feature = "debug")]
-    let total_matched = result.total_matched;
+    let mut total_matched = 0;
 
-    let hits: Vec<FileFindResult> = result
-        .items
-        .iter()
-        .map(|item| {
+    for _ in 0..MAX_PAGES {
+        let result = picker.fuzzy_search(
+            &parsed,
+            None,
+            FuzzySearchOptions {
+                max_threads: 0,
+                pagination: PaginationArgs {
+                    offset,
+                    limit: MAX_RESULTS,
+                },
+                ..Default::default()
+            },
+        );
+
+        #[cfg(feature = "debug")]
+        {
+            total_matched = result.total_matched;
+        }
+
+        hits.extend(result.items.iter().filter_map(|item| {
             let rel_path = PathBuf::from(item.relative_path(picker));
-            FileFindResult {
+            mask.matches(&rel_path).then(|| FileFindResult {
                 path: root.join(&rel_path),
                 rel_path,
-            }
-        })
-        .collect();
+            })
+        }));
+
+        // Without a mask the first page is the answer, exactly as before; a
+        // short page means the ranking is exhausted.
+        if mask.is_empty()
+            || hits.len() >= MAX_RESULTS
+            || result.items.len() < MAX_RESULTS
+            || offset + MAX_RESULTS >= result.total_matched
+        {
+            break;
+        }
+        offset += MAX_RESULTS;
+    }
+
+    hits.truncate(MAX_RESULTS);
 
     #[cfg(feature = "debug")]
     debug_log!(

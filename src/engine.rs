@@ -14,6 +14,7 @@ use fff_search::file_picker::{FilePicker, FilePickerOptions};
 #[cfg(feature = "debug")]
 use crate::debug_log;
 use crate::file_find::{self, FileFindResult};
+use crate::file_mask::FileMask;
 use crate::search::{self, SearchResult};
 
 /// Which panel a query belongs to. Both are served by the same index.
@@ -48,6 +49,8 @@ struct Request {
     kind: Kind,
     generation: u64,
     text: String,
+    /// Glob patterns limiting which files the query looks at; empty means all.
+    mask: String,
 }
 
 /// Handle to the background search worker.
@@ -110,8 +113,9 @@ impl SearchEngine {
         }
     }
 
-    /// Cancel the in-flight query and queue `text` as the newest one.
-    pub fn search(&mut self, kind: Kind, text: String) {
+    /// Cancel the in-flight query and queue `text`, restricted to the files
+    /// `mask` admits, as the newest one.
+    pub fn search(&mut self, kind: Kind, text: String, mask: String) {
         let generation = match kind {
             Kind::Content => {
                 self.content_generation += 1;
@@ -127,6 +131,7 @@ impl SearchEngine {
             kind,
             generation,
             text,
+            mask,
         });
     }
 
@@ -172,14 +177,16 @@ fn worker(
         // so a dropped request of the other kind is one nobody is waiting for.
         let request = newest(requests, request);
         abort.store(false, Ordering::Relaxed);
+        // Compiled once per query, here rather than on the UI thread.
+        let mask = FileMask::parse(&request.mask);
         let batch = match request.kind {
             Kind::Content => EngineMsg::Content {
                 generation: request.generation,
-                results: search::grep(&picker, root, &request.text, abort),
+                results: search::grep(&picker, root, &request.text, &mask, abort),
             },
             Kind::Files => EngineMsg::Files {
                 generation: request.generation,
-                results: file_find::fuzzy_find(&picker, root, &request.text, abort),
+                results: file_find::fuzzy_find(&picker, root, &request.text, &mask, abort),
             },
         };
         if results.send(batch).is_err() {

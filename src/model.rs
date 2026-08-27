@@ -16,6 +16,9 @@ use crate::image_view::ImageView;
 pub struct ResultPanel<T> {
     pub root: PathBuf,
     pub query: input_box::Model,
+    /// Glob patterns restricting which files the query looks at, edited in the
+    /// field to the right of the query.
+    pub mask: input_box::Model,
     pub results: Vec<T>,
     pub selection: usize,
     pub done: bool,
@@ -23,20 +26,35 @@ pub struct ResultPanel<T> {
     /// soon as it is ready.
     pub indexing: bool,
     pub input_focused: bool,
+    /// Which of the two input fields the input row is on. Tab returns to
+    /// whichever it names.
+    pub input_field: InputField,
+}
+
+/// The two fields of a result panel's input row.
+#[derive(Clone, Copy, PartialEq)]
+pub enum InputField {
+    Query,
+    /// The glob patterns limiting which files the query looks at.
+    Mask,
 }
 
 impl<T> ResultPanel<T> {
     pub fn new(root: PathBuf) -> Self {
         let mut query = input_box::Model::new();
         query.open();
+        let mut mask = input_box::Model::new();
+        mask.open();
         Self {
             root,
             query,
+            mask,
             results: Vec::new(),
             selection: 0,
             done: true,
             indexing: false,
             input_focused: true,
+            input_field: InputField::Query,
         }
     }
 }

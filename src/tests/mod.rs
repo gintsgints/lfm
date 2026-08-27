@@ -3,6 +3,7 @@ mod capture_view;
 mod copy_destination;
 mod engine;
 mod file_find;
+mod file_mask;
 mod file_view;
 mod help_panel;
 mod icons;
@@ -20,7 +21,12 @@ use crate::search::SearchResult;
 
 /// The crate's own `src` directory: a real tree for the engine to index.
 fn src_dir() -> PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src")
+    root_dir().join("src")
+}
+
+/// The crate root, indexed when a test needs more than one kind of file.
+fn root_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
 /// Block until the worker reports a batch.

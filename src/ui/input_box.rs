@@ -76,6 +76,16 @@ impl Model {
         self.cursor
     }
 
+    /// Put the cursor before the first character.
+    pub fn cursor_home(&mut self) {
+        self.cursor = 0;
+    }
+
+    /// Put the cursor after the last character.
+    pub fn cursor_end(&mut self) {
+        self.cursor = self.text.len();
+    }
+
     /// Move the cursor one character to the right.
     pub fn move_right(&mut self) {
         if self.cursor >= self.text.len() {

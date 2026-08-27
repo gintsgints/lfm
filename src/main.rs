@@ -17,6 +17,7 @@ mod capture;
 pub mod debug;
 mod engine;
 mod file_find;
+mod file_mask;
 mod icons;
 mod image_view;
 mod keys;
@@ -294,9 +295,9 @@ fn run(
                 Effect::PrepareContentSearch { root } => {
                     sync_indexing(model.content_search.as_mut(), index.of(root));
                 }
-                Effect::StartContentSearch { root, query } => {
+                Effect::StartContentSearch { root, query, mask } => {
                     let engine = index.of(root);
-                    engine.search(Kind::Content, query);
+                    engine.search(Kind::Content, query, mask);
                     sync_indexing(model.content_search.as_mut(), engine);
                 }
                 Effect::RunCommand { spec } => {
@@ -307,9 +308,9 @@ fn run(
                 Effect::PrepareFileFind { root } => {
                     sync_indexing(model.file_find.as_mut(), index.of(root));
                 }
-                Effect::StartFileFind { root, query } => {
+                Effect::StartFileFind { root, query, mask } => {
                     let engine = index.of(root);
-                    engine.search(Kind::Files, query);
+                    engine.search(Kind::Files, query, mask);
                     sync_indexing(model.file_find.as_mut(), engine);
                 }
                 Effect::None => {}
