@@ -75,6 +75,21 @@ impl PendingKind {
         }
     }
 
+    /// Whether the transfer would land every source back where it already is —
+    /// copying or moving into the folder the entry lives in, under its own
+    /// name. Nothing to do, so it is reported instead of run.
+    pub fn is_same_location(&self) -> bool {
+        match self {
+            PendingKind::Copy(sources, dst_dir) | PendingKind::Move(sources, dst_dir) => {
+                !sources.is_empty()
+                    && sources
+                        .iter()
+                        .all(|src| src.parent().is_some_and(|parent| parent == dst_dir))
+            }
+            PendingKind::CopyRename(src, dst) | PendingKind::MoveRename(src, dst) => src == dst,
+        }
+    }
+
     /// Names of destination entries that already exist and would be overwritten.
     /// A source whose destination path is itself (copy/move onto the same
     /// location) is not reported as a conflict.

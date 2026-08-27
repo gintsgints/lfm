@@ -104,6 +104,26 @@ fn rename_to_same_name_is_not_a_conflict() {
 }
 
 #[test]
+fn transfer_into_the_source_folder_is_the_same_location() {
+    let dir = temp_dir();
+    let other = temp_dir();
+    let a = dir.join("a.txt");
+    let b = dir.join("b.txt");
+
+    assert!(PendingKind::Copy(vec![a.clone(), b.clone()], dir.clone()).is_same_location());
+    assert!(PendingKind::Move(vec![a.clone()], dir.clone()).is_same_location());
+    assert!(!PendingKind::Copy(vec![a.clone()], other.clone()).is_same_location());
+    // A rename inside the source folder still has work to do.
+    assert!(!PendingKind::CopyRename(a.clone(), b).is_same_location());
+    assert!(PendingKind::MoveRename(a.clone(), a).is_same_location());
+    // Nothing selected is not a same-location transfer; it is simply empty.
+    assert!(!PendingKind::Copy(vec![], dir.clone()).is_same_location());
+
+    fs::remove_dir_all(&dir).unwrap();
+    fs::remove_dir_all(&other).unwrap();
+}
+
+#[test]
 fn op_matches_kind() {
     let p = PathBuf::from("x");
     assert_eq!(PendingKind::Copy(vec![], p.clone()).op(), TransferOp::Copy);

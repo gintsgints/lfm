@@ -313,6 +313,20 @@ fn pending_effect(kind: PendingKind) -> Effect {
 /// Launch a confirmed copy/move, or, if it would overwrite existing entries,
 /// hold it back behind an overwrite prompt instead.
 fn begin_transfer(model: &mut Model, kind: PendingKind) -> Effect {
+    if kind.is_same_location() {
+        model.pending_select = None;
+        model.error_message = Some(
+            match &kind {
+                PendingKind::Copy(..) => "Copy target is the source folder — nothing to copy.",
+                PendingKind::Move(..) => "Move target is the source folder — nothing to move.",
+                PendingKind::CopyRename(..) | PendingKind::MoveRename(..) => {
+                    "Target is the source itself — nothing to do."
+                }
+            }
+            .to_owned(),
+        );
+        return Effect::None;
+    }
     let conflicts = kind.conflicts();
     if conflicts.is_empty() {
         model.progress = Some(TransferProgress {

@@ -42,6 +42,37 @@ fn destination_is_right_panel_folder_not_highlighted_subdir() {
     }
 }
 
+/// Confirming a copy or move whose destination is the folder the sources
+/// already live in reports it instead of running a transfer that would do
+/// nothing.
+#[test]
+fn same_folder_destination_reports_a_message() {
+    for (start, confirm) in [
+        (Message::StartCopy, Message::ConfirmCopy),
+        (Message::StartMove, Message::ConfirmMove),
+    ] {
+        let src = temp_dir();
+        fs::write(src.join("a.txt"), b"new").unwrap();
+
+        let mut model = Model::init(PersistedState::default()).unwrap();
+        model.left_files = file_panel::Model::init(src).unwrap();
+
+        // `start` already points the destination panel at the source folder.
+        let (model, _) = update(model, start);
+        let (model, effect) = update(model, confirm);
+
+        assert!(
+            matches!(effect, Effect::None),
+            "no transfer should be launched into the source folder"
+        );
+        assert!(
+            model.error_message.is_some(),
+            "the user should be told the target is the source folder"
+        );
+        assert!(model.progress.is_none(), "no transfer should be running");
+    }
+}
+
 /// A copy or move destination is always a directory, so the destination panel
 /// lists directories only — and goes back to listing everything once the
 /// transfer is confirmed or cancelled.
