@@ -10,11 +10,11 @@ debug = []
 [dependencies]
 ratatui = "0.30.2"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1.0.150"
+serde_json = "1.0.151"
 zip = "8.6.0"
 flate2 = "1"
 tar = "0.4.46"
-fff-search = "0.9.6"
+fff-search = "0.10.5"
 # `languages` turns on every bundled Tree-sitter grammar, so source files get
 # syntax highlighting in the viewer instead of falling back to plain text.
 tui-view = { git = "https://github.com/gintsgints/tui-view.git", features = ["languages"] }
