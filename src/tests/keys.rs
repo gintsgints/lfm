@@ -2,7 +2,9 @@ use ratatui::crossterm::event::{
     Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, ModifierKeyCode,
 };
 
-use crate::keys::{is_key_release, normalize_key_event, shift_held_change};
+use crate::keys::{InputMode, is_key_release, normalize_key_event, shift_held_change, to_message};
+use crate::message::Message;
+use crate::model::ActivePanel;
 
 fn shifted(code: KeyCode) -> Event {
     Event::Key(KeyEvent::new(code, KeyModifiers::SHIFT))
@@ -94,4 +96,42 @@ fn detects_key_release() {
 
     let press = KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE);
     assert!(!is_key_release(&Event::Key(press)));
+}
+
+/// Shift+Tab takes the focus back to the query row from the results of either
+/// search panel, mirroring Tab.
+#[test]
+fn shift_tab_returns_to_the_search_input() {
+    let back_tab = Event::Key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT));
+
+    let msg = to_message(
+        &back_tab,
+        ActivePanel::LeftFiles,
+        &InputMode::ContentSearchResults,
+    );
+    assert!(matches!(msg, Some(Message::ContentSearchToggleFocus)));
+
+    let msg = to_message(
+        &back_tab,
+        ActivePanel::LeftFiles,
+        &InputMode::FileFindResults,
+    );
+    assert!(matches!(msg, Some(Message::FileFindToggleFocus)));
+}
+
+/// From the query row it toggles the same way Tab does, so the two keys never
+/// disagree about where the focus lands.
+#[test]
+fn shift_tab_toggles_from_the_search_input_too() {
+    let back_tab = Event::Key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT));
+
+    let msg = to_message(
+        &back_tab,
+        ActivePanel::LeftFiles,
+        &InputMode::ContentSearchInput,
+    );
+    assert!(matches!(msg, Some(Message::ContentSearchToggleFocus)));
+
+    let msg = to_message(&back_tab, ActivePanel::LeftFiles, &InputMode::FileFindInput);
+    assert!(matches!(msg, Some(Message::FileFindToggleFocus)));
 }
