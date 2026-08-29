@@ -41,7 +41,10 @@ fn visible(model: &file_panel::Model) -> Vec<String> {
 #[test]
 fn typing_narrows_the_list_and_backspace_widens_it() {
     let model = panel();
-    let model = send(model, &[Message::EnterFilter, typed('a'), typed('l')]);
+    let model = send(
+        model,
+        &[Message::Open(Field::Filter), typed('a'), typed('l')],
+    );
     assert_eq!(visible(&model), ["alpha"]);
 
     // Back to "a", which every one of the three names contains.
@@ -56,13 +59,17 @@ fn confirm_keeps_the_filter_and_escape_clears_it() {
     let model = panel();
     let model = send(
         model,
-        &[Message::EnterFilter, typed('b'), Message::ConfirmFilter],
+        &[
+            Message::Open(Field::Filter),
+            typed('b'),
+            Message::ConfirmFilter,
+        ],
     );
     assert!(!model.search.active);
     assert!(model.is_filtering());
     assert_eq!(visible(&model), ["beta"]);
 
-    let model = send(model, &[Message::ExitFilter]);
+    let model = send(model, &[Message::Cancel(Field::Filter)]);
     assert!(!model.is_filtering());
     assert_eq!(visible(&model), ["alpha", "beta", "gamma"]);
 }
@@ -75,10 +82,10 @@ fn re_entering_a_filter_appends_to_it() {
     let model = send(
         model,
         &[
-            Message::EnterFilter,
+            Message::Open(Field::Filter),
             typed('a'),
             Message::ConfirmFilter,
-            Message::EnterFilter,
+            Message::Open(Field::Filter),
             typed('l'),
         ],
     );
@@ -91,7 +98,7 @@ fn re_entering_a_filter_appends_to_it() {
 fn narrowing_re_anchors_the_selection() {
     let mut model = panel();
     model.selection = 2;
-    let model = send(model, &[Message::EnterFilter, typed('b')]);
+    let model = send(model, &[Message::Open(Field::Filter), typed('b')]);
     assert_eq!(model.selection, 0);
     assert_eq!(visible(&model), ["beta"]);
 }
@@ -104,7 +111,7 @@ fn the_cursor_moves_within_the_filter() {
     let model = send(
         model,
         &[
-            Message::EnterFilter,
+            Message::Open(Field::Filter),
             typed('l'),
             typed('a'),
             Message::Edit(Field::Filter, EditOp::CursorLeft),
@@ -125,7 +132,7 @@ fn moving_the_cursor_keeps_the_selection() {
     let model = send(
         model,
         &[
-            Message::EnterFilter,
+            Message::Open(Field::Filter),
             Message::Edit(Field::Filter, EditOp::CursorLeft),
             Message::Edit(Field::Filter, EditOp::CursorRight),
         ],

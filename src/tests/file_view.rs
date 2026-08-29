@@ -260,7 +260,7 @@ fn esc_from_the_file_list_closes_the_viewer() {
     assert!(!model.file_view_focused, "viewer opens unfocused");
 
     let msg = key_message(&model, KeyCode::Esc).expect("Esc should close the viewer");
-    assert!(matches!(msg, Message::FileViewClose));
+    assert!(matches!(msg, Message::Close(Surface::FileView)));
 
     let (model, _) = update(model, msg);
     assert!(model.file_view.is_none());
@@ -281,7 +281,7 @@ fn closing_the_viewer_returns_focus_to_the_file_list() {
     let model = model_with_two_files();
     let (model, _) = update(model, Message::ViewFile);
     let (model, _) = update(model, Message::NextPanel);
-    let (model, _) = update(model, Message::FileViewClose);
+    let (model, _) = update(model, Message::Close(Surface::FileView));
     assert!(model.file_view.is_none());
     assert!(!model.file_view_focused);
 }

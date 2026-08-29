@@ -1,5 +1,6 @@
 mod capture;
 mod capture_view;
+mod close;
 mod copy_destination;
 mod engine;
 mod file_find;

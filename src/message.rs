@@ -79,6 +79,14 @@ pub enum Message {
     /// One move within one surface. `keys.rs` picks the surface from the
     /// current input mode, so every list and viewer shares this variant.
     Nav(Surface, NavOp),
+    /// Put a text field on screen with the keys.
+    Open(Field),
+    /// Dismiss a text field without acting on what was typed.
+    Cancel(Field),
+    /// Dismiss an overlay. Opening one is not the mirror of this — each of
+    /// `SearchOpen`, `OpenCommandPicker` and `ViewFile` does real work first —
+    /// but every one of them is dismissed the same way.
+    Close(Surface),
     Quit,
     NextPanel,
     PrevPanel,
@@ -89,13 +97,9 @@ pub enum Message {
     PinCurrentDir,
     SelectPinnedDir,
     DeletePinnedDir,
-    EnterFilter,
     ConfirmFilter,
-    ExitFilter,
     FilterBarDown,
-    NewPath,
     NewPathConfirm,
-    NewPathCancel,
     DeleteFiles,
     DeleteConfirm,
     DeleteCancel,
@@ -109,16 +113,13 @@ pub enum Message {
     StartMoveRename,
     RenameInPlace,
     ConfirmRename,
-    CancelRename,
     ToggleHelp,
     OpenEditor,
     OpenDefault,
     CycleSort,
     ZipFiles,
     UnzipFile,
-    GotoPath,
     GotoPathConfirm,
-    GotoPathCancel,
     ProgressTick {
         current: u64,
         total: u64,
@@ -131,18 +132,13 @@ pub enum Message {
     SearchOpen(SearchKind),
     /// Hand the keys between a search popup's query row and its results.
     SearchToggleFocus(SearchKind),
-    SearchCancel(SearchKind),
     SearchConfirm(SearchKind),
     /// Shift was pressed (`true`) or released (`false`); updates the hint bar.
     SetShiftHeld(bool),
     OpenCommandPicker,
     CommandPickerConfirm,
-    CommandPickerCancel,
     CommandInputConfirm,
-    CommandInputCancel,
-    CaptureViewClose,
     ViewFile,
-    FileViewClose,
     #[cfg(feature = "debug")]
     ToggleDebug,
 }

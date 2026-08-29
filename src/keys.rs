@@ -286,17 +286,17 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
             _ => None,
         }),
         InputMode::NewPath => ModeIntercept::Consumed(match key.code {
-            KeyCode::Esc => Some(Message::NewPathCancel),
+            KeyCode::Esc => Some(Message::Cancel(Field::NewPath)),
             KeyCode::Enter => Some(Message::NewPathConfirm),
             _ => edit_key(key, Field::NewPath),
         }),
         InputMode::GotoPath => ModeIntercept::Consumed(match key.code {
-            KeyCode::Esc => Some(Message::GotoPathCancel),
+            KeyCode::Esc => Some(Message::Cancel(Field::GotoPath)),
             KeyCode::Enter => Some(Message::GotoPathConfirm),
             _ => edit_key(key, Field::GotoPath),
         }),
         InputMode::Filter => ModeIntercept::Consumed(match key.code {
-            KeyCode::Esc => Some(Message::ExitFilter),
+            KeyCode::Esc => Some(Message::Cancel(Field::Filter)),
             KeyCode::Enter | KeyCode::Tab => Some(Message::ConfirmFilter),
             KeyCode::Down => Some(Message::FilterBarDown),
             _ => edit_key(key, Field::Filter),
@@ -320,13 +320,13 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
             ModeIntercept::PassThrough
         }
         InputMode::Rename => ModeIntercept::Consumed(match key.code {
-            KeyCode::Esc => Some(Message::CancelRename),
+            KeyCode::Esc => Some(Message::Cancel(Field::Rename)),
             KeyCode::Enter => Some(Message::ConfirmRename),
             _ => edit_key(key, Field::Rename),
         }),
         InputMode::FilteredNormal => match key.code {
-            KeyCode::Esc => ModeIntercept::Consumed(Some(Message::ExitFilter)),
-            KeyCode::Tab => ModeIntercept::Consumed(Some(Message::EnterFilter)),
+            KeyCode::Esc => ModeIntercept::Consumed(Some(Message::Cancel(Field::Filter))),
+            KeyCode::Tab => ModeIntercept::Consumed(Some(Message::Open(Field::Filter))),
             _ => ModeIntercept::PassThrough,
         },
         InputMode::Normal => ModeIntercept::PassThrough,
@@ -348,7 +348,7 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
         // panel is up — there Esc still closes that panel first.
         InputMode::FileViewUnfocused => match key.code {
             KeyCode::Esc if active_panel != ActivePanel::Pinned => {
-                ModeIntercept::Consumed(Some(Message::FileViewClose))
+                ModeIntercept::Consumed(Some(Message::Close(Surface::FileView)))
             }
             _ => ModeIntercept::PassThrough,
         },
@@ -361,7 +361,9 @@ fn file_view_key(key: &KeyEvent) -> Option<Message> {
     match key.code {
         KeyCode::Tab => Some(Message::NextPanel),
         KeyCode::BackTab => Some(Message::PrevPanel),
-        KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q' | 'v') => Some(Message::FileViewClose),
+        KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q' | 'v') => {
+            Some(Message::Close(Surface::FileView))
+        }
         _ => nav_key(key, Surface::FileView),
     }
 }
@@ -371,17 +373,17 @@ fn file_view_key(key: &KeyEvent) -> Option<Message> {
 fn intercept_command_mode(key: &KeyEvent, mode: &InputMode) -> ModeIntercept {
     ModeIntercept::Consumed(match mode {
         InputMode::CommandPicker => match key.code {
-            KeyCode::Esc => Some(Message::CommandPickerCancel),
+            KeyCode::Esc => Some(Message::Close(Surface::CommandPicker)),
             KeyCode::Enter => Some(Message::CommandPickerConfirm),
             _ => nav_key(key, Surface::CommandPicker),
         },
         InputMode::CommandInput => match key.code {
-            KeyCode::Esc => Some(Message::CommandInputCancel),
+            KeyCode::Esc => Some(Message::Cancel(Field::CommandInput)),
             KeyCode::Enter => Some(Message::CommandInputConfirm),
             _ => edit_key(key, Field::CommandInput),
         },
         InputMode::CaptureView => match key.code {
-            KeyCode::Esc | KeyCode::Enter => Some(Message::CaptureViewClose),
+            KeyCode::Esc | KeyCode::Enter => Some(Message::Close(Surface::Capture)),
             _ => nav_key(key, Surface::Capture),
         },
         _ => None,
@@ -403,7 +405,7 @@ fn intercept_search_mode(key: &KeyEvent, mode: &InputMode) -> ModeIntercept {
     // means "into the results" rather than "next result".
     if on_query_row {
         return ModeIntercept::Consumed(match key.code {
-            KeyCode::Esc => Some(Message::SearchCancel(kind)),
+            KeyCode::Esc => Some(Message::Close(Surface::Search(kind))),
             KeyCode::Enter => Some(Message::SearchConfirm(kind)),
             KeyCode::Tab | KeyCode::BackTab | KeyCode::Down => {
                 Some(Message::SearchToggleFocus(kind))
@@ -413,7 +415,7 @@ fn intercept_search_mode(key: &KeyEvent, mode: &InputMode) -> ModeIntercept {
     }
 
     ModeIntercept::Consumed(match key.code {
-        KeyCode::Esc => Some(Message::SearchCancel(kind)),
+        KeyCode::Esc => Some(Message::Close(Surface::Search(kind))),
         KeyCode::Enter => Some(Message::SearchConfirm(kind)),
         KeyCode::Tab | KeyCode::BackTab => Some(Message::SearchToggleFocus(kind)),
         _ => nav_key(key, Surface::Search(kind)),
@@ -440,10 +442,12 @@ fn normal_key(key: &KeyEvent, active_panel: ActivePanel) -> Option<Message> {
         KeyCode::Down | KeyCode::Char('j') => Some(Message::Nav(Surface::Panel, NavOp::Down)),
         KeyCode::Left | KeyCode::Char('h') => Some(Message::DirUp),
         KeyCode::Right | KeyCode::Char('l') => Some(Message::DirEnter),
-        KeyCode::Char('/') => Some(Message::EnterFilter),
-        KeyCode::Char('n') => Some(Message::NewPath),
+        KeyCode::Char('/') => Some(Message::Open(Field::Filter)),
+        KeyCode::Char('n') => Some(Message::Open(Field::NewPath)),
         KeyCode::Char('?') => Some(Message::ToggleHelp),
-        KeyCode::Char('g') if active_panel != ActivePanel::Pinned => Some(Message::GotoPath),
+        KeyCode::Char('g') if active_panel != ActivePanel::Pinned => {
+            Some(Message::Open(Field::GotoPath))
+        }
         KeyCode::Char('s') if active_panel != ActivePanel::Pinned => {
             Some(Message::SearchOpen(SearchKind::Content))
         }

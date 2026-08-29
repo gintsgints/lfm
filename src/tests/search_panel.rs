@@ -199,7 +199,7 @@ fn cancelling_closes_the_popup() {
         let dir = temp_dir();
         let model = model_at(&dir);
         let (model, _) = update(model, Message::SearchOpen(kind));
-        let (model, _) = update(model, Message::SearchCancel(kind));
+        let (model, _) = update(model, Message::Close(Surface::Search(kind)));
 
         assert!(focus_and_selection(&model, kind).is_none());
     }

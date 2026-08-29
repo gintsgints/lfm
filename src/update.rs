@@ -130,9 +130,9 @@ fn update_message(mut model: Model, msg: Message) -> (Model, Effect) {
             open_rename_dialog(&mut model, TransferMode::Rename);
             (model, Effect::None)
         }
-        Message::ConfirmRename | Message::CancelRename | Message::Edit(Field::Rename, _) => {
-            update_rename(model, msg)
-        }
+        Message::ConfirmRename
+        | Message::Cancel(Field::Rename)
+        | Message::Edit(Field::Rename, _) => update_rename(model, msg),
         Message::DeleteConfirm => update_delete_confirm(model),
         Message::ProgressTick { current, total } => update_progress_tick(model, current, total),
         Message::ProgressDone => progress_done(model),
@@ -149,22 +149,24 @@ fn update_message(mut model: Model, msg: Message) -> (Model, Effect) {
         }
         Message::SearchOpen(kind)
         | Message::SearchToggleFocus(kind)
-        | Message::SearchCancel(kind)
+        | Message::Close(Surface::Search(kind))
         | Message::SearchConfirm(kind)
         | Message::Edit(Field::SearchQuery(kind), _)
         | Message::Nav(Surface::Search(kind), _) => update_search(model, kind, msg),
         Message::OpenCommandPicker
         | Message::Nav(Surface::CommandPicker, _)
-        | Message::CommandPickerCancel
+        | Message::Close(Surface::CommandPicker)
         | Message::CommandPickerConfirm
         | Message::Edit(Field::CommandInput, _)
-        | Message::CommandInputCancel
+        | Message::Cancel(Field::CommandInput)
         | Message::CommandInputConfirm => update_command(model, msg),
-        Message::CaptureViewClose | Message::Nav(Surface::Capture, _) => {
+        Message::Close(Surface::Capture) | Message::Nav(Surface::Capture, _) => {
             update_capture_view(model, msg)
         }
         Message::ViewFile => update_view_file(model),
-        Message::FileViewClose | Message::Nav(Surface::FileView, _) => update_file_view(model, msg),
+        Message::Close(Surface::FileView) | Message::Nav(Surface::FileView, _) => {
+            update_file_view(model, msg)
+        }
         msg => {
             let (mut m, err) = dispatch_to_panel(model, msg);
             if let Some(e) = err {
@@ -451,7 +453,7 @@ fn update_rename(mut model: Model, msg: Message) -> (Model, Effect) {
             input_box::apply(&mut model.rename_input, op);
             (model, Effect::None)
         }
-        Message::CancelRename => {
+        Message::Cancel(_) => {
             cancel_transfer(&mut model);
             (model, Effect::None)
         }
@@ -677,7 +679,7 @@ fn step_search_panel<T: Located>(slot: Option<&mut ResultPanel<T>>, msg: Message
             }
             PanelOutcome::Nothing
         }
-        Message::SearchCancel(_) => PanelOutcome::Close,
+        Message::Close(_) => PanelOutcome::Close,
         // Enter with nothing to confirm leaves the popup up.
         Message::SearchConfirm(_) => panel
             .results
@@ -787,7 +789,7 @@ fn update_command(mut model: Model, msg: Message) -> (Model, Effect) {
     match msg {
         Message::OpenCommandPicker => update_open_command_picker(model),
         Message::Nav(_, op) => update_command_picker_move(model, op),
-        Message::CommandPickerCancel => {
+        Message::Close(_) => {
             model.command_picker = None;
             (model, Effect::None)
         }
@@ -798,7 +800,7 @@ fn update_command(mut model: Model, msg: Message) -> (Model, Effect) {
             }
             (model, Effect::None)
         }
-        Message::CommandInputCancel => {
+        Message::Cancel(_) => {
             if let Some(cp) = &mut model.command_picker {
                 cp.input = None;
             }
@@ -833,7 +835,7 @@ fn update_capture_view(mut model: Model, msg: Message) -> (Model, Effect) {
                 NavOp::MarkUp | NavOp::MarkDown => p.scroll,
             };
         }
-        Message::CaptureViewClose => {
+        Message::Close(_) => {
             model.capture_view = None;
             refresh_both_panels(&mut model);
         }
@@ -971,7 +973,7 @@ fn update_file_view(mut model: Model, msg: Message) -> (Model, Effect) {
             // A viewed file has nothing to mark.
             NavOp::MarkUp | NavOp::MarkDown => {}
         },
-        (Message::FileViewClose, _) => {
+        (Message::Close(_), _) => {
             close_file_view(&mut model);
         }
         _ => {}

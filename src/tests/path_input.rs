@@ -31,7 +31,7 @@ fn the_new_path_dialog_edits_at_the_cursor() {
     let dir = temp_dir();
     let model = file_panel::Model::init(dir.clone()).unwrap();
 
-    let mut msgs = vec![Message::NewPath];
+    let mut msgs = vec![Message::Open(Field::NewPath)];
     msgs.extend(typed(Field::NewPath, "abc"));
     msgs.push(Message::Edit(Field::NewPath, EditOp::CursorLeft));
     msgs.extend(typed(Field::NewPath, "X"));
@@ -50,7 +50,7 @@ fn the_new_path_dialog_backspaces_at_the_cursor() {
     let dir = temp_dir();
     let model = file_panel::Model::init(dir).unwrap();
 
-    let mut msgs = vec![Message::NewPath];
+    let mut msgs = vec![Message::Open(Field::NewPath)];
     msgs.extend(typed(Field::NewPath, "abc"));
     msgs.push(Message::Edit(Field::NewPath, EditOp::CursorLeft));
     msgs.push(Message::Edit(Field::NewPath, EditOp::Backspace));
@@ -65,7 +65,7 @@ fn the_goto_dialog_edits_at_the_cursor() {
     let dir = temp_dir();
     let model = file_panel::Model::init(dir).unwrap();
 
-    let mut msgs = vec![Message::GotoPath];
+    let mut msgs = vec![Message::Open(Field::GotoPath)];
     msgs.extend(typed(Field::GotoPath, "tmp"));
     msgs.push(Message::Edit(Field::GotoPath, EditOp::CursorLeft));
     msgs.push(Message::Edit(Field::GotoPath, EditOp::CursorLeft));

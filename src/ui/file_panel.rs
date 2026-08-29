@@ -197,7 +197,7 @@ impl Model {
 /// changed, which means the caller has to re-anchor the selection.
 fn update_filter(field: &mut input_box::Model, msg: Message) -> bool {
     match msg {
-        Message::EnterFilter => {
+        Message::Open(_) => {
             // Re-entering an existing filter keeps its text and appends to it.
             field.active = true;
             field.cursor_end();
@@ -213,7 +213,7 @@ fn update_filter(field: &mut input_box::Model, msg: Message) -> bool {
             field.active = false;
             false
         }
-        Message::ExitFilter => {
+        Message::Cancel(_) => {
             field.close();
             true
         }
@@ -223,10 +223,10 @@ fn update_filter(field: &mut input_box::Model, msg: Message) -> bool {
 
 pub fn update(mut model: Model, msg: Message) -> (Model, Option<String>) {
     match msg {
-        Message::EnterFilter
+        Message::Open(Field::Filter)
         | Message::Edit(Field::Filter, _)
         | Message::ConfirmFilter
-        | Message::ExitFilter => {
+        | Message::Cancel(Field::Filter) => {
             let raw_idx = model.visible_entries().nth(model.selection).map(|(i, _)| i);
             if update_filter(&mut model.search, msg) {
                 // Find the visual position of the previously selected item in the new
@@ -243,15 +243,15 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Option<String>) {
                 model.selection = (model.selection + 1).min(count - 1);
             }
         }
-        Message::NewPath
+        Message::Open(Field::NewPath)
         | Message::Edit(Field::NewPath, _)
-        | Message::NewPathCancel
+        | Message::Cancel(Field::NewPath)
         | Message::NewPathConfirm => {
             return update_new_path(model, msg);
         }
-        Message::GotoPath
+        Message::Open(Field::GotoPath)
         | Message::Edit(Field::GotoPath, _)
-        | Message::GotoPathCancel
+        | Message::Cancel(Field::GotoPath)
         | Message::GotoPathConfirm => {
             model = update_goto(model, msg);
         }
@@ -320,13 +320,13 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Option<String>) {
 
 fn update_new_path(mut model: Model, msg: Message) -> (Model, Option<String>) {
     match msg {
-        Message::NewPath => {
+        Message::Open(_) => {
             model.new_path_input.open();
         }
         Message::Edit(_, op) => {
             input_box::apply(&mut model.new_path_input, op);
         }
-        Message::NewPathCancel => {
+        Message::Cancel(_) => {
             model.new_path_input.close();
         }
         Message::NewPathConfirm => {
@@ -358,13 +358,13 @@ fn update_new_path(mut model: Model, msg: Message) -> (Model, Option<String>) {
 
 fn update_goto(mut model: Model, msg: Message) -> Model {
     match msg {
-        Message::GotoPath => {
+        Message::Open(_) => {
             model.goto_input.open();
         }
         Message::Edit(_, op) => {
             input_box::apply(&mut model.goto_input, op);
         }
-        Message::GotoPathCancel => {
+        Message::Cancel(_) => {
             model.goto_input.close();
         }
         Message::GotoPathConfirm => {
