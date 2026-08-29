@@ -94,6 +94,28 @@ impl Model {
         let c = self.text[self.cursor..].chars().next().unwrap();
         self.cursor += c.len_utf8();
     }
+
+    /// The text as three spans: everything before the cursor, the character the
+    /// cursor sits _on_, and the rest. At end-of-text there is no character to
+    /// sit on, so a "_" stands in. Shared by every widget drawing this field.
+    pub fn cursor_spans(&self, text_style: Style) -> Vec<Span<'static>> {
+        let cursor_style = text_style.add_modifier(Modifier::UNDERLINED);
+        let (on_cursor, after) = if self.cursor < self.text.len() {
+            let c = self.text[self.cursor..].chars().next().unwrap();
+            let end = self.cursor + c.len_utf8();
+            (
+                self.text[self.cursor..end].to_owned(),
+                self.text[end..].to_owned(),
+            )
+        } else {
+            ("_".to_owned(), String::new())
+        };
+        vec![
+            Span::styled(self.text[..self.cursor].to_owned(), text_style),
+            Span::styled(on_cursor, cursor_style),
+            Span::styled(after, text_style),
+        ]
+    }
 }
 
 pub fn render(frame: &mut Frame, area: Rect, model: &Model, label: &str) {
@@ -107,35 +129,10 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model, label: &str) {
         .borders(Borders::ALL)
         .style(Style::default().fg(theme::active_border()));
 
-    let before = &model.text[..model.cursor];
     let text_style = Style::default()
         .fg(theme::text())
         .add_modifier(Modifier::BOLD);
-    let cursor_style = text_style.add_modifier(Modifier::UNDERLINED);
-
-    // Cursor sits _on_ the character at the cursor position.
-    // At end-of-text there is no character, so show a "_" placeholder.
-    let (cursor_span, after_span) = if model.cursor < model.text.len() {
-        let c = model.text[model.cursor..].chars().next().unwrap();
-        let end = model.cursor + c.len_utf8();
-        let on_char = model.text[model.cursor..end].to_owned();
-        let after = model.text[end..].to_owned();
-        (
-            Span::styled(on_char, cursor_style),
-            Span::styled(after, text_style),
-        )
-    } else {
-        (
-            Span::styled("_", cursor_style),
-            Span::styled(String::new(), text_style),
-        )
-    };
-
-    let content = Line::from(vec![
-        Span::styled(before.to_owned(), text_style),
-        cursor_span,
-        after_span,
-    ]);
+    let content = Line::from(model.cursor_spans(text_style));
 
     frame.render_widget(Clear, popup_area);
     frame.render_widget(Paragraph::new(content).block(block), popup_area);

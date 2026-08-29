@@ -75,10 +75,6 @@ fn render_mask(frame: &mut Frame, area: Rect, mask: &input_box::Model, active: b
 /// One field's text: bold with the cursor sitting _on_ a character while it has
 /// the keys ("_" stands in at end-of-text), dim otherwise.
 fn field_spans(model: &input_box::Model, active: bool) -> Vec<Span<'static>> {
-    let text_style = Style::default()
-        .fg(theme::text())
-        .add_modifier(Modifier::BOLD);
-
     if !active {
         return vec![Span::styled(
             model.text.clone(),
@@ -86,22 +82,9 @@ fn field_spans(model: &input_box::Model, active: bool) -> Vec<Span<'static>> {
         )];
     }
 
-    let cursor_style = text_style.add_modifier(Modifier::UNDERLINED);
-    let cursor = model.cursor();
-    let before = model.text[..cursor].to_owned();
-    let (cursor_span, after_span) = if cursor < model.text.len() {
-        let c = model.text[cursor..].chars().next().unwrap();
-        let end = cursor + c.len_utf8();
-        (
-            Span::styled(model.text[cursor..end].to_owned(), cursor_style),
-            Span::styled(model.text[end..].to_owned(), text_style),
-        )
-    } else {
-        (
-            Span::styled("_", cursor_style),
-            Span::styled(String::new(), text_style),
-        )
-    };
-
-    vec![Span::styled(before, text_style), cursor_span, after_span]
+    model.cursor_spans(
+        Style::default()
+            .fg(theme::text())
+            .add_modifier(Modifier::BOLD),
+    )
 }

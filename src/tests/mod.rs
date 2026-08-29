@@ -5,6 +5,7 @@ mod engine;
 mod file_find;
 mod file_mask;
 mod file_view;
+mod filter;
 mod help_panel;
 mod icons;
 mod keys;

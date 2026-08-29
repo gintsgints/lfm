@@ -70,7 +70,7 @@ pub struct Model {
     pub entries: Vec<Entry>,
     pub selection: usize,
     pub selected: BTreeSet<usize>,
-    pub search: search_box::Model,
+    pub search: input_box::Model,
     pub new_path_input: input_box::Model,
     pub goto_input: input_box::Model,
     pub delete_confirm: bool,
@@ -92,7 +92,7 @@ impl Model {
             entries,
             selection: 0,
             selected: BTreeSet::new(),
-            search: search_box::Model::new(),
+            search: input_box::Model::new(),
             new_path_input: input_box::Model::new(),
             goto_input: input_box::Model::new(),
             delete_confirm: false,
@@ -106,6 +106,11 @@ impl Model {
         self.visible_entries().count()
     }
 
+    /// The filter bar shows while the field has the keys or still holds text.
+    pub fn is_filtering(&self) -> bool {
+        self.search.active || !self.search.text.is_empty()
+    }
+
     pub fn navigate_to(&mut self, path: PathBuf) {
         if let Ok(mut entries) = read_entries(&path) {
             sort_entries(&mut entries, self.sort_order);
@@ -113,7 +118,7 @@ impl Model {
             self.entries = entries;
             self.selection = 0;
             self.selected.clear();
-            self.search.clear();
+            self.search.close();
             self.new_path_input.close();
             self.goto_input.close();
             self.delete_confirm = false;
@@ -188,6 +193,36 @@ impl Model {
     }
 }
 
+/// Apply a filter-bar message to the field. Reports whether the visible set
+/// changed, which means the caller has to re-anchor the selection.
+fn update_filter(field: &mut input_box::Model, msg: Message) -> bool {
+    match msg {
+        Message::EnterFilter => {
+            // Re-entering an existing filter keeps its text and appends to it.
+            field.active = true;
+            field.cursor_end();
+            false
+        }
+        Message::FilterChar(c) => {
+            field.insert(c);
+            true
+        }
+        Message::FilterBackspace => {
+            field.backspace();
+            true
+        }
+        Message::ConfirmFilter | Message::FilterBarDown => {
+            field.active = false;
+            false
+        }
+        Message::ExitFilter => {
+            field.close();
+            true
+        }
+        _ => false,
+    }
+}
+
 pub fn update(mut model: Model, msg: Message) -> (Model, Option<String>) {
     match msg {
         Message::EnterFilter
@@ -196,9 +231,7 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Option<String>) {
         | Message::ConfirmFilter
         | Message::ExitFilter => {
             let raw_idx = model.visible_entries().nth(model.selection).map(|(i, _)| i);
-            let (search, reset) = search_box::update(model.search, msg);
-            model.search = search;
-            if reset {
+            if update_filter(&mut model.search, msg) {
                 // Find the visual position of the previously selected item in the new
                 // filtered view. Falls back to 0 if the item is no longer visible.
                 model.selection = raw_idx
@@ -207,8 +240,7 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Option<String>) {
             }
         }
         Message::FilterBarDown => {
-            let (search, _) = search_box::update(model.search, Message::ConfirmFilter);
-            model.search = search;
+            update_filter(&mut model.search, msg);
             let count = model.entry_count();
             if count > 0 {
                 model.selection = (model.selection + 1).min(count - 1);
@@ -487,7 +519,7 @@ pub fn render(
     is_copy_target: bool,
     is_move_target: bool,
 ) {
-    let (panel_area, filter_area) = if model.search.is_filtering() {
+    let (panel_area, filter_area) = if model.is_filtering() {
         let areas = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Length(3), Constraint::Min(0)])
