@@ -89,6 +89,39 @@ fn zip_archive_opens_in_the_zip_view() {
     assert_eq!(view_name(&model), "Zip");
 }
 
+/// An archive past the viewer's size limit lists all the same: the limit keeps
+/// unreadable bulk out of the viewer, and an archive listing is neither.
+#[test]
+fn oversized_zip_archive_still_lists() {
+    let dir = temp_dir();
+    let inner = dir.join("payload.bin");
+    fs::write(&inner, incompressible(6 * 1024 * 1024)).unwrap();
+    let archive = dir.join("archive.zip");
+    crate::archive::zip_paths(&[inner], &archive).unwrap();
+    assert!(fs::metadata(&archive).unwrap().len() > 5 * 1024 * 1024);
+
+    let mut model = Model::init(PersistedState::default()).unwrap();
+    model.left_files = file_panel::Model::init(dir).unwrap();
+    model.left_files.selection = 0;
+
+    let (model, _) = update(model, Message::ViewFile);
+    assert_eq!(model.file_view.as_ref().unwrap().name, "archive.zip");
+    assert_eq!(view_name(&model), "Zip");
+}
+
+/// `len` bytes that deflate cannot shrink, so an archive of them stays large.
+fn incompressible(len: usize) -> Vec<u8> {
+    let mut state = 0x2545_f491_4f6c_dd1d_u64;
+    (0..len)
+        .map(|_| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state >> 24) as u8
+        })
+        .collect()
+}
+
 /// The registry picks a per-format view by extension.
 #[test]
 fn registry_picks_view_by_extension() {

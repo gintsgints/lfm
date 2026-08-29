@@ -2,7 +2,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use tui_view::{FormatView, ViewState, plugins::plaintext::PlainTextView};
+use tui_view::{FormatView, ViewState, plugins::plaintext::PlainTextView, plugins::zip::ZipView};
 
 #[cfg(feature = "debug")]
 use crate::debug_log;
@@ -947,9 +947,13 @@ fn sync_file_view(model: &mut Model) {
 
 /// Read `path` for the viewer, rejecting only files too big to hold in memory.
 /// Binary content is fine: the hex view renders it.
+///
+/// An archive is exempt from the size limit: its listing is built from the
+/// central directory alone, so even a multi-gigabyte one is worth opening. The
+/// bytes are still read whole, which is the cost of that exemption.
 fn read_file(path: &std::path::Path) -> Result<Vec<u8>, String> {
     let len = std::fs::metadata(path).map_err(|e| e.to_string())?.len();
-    if len > MAX_VIEW_BYTES {
+    if len > MAX_VIEW_BYTES && !ZipView::new().matches(path) {
         return Err(format!("file too large to view ({len} bytes)"));
     }
     std::fs::read(path).map_err(|e| e.to_string())
