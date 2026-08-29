@@ -297,7 +297,7 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
         }),
         InputMode::Filter => ModeIntercept::Consumed(match key.code {
             KeyCode::Esc => Some(Message::Cancel(Field::Filter)),
-            KeyCode::Enter | KeyCode::Tab => Some(Message::ConfirmFilter),
+            KeyCode::Enter | KeyCode::Tab | KeyCode::BackTab => Some(Message::ConfirmFilter),
             KeyCode::Down => Some(Message::FilterBarDown),
             _ => edit_key(key, Field::Filter),
         }),
@@ -326,7 +326,9 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
         }),
         InputMode::FilteredNormal => match key.code {
             KeyCode::Esc => ModeIntercept::Consumed(Some(Message::Cancel(Field::Filter))),
-            KeyCode::Tab => ModeIntercept::Consumed(Some(Message::Open(Field::Filter))),
+            KeyCode::Tab | KeyCode::BackTab => {
+                ModeIntercept::Consumed(Some(Message::Open(Field::Filter)))
+            }
             _ => ModeIntercept::PassThrough,
         },
         InputMode::Normal => ModeIntercept::PassThrough,

@@ -46,6 +46,7 @@ const KEYBINDINGS: &[(&str, &str)] = &[
     ("Filter", ""),
     ("/", "Enter filter mode"),
     ("↓ / Enter / Tab", "Lock filter and move to file list"),
+    ("Tab / Shift+Tab", "Move between filter and file list"),
     ("Esc", "Clear filter"),
     ("", ""),
     ("Pinned directories", ""),
