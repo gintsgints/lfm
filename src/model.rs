@@ -1,4 +1,7 @@
-use std::{io, path::PathBuf};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
 use crate::file_find::FileFindResult;
 use crate::presets::Preset;
@@ -56,6 +59,24 @@ impl<T> ResultPanel<T> {
             input_focused: true,
             input_field: InputField::Query,
         }
+    }
+}
+
+/// A search result the file list can be moved onto. Both kinds of result carry
+/// the path they were found at; that is all confirming one needs.
+pub trait Located {
+    fn path(&self) -> &Path;
+}
+
+impl Located for SearchResult {
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Located for FileFindResult {
+    fn path(&self) -> &Path {
+        &self.path
     }
 }
 

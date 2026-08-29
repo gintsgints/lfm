@@ -9,7 +9,7 @@ use ratatui::crossterm::event::{
 
 #[cfg(feature = "debug")]
 use crate::debug_log;
-use crate::message::{EditOp, Field, Message};
+use crate::message::{EditOp, Field, Message, SearchKind};
 use crate::model::{ActivePanel, Model};
 
 /// Enable the Kitty keyboard protocol and report whether it is actually active.
@@ -390,37 +390,33 @@ fn intercept_command_mode(key: &KeyEvent, mode: &InputMode) -> ModeIntercept {
 /// Key handling for the content-search and file-find popups, which share the
 /// same input/results layout and navigation keys.
 fn intercept_search_mode(key: &KeyEvent, mode: &InputMode) -> ModeIntercept {
-    ModeIntercept::Consumed(match mode {
-        InputMode::ContentSearchInput => match key.code {
-            KeyCode::Esc => Some(Message::ContentSearchCancel),
-            KeyCode::Enter => Some(Message::ContentSearchConfirm),
+    let (kind, on_query_row) = match mode {
+        InputMode::ContentSearchInput => (SearchKind::Content, true),
+        InputMode::ContentSearchResults => (SearchKind::Content, false),
+        InputMode::FileFindInput => (SearchKind::Files, true),
+        InputMode::FileFindResults => (SearchKind::Files, false),
+        _ => return ModeIntercept::Consumed(None),
+    };
+
+    // On the query row every key that is not navigation is an edit; Down there
+    // means "into the results" rather than "next result".
+    if on_query_row {
+        return ModeIntercept::Consumed(match key.code {
+            KeyCode::Esc => Some(Message::SearchCancel(kind)),
+            KeyCode::Enter => Some(Message::SearchConfirm(kind)),
             KeyCode::Tab | KeyCode::BackTab | KeyCode::Down => {
-                Some(Message::ContentSearchToggleFocus)
+                Some(Message::SearchToggleFocus(kind))
             }
-            _ => edit_key(key, Field::SearchQuery),
-        },
-        InputMode::ContentSearchResults => match key.code {
-            KeyCode::Esc => Some(Message::ContentSearchCancel),
-            KeyCode::Enter => Some(Message::ContentSearchConfirm),
-            KeyCode::Tab | KeyCode::BackTab => Some(Message::ContentSearchToggleFocus),
-            KeyCode::Up | KeyCode::Char('k') => Some(Message::ContentSearchUp),
-            KeyCode::Down | KeyCode::Char('j') => Some(Message::ContentSearchDown),
-            _ => None,
-        },
-        InputMode::FileFindInput => match key.code {
-            KeyCode::Esc => Some(Message::FileFindCancel),
-            KeyCode::Enter => Some(Message::FileFindConfirm),
-            KeyCode::Tab | KeyCode::BackTab | KeyCode::Down => Some(Message::FileFindToggleFocus),
-            _ => edit_key(key, Field::FindQuery),
-        },
-        InputMode::FileFindResults => match key.code {
-            KeyCode::Esc => Some(Message::FileFindCancel),
-            KeyCode::Enter => Some(Message::FileFindConfirm),
-            KeyCode::Tab | KeyCode::BackTab => Some(Message::FileFindToggleFocus),
-            KeyCode::Up | KeyCode::Char('k') => Some(Message::FileFindUp),
-            KeyCode::Down | KeyCode::Char('j') => Some(Message::FileFindDown),
-            _ => None,
-        },
+            _ => edit_key(key, Field::SearchQuery(kind)),
+        });
+    }
+
+    ModeIntercept::Consumed(match key.code {
+        KeyCode::Esc => Some(Message::SearchCancel(kind)),
+        KeyCode::Enter => Some(Message::SearchConfirm(kind)),
+        KeyCode::Tab | KeyCode::BackTab => Some(Message::SearchToggleFocus(kind)),
+        KeyCode::Up | KeyCode::Char('k') => Some(Message::SearchUp(kind)),
+        KeyCode::Down | KeyCode::Char('j') => Some(Message::SearchDown(kind)),
         _ => None,
     })
 }
@@ -446,8 +442,12 @@ fn normal_key(key: &KeyEvent, active_panel: ActivePanel) -> Option<Message> {
         KeyCode::Char('n') => Some(Message::NewPath),
         KeyCode::Char('?') => Some(Message::ToggleHelp),
         KeyCode::Char('g') if active_panel != ActivePanel::Pinned => Some(Message::GotoPath),
-        KeyCode::Char('s') if active_panel != ActivePanel::Pinned => Some(Message::ContentSearch),
-        KeyCode::Char('f') if active_panel != ActivePanel::Pinned => Some(Message::FileFind),
+        KeyCode::Char('s') if active_panel != ActivePanel::Pinned => {
+            Some(Message::SearchOpen(SearchKind::Content))
+        }
+        KeyCode::Char('f') if active_panel != ActivePanel::Pinned => {
+            Some(Message::SearchOpen(SearchKind::Files))
+        }
         KeyCode::Char('S') if active_panel != ActivePanel::Pinned => Some(Message::CycleSort),
         KeyCode::Char('z') if active_panel != ActivePanel::Pinned => Some(Message::ZipFiles),
         KeyCode::Char('u') if active_panel != ActivePanel::Pinned => Some(Message::UnzipFile),

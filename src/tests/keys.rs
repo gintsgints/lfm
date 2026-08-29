@@ -3,7 +3,7 @@ use ratatui::crossterm::event::{
 };
 
 use crate::keys::{InputMode, is_key_release, normalize_key_event, shift_held_change, to_message};
-use crate::message::Message;
+use crate::message::{Message, SearchKind};
 use crate::model::ActivePanel;
 
 fn shifted(code: KeyCode) -> Event {
@@ -109,14 +109,20 @@ fn shift_tab_returns_to_the_search_input() {
         ActivePanel::LeftFiles,
         &InputMode::ContentSearchResults,
     );
-    assert!(matches!(msg, Some(Message::ContentSearchToggleFocus)));
+    assert!(matches!(
+        msg,
+        Some(Message::SearchToggleFocus(SearchKind::Content))
+    ));
 
     let msg = to_message(
         &back_tab,
         ActivePanel::LeftFiles,
         &InputMode::FileFindResults,
     );
-    assert!(matches!(msg, Some(Message::FileFindToggleFocus)));
+    assert!(matches!(
+        msg,
+        Some(Message::SearchToggleFocus(SearchKind::Files))
+    ));
 }
 
 /// From the query row it toggles the same way Tab does, so the two keys never
@@ -130,8 +136,14 @@ fn shift_tab_toggles_from_the_search_input_too() {
         ActivePanel::LeftFiles,
         &InputMode::ContentSearchInput,
     );
-    assert!(matches!(msg, Some(Message::ContentSearchToggleFocus)));
+    assert!(matches!(
+        msg,
+        Some(Message::SearchToggleFocus(SearchKind::Content))
+    ));
 
     let msg = to_message(&back_tab, ActivePanel::LeftFiles, &InputMode::FileFindInput);
-    assert!(matches!(msg, Some(Message::FileFindToggleFocus)));
+    assert!(matches!(
+        msg,
+        Some(Message::SearchToggleFocus(SearchKind::Files))
+    ));
 }

@@ -1,5 +1,5 @@
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use tui_view::{FormatView, ViewState, plugins::plaintext::PlainTextView};
@@ -7,9 +7,9 @@ use tui_view::{FormatView, ViewState, plugins::plaintext::PlainTextView};
 #[cfg(feature = "debug")]
 use crate::debug_log;
 use crate::image_view;
-use crate::message::{EditOp, Field, Message};
+use crate::message::{EditOp, Field, Message, SearchKind};
 use crate::model::{
-    ActivePanel, CommandPicker, ContentSearch, FileFind, FileView, InputField, Model, PendingKind,
+    ActivePanel, CommandPicker, FileView, InputField, Located, Model, PendingKind,
     PendingOverwrite, ResultPanel, TransferMode, TransferOp, TransferProgress, ViewContent,
 };
 use crate::presets::{self, ExecSpec, OutputMode};
@@ -148,20 +148,13 @@ fn update_message(mut model: Model, msg: Message) -> (Model, Effect) {
             model.error_message = None;
             (model, Effect::None)
         }
-        Message::ContentSearch
-        | Message::Edit(Field::SearchQuery, _)
-        | Message::ContentSearchToggleFocus
-        | Message::ContentSearchCancel
-        | Message::ContentSearchUp
-        | Message::ContentSearchDown
-        | Message::ContentSearchConfirm => update_content_search(model, msg),
-        Message::FileFind
-        | Message::Edit(Field::FindQuery, _)
-        | Message::FileFindToggleFocus
-        | Message::FileFindCancel
-        | Message::FileFindUp
-        | Message::FileFindDown
-        | Message::FileFindConfirm => update_file_find(model, msg),
+        Message::SearchOpen(kind)
+        | Message::SearchToggleFocus(kind)
+        | Message::SearchCancel(kind)
+        | Message::SearchUp(kind)
+        | Message::SearchDown(kind)
+        | Message::SearchConfirm(kind)
+        | Message::Edit(Field::SearchQuery(kind), _) => update_search(model, kind, msg),
         Message::OpenCommandPicker
         | Message::CommandPickerUp
         | Message::CommandPickerDown
@@ -642,166 +635,126 @@ fn edit_result_panel<T>(
     }
 }
 
-fn update_content_search(mut model: Model, msg: Message) -> (Model, Effect) {
+/// What a step on a result popup leaves for the caller to do, once the panel
+/// itself has been updated. Keeps `step_search_panel` generic over the result
+/// type while the model slot and the search effect stay per-kind.
+enum PanelOutcome {
+    Nothing,
+    /// The query row changed; re-run the search over this root, query and mask.
+    Rerun(PathBuf, String, String),
+    /// A result was picked; close the popup and move the file list onto it.
+    Reveal(PathBuf),
+    /// The popup was dismissed.
+    Close,
+}
+
+/// Apply a message to whichever result popup is open. Both popups are the same
+/// `ResultPanel`, so this is written once and instantiated twice.
+fn step_search_panel<T: Located>(slot: Option<&mut ResultPanel<T>>, msg: Message) -> PanelOutcome {
+    let Some(panel) = slot else {
+        return PanelOutcome::Nothing;
+    };
     match msg {
-        Message::ContentSearch => {
-            if model.active_panel == ActivePanel::Pinned {
-                return (model, Effect::None);
-            }
-            let root = if model.active_panel == ActivePanel::RightFiles {
-                model.right_files.current_dir.clone()
-            } else {
-                model.left_files.current_dir.clone()
-            };
-            model.content_search = Some(ContentSearch::new(root.clone()));
-            // Index up front so the first keystroke greps a ready index.
-            (model, Effect::PrepareContentSearch { root })
-        }
-        Message::Edit(_, op) => match edit_result_panel(model.content_search.as_mut(), op) {
-            Some((root, query, mask)) => (model, Effect::StartContentSearch { root, query, mask }),
-            None => (model, Effect::None),
+        Message::Edit(_, op) => match edit_result_panel(Some(panel), op) {
+            Some((root, query, mask)) => PanelOutcome::Rerun(root, query, mask),
+            None => PanelOutcome::Nothing,
         },
-        Message::ContentSearchToggleFocus => {
-            if let Some(cs) = &mut model.content_search {
-                cs.input_focused = !cs.input_focused;
+        Message::SearchToggleFocus(_) => {
+            panel.input_focused = !panel.input_focused;
+            PanelOutcome::Nothing
+        }
+        // Up off the first result returns the keys to the query row.
+        Message::SearchUp(_) => {
+            if panel.selection == 0 {
+                panel.input_focused = true;
+            } else {
+                panel.selection -= 1;
             }
-            (model, Effect::None)
+            PanelOutcome::Nothing
         }
-        Message::ContentSearchCancel => {
-            model.content_search = None;
-            (model, Effect::None)
-        }
-        Message::ContentSearchUp => {
-            if let Some(cs) = &mut model.content_search {
-                if cs.selection == 0 {
-                    cs.input_focused = true;
-                } else {
-                    cs.selection -= 1;
-                }
+        Message::SearchDown(_) => {
+            if !panel.results.is_empty() {
+                panel.selection = (panel.selection + 1).min(panel.results.len() - 1);
             }
-            (model, Effect::None)
+            PanelOutcome::Nothing
         }
-        Message::ContentSearchDown => {
-            if let Some(cs) = &mut model.content_search
-                && !cs.results.is_empty()
-            {
-                cs.selection = (cs.selection + 1).min(cs.results.len() - 1);
-            }
-            (model, Effect::None)
-        }
-        Message::ContentSearchConfirm => confirm_content_search(model),
-        _ => (model, Effect::None),
+        Message::SearchCancel(_) => PanelOutcome::Close,
+        // Enter with nothing to confirm leaves the popup up.
+        Message::SearchConfirm(_) => panel
+            .results
+            .get(panel.selection)
+            .map_or(PanelOutcome::Nothing, |r| {
+                PanelOutcome::Reveal(r.path().to_path_buf())
+            }),
+        _ => PanelOutcome::Nothing,
     }
 }
 
-fn confirm_content_search(mut model: Model) -> (Model, Effect) {
-    let Some(cs) = &model.content_search else {
-        return (model, Effect::None);
-    };
-    let Some(result) = cs.results.get(cs.selection) else {
-        return (model, Effect::None);
-    };
-    let dir = result.path.parent().map(std::path::Path::to_path_buf);
-    let name = result
-        .path
-        .file_name()
-        .map(|n: &std::ffi::OsStr| n.to_string_lossy().into_owned());
-    model.content_search = None;
-    if let Some(dir) = dir {
+/// Move the left file list onto `path` and give it the focus, so a confirmed
+/// result is the entry under the cursor.
+fn reveal(model: &mut Model, path: &Path) {
+    if let Some(dir) = path.parent().map(Path::to_path_buf) {
+        let name = path
+            .file_name()
+            .map(|n: &std::ffi::OsStr| n.to_string_lossy().into_owned());
         model.left_files.navigate_to(dir);
-        if let Some(name) = name {
-            let pos = model
+        let pos = name.and_then(|name| {
+            model
                 .left_files
                 .visible_entries()
-                .position(|(_, e)| e.name == name);
-            if let Some(pos) = pos {
-                model.left_files.selection = pos;
-            }
+                .position(|(_, e)| e.name == name)
+        });
+        if let Some(pos) = pos {
+            model.left_files.selection = pos;
         }
     }
     model.active_panel = ActivePanel::LeftFiles;
-    (model, Effect::None)
 }
 
-fn update_file_find(mut model: Model, msg: Message) -> (Model, Effect) {
-    match msg {
-        Message::FileFind => {
-            if model.active_panel == ActivePanel::Pinned {
-                return (model, Effect::None);
+fn update_search(mut model: Model, kind: SearchKind, msg: Message) -> (Model, Effect) {
+    // Opening needs the root before there is a panel to ask for one.
+    if matches!(msg, Message::SearchOpen(_)) {
+        let Some(root) = active_panel_dir(&model) else {
+            return (model, Effect::None);
+        };
+        // Index up front so the first keystroke searches a ready index.
+        return match kind {
+            SearchKind::Content => {
+                model.content_search = Some(ResultPanel::new(root.clone()));
+                (model, Effect::PrepareContentSearch { root })
             }
-            let root = if model.active_panel == ActivePanel::RightFiles {
-                model.right_files.current_dir.clone()
-            } else {
-                model.left_files.current_dir.clone()
+            SearchKind::Files => {
+                model.file_find = Some(ResultPanel::new(root.clone()));
+                (model, Effect::PrepareFileFind { root })
+            }
+        };
+    }
+
+    let outcome = match kind {
+        SearchKind::Content => step_search_panel(model.content_search.as_mut(), msg),
+        SearchKind::Files => step_search_panel(model.file_find.as_mut(), msg),
+    };
+
+    match outcome {
+        PanelOutcome::Nothing => (model, Effect::None),
+        PanelOutcome::Rerun(root, query, mask) => {
+            let effect = match kind {
+                SearchKind::Content => Effect::StartContentSearch { root, query, mask },
+                SearchKind::Files => Effect::StartFileFind { root, query, mask },
             };
-            model.file_find = Some(FileFind::new(root.clone()));
-            // Index up front so the first keystroke searches a ready index.
-            (model, Effect::PrepareFileFind { root })
+            (model, effect)
         }
-        Message::Edit(_, op) => match edit_result_panel(model.file_find.as_mut(), op) {
-            Some((root, query, mask)) => (model, Effect::StartFileFind { root, query, mask }),
-            None => (model, Effect::None),
-        },
-        Message::FileFindToggleFocus => {
-            if let Some(ff) = &mut model.file_find {
-                ff.input_focused = !ff.input_focused;
+        PanelOutcome::Close | PanelOutcome::Reveal(_) => {
+            match kind {
+                SearchKind::Content => model.content_search = None,
+                SearchKind::Files => model.file_find = None,
+            }
+            if let PanelOutcome::Reveal(path) = outcome {
+                reveal(&mut model, &path);
             }
             (model, Effect::None)
-        }
-        Message::FileFindCancel => {
-            model.file_find = None;
-            (model, Effect::None)
-        }
-        Message::FileFindUp => {
-            if let Some(ff) = &mut model.file_find {
-                if ff.selection == 0 {
-                    ff.input_focused = true;
-                } else {
-                    ff.selection -= 1;
-                }
-            }
-            (model, Effect::None)
-        }
-        Message::FileFindDown => {
-            if let Some(ff) = &mut model.file_find
-                && !ff.results.is_empty()
-            {
-                ff.selection = (ff.selection + 1).min(ff.results.len() - 1);
-            }
-            (model, Effect::None)
-        }
-        Message::FileFindConfirm => confirm_file_find(model),
-        _ => (model, Effect::None),
-    }
-}
-
-fn confirm_file_find(mut model: Model) -> (Model, Effect) {
-    let Some(ff) = &model.file_find else {
-        return (model, Effect::None);
-    };
-    let Some(result) = ff.results.get(ff.selection) else {
-        return (model, Effect::None);
-    };
-    let dir = result.path.parent().map(std::path::Path::to_path_buf);
-    let name = result
-        .path
-        .file_name()
-        .map(|n: &std::ffi::OsStr| n.to_string_lossy().into_owned());
-    model.file_find = None;
-    if let Some(dir) = dir {
-        model.left_files.navigate_to(dir);
-        if let Some(name) = name {
-            let pos = model
-                .left_files
-                .visible_entries()
-                .position(|(_, e)| e.name == name);
-            if let Some(pos) = pos {
-                model.left_files.selection = pos;
-            }
         }
     }
-    model.active_panel = ActivePanel::LeftFiles;
-    (model, Effect::None)
 }
 
 fn refresh_both_panels(model: &mut Model) {

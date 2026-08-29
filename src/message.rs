@@ -1,3 +1,14 @@
+/// Which of the two search popups a message is for. They share a layout, a
+/// key map and a handler; only the kind of result they collect differs.
+#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum SearchKind {
+    /// Grep the indexed files for the query as literal text.
+    Content,
+    /// Rank the indexed file names against the query.
+    Files,
+}
+
 /// A text field somewhere in the UI. Every one of them is an
 /// `input_box::Model`, so they all answer the same `EditOp`s; the field only
 /// says which one the edit lands in.
@@ -14,11 +25,9 @@ pub enum Field {
     Rename,
     /// The `{input}` step of a preset command.
     CommandInput,
-    /// The content-search popup's query row, which holds both the query and
-    /// the file mask; the panel tracks which of the two has the cursor.
-    SearchQuery,
-    /// The file-find popup's query row, same two fields.
-    FindQuery,
+    /// A search popup's query row, which holds both the query and the file
+    /// mask; the panel tracks which of the two has the cursor.
+    SearchQuery(SearchKind),
 }
 
 /// One editing keystroke, independent of which field receives it.
@@ -91,18 +100,14 @@ pub enum Message {
     OverwriteConfirm,
     OverwriteCancel,
     DismissError,
-    ContentSearch,
-    ContentSearchToggleFocus,
-    ContentSearchCancel,
-    ContentSearchUp,
-    ContentSearchDown,
-    ContentSearchConfirm,
-    FileFind,
-    FileFindToggleFocus,
-    FileFindCancel,
-    FileFindUp,
-    FileFindDown,
-    FileFindConfirm,
+    /// Open a search popup over the active panel's directory.
+    SearchOpen(SearchKind),
+    /// Hand the keys between a search popup's query row and its results.
+    SearchToggleFocus(SearchKind),
+    SearchCancel(SearchKind),
+    SearchUp(SearchKind),
+    SearchDown(SearchKind),
+    SearchConfirm(SearchKind),
     /// Shift was pressed (`true`) or released (`false`); updates the hint bar.
     SetShiftHeld(bool),
     OpenCommandPicker,
