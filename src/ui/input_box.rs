@@ -6,6 +6,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph},
 };
 
+use crate::message::EditOp;
 use crate::theme;
 
 pub struct Model {
@@ -115,6 +116,17 @@ impl Model {
             Span::styled(on_cursor, cursor_style),
             Span::styled(after, text_style),
         ]
+    }
+}
+
+/// Apply one editing keystroke. Every text field in the app routes through
+/// here, so `Message::Edit` needs no per-field handling of its own.
+pub fn apply(field: &mut Model, op: EditOp) {
+    match op {
+        EditOp::Char(c) => field.insert(c),
+        EditOp::Backspace => field.backspace(),
+        EditOp::CursorLeft => field.move_left(),
+        EditOp::CursorRight => field.move_right(),
     }
 }
 

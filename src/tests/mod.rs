@@ -9,6 +9,7 @@ mod filter;
 mod help_panel;
 mod icons;
 mod keys;
+mod path_input;
 mod pending_overwrite;
 mod search;
 mod theme;

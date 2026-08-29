@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use crate::message::Message;
+use crate::message::{EditOp, Field, Message};
 use crate::ui::file_panel;
 
 fn temp_dir() -> PathBuf {
@@ -27,6 +27,10 @@ fn send(model: file_panel::Model, msgs: &[Message]) -> file_panel::Model {
         .fold(model, |m, msg| file_panel::update(m, *msg).0)
 }
 
+fn typed(c: char) -> Message {
+    Message::Edit(Field::Filter, EditOp::Char(c))
+}
+
 fn visible(model: &file_panel::Model) -> Vec<String> {
     model
         .visible_entries()
@@ -37,18 +41,11 @@ fn visible(model: &file_panel::Model) -> Vec<String> {
 #[test]
 fn typing_narrows_the_list_and_backspace_widens_it() {
     let model = panel();
-    let model = send(
-        model,
-        &[
-            Message::EnterFilter,
-            Message::FilterChar('a'),
-            Message::FilterChar('l'),
-        ],
-    );
+    let model = send(model, &[Message::EnterFilter, typed('a'), typed('l')]);
     assert_eq!(visible(&model), ["alpha"]);
 
     // Back to "a", which every one of the three names contains.
-    let model = send(model, &[Message::FilterBackspace]);
+    let model = send(model, &[Message::Edit(Field::Filter, EditOp::Backspace)]);
     assert_eq!(visible(&model), ["alpha", "beta", "gamma"]);
 }
 
@@ -59,11 +56,7 @@ fn confirm_keeps_the_filter_and_escape_clears_it() {
     let model = panel();
     let model = send(
         model,
-        &[
-            Message::EnterFilter,
-            Message::FilterChar('b'),
-            Message::ConfirmFilter,
-        ],
+        &[Message::EnterFilter, typed('b'), Message::ConfirmFilter],
     );
     assert!(!model.search.active);
     assert!(model.is_filtering());
@@ -83,10 +76,10 @@ fn re_entering_a_filter_appends_to_it() {
         model,
         &[
             Message::EnterFilter,
-            Message::FilterChar('a'),
+            typed('a'),
             Message::ConfirmFilter,
             Message::EnterFilter,
-            Message::FilterChar('l'),
+            typed('l'),
         ],
     );
     assert_eq!(model.search.text, "al");
@@ -98,7 +91,44 @@ fn re_entering_a_filter_appends_to_it() {
 fn narrowing_re_anchors_the_selection() {
     let mut model = panel();
     model.selection = 2;
-    let model = send(model, &[Message::EnterFilter, Message::FilterChar('b')]);
+    let model = send(model, &[Message::EnterFilter, typed('b')]);
     assert_eq!(model.selection, 0);
     assert_eq!(visible(&model), ["beta"]);
+}
+
+/// The filter field carries a cursor like every other text field, so an edit
+/// can land in the middle of it.
+#[test]
+fn the_cursor_moves_within_the_filter() {
+    let model = panel();
+    let model = send(
+        model,
+        &[
+            Message::EnterFilter,
+            typed('l'),
+            typed('a'),
+            Message::Edit(Field::Filter, EditOp::CursorLeft),
+            typed('p'),
+            typed('h'),
+        ],
+    );
+    assert_eq!(model.search.text, "lpha");
+    assert_eq!(visible(&model), ["alpha"]);
+}
+
+/// Moving the cursor changes nothing about which entries are visible, so it
+/// must not disturb the selection.
+#[test]
+fn moving_the_cursor_keeps_the_selection() {
+    let mut model = panel();
+    model.selection = 1;
+    let model = send(
+        model,
+        &[
+            Message::EnterFilter,
+            Message::Edit(Field::Filter, EditOp::CursorLeft),
+            Message::Edit(Field::Filter, EditOp::CursorRight),
+        ],
+    );
+    assert_eq!(model.selection, 1);
 }

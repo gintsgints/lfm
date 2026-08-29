@@ -7,7 +7,7 @@ use tui_view::{FormatView, ViewState, plugins::plaintext::PlainTextView};
 #[cfg(feature = "debug")]
 use crate::debug_log;
 use crate::image_view;
-use crate::message::Message;
+use crate::message::{EditOp, Field, Message};
 use crate::model::{
     ActivePanel, CommandPicker, ContentSearch, FileFind, FileView, InputField, Model, PendingKind,
     PendingOverwrite, ResultPanel, TransferMode, TransferOp, TransferProgress, ViewContent,
@@ -131,12 +131,9 @@ fn update_message(mut model: Model, msg: Message) -> (Model, Effect) {
             open_rename_dialog(&mut model, TransferMode::Rename);
             (model, Effect::None)
         }
-        Message::ConfirmRename
-        | Message::CancelRename
-        | Message::RenameChar(_)
-        | Message::RenameBackspace
-        | Message::RenameCursorLeft
-        | Message::RenameCursorRight => update_rename(model, msg),
+        Message::ConfirmRename | Message::CancelRename | Message::Edit(Field::Rename, _) => {
+            update_rename(model, msg)
+        }
         Message::DeleteConfirm => update_delete_confirm(model),
         Message::ProgressTick { current, total } => update_progress_tick(model, current, total),
         Message::ProgressDone => progress_done(model),
@@ -152,20 +149,14 @@ fn update_message(mut model: Model, msg: Message) -> (Model, Effect) {
             (model, Effect::None)
         }
         Message::ContentSearch
-        | Message::ContentSearchChar(_)
-        | Message::ContentSearchBackspace
-        | Message::ContentSearchCursorLeft
-        | Message::ContentSearchCursorRight
+        | Message::Edit(Field::SearchQuery, _)
         | Message::ContentSearchToggleFocus
         | Message::ContentSearchCancel
         | Message::ContentSearchUp
         | Message::ContentSearchDown
         | Message::ContentSearchConfirm => update_content_search(model, msg),
         Message::FileFind
-        | Message::FileFindChar(_)
-        | Message::FileFindBackspace
-        | Message::FileFindCursorLeft
-        | Message::FileFindCursorRight
+        | Message::Edit(Field::FindQuery, _)
         | Message::FileFindToggleFocus
         | Message::FileFindCancel
         | Message::FileFindUp
@@ -176,10 +167,7 @@ fn update_message(mut model: Model, msg: Message) -> (Model, Effect) {
         | Message::CommandPickerDown
         | Message::CommandPickerCancel
         | Message::CommandPickerConfirm
-        | Message::CommandInputChar(_)
-        | Message::CommandInputBackspace
-        | Message::CommandInputCursorLeft
-        | Message::CommandInputCursorRight
+        | Message::Edit(Field::CommandInput, _)
         | Message::CommandInputCancel
         | Message::CommandInputConfirm => update_command(model, msg),
         Message::CaptureViewScrollUp
@@ -470,20 +458,8 @@ fn update_move(mut model: Model, msg: Message) -> (Model, Effect) {
 
 fn update_rename(mut model: Model, msg: Message) -> (Model, Effect) {
     match msg {
-        Message::RenameChar(c) => {
-            model.rename_input.insert(c);
-            (model, Effect::None)
-        }
-        Message::RenameBackspace => {
-            model.rename_input.backspace();
-            (model, Effect::None)
-        }
-        Message::RenameCursorLeft => {
-            model.rename_input.move_left();
-            (model, Effect::None)
-        }
-        Message::RenameCursorRight => {
-            model.rename_input.move_right();
+        Message::Edit(_, op) => {
+            input_box::apply(&mut model.rename_input, op);
             (model, Effect::None)
         }
         Message::CancelRename => {
@@ -645,6 +621,27 @@ fn move_query_cursor<T>(panel: Option<&mut ResultPanel<T>>, right: bool) {
     }
 }
 
+/// Apply an edit to a result panel's query row. Cursor moves can cross between
+/// the query and the mask, so they take the crossing path; text edits go
+/// through `edit_query_panel`, which also reports the re-run it needs.
+fn edit_result_panel<T>(
+    panel: Option<&mut ResultPanel<T>>,
+    op: EditOp,
+) -> Option<(PathBuf, String, String)> {
+    match op {
+        EditOp::Char(c) => edit_query_panel(panel, |field| field.insert(c)),
+        EditOp::Backspace => edit_query_panel(panel, input_box::Model::backspace),
+        EditOp::CursorLeft => {
+            move_query_cursor(panel, false);
+            None
+        }
+        EditOp::CursorRight => {
+            move_query_cursor(panel, true);
+            None
+        }
+    }
+}
+
 fn update_content_search(mut model: Model, msg: Message) -> (Model, Effect) {
     match msg {
         Message::ContentSearch => {
@@ -660,30 +657,10 @@ fn update_content_search(mut model: Model, msg: Message) -> (Model, Effect) {
             // Index up front so the first keystroke greps a ready index.
             (model, Effect::PrepareContentSearch { root })
         }
-        Message::ContentSearchChar(c) => {
-            match edit_query_panel(model.content_search.as_mut(), |field| field.insert(c)) {
-                Some((root, query, mask)) => {
-                    (model, Effect::StartContentSearch { root, query, mask })
-                }
-                None => (model, Effect::None),
-            }
-        }
-        Message::ContentSearchBackspace => {
-            match edit_query_panel(model.content_search.as_mut(), input_box::Model::backspace) {
-                Some((root, query, mask)) => {
-                    (model, Effect::StartContentSearch { root, query, mask })
-                }
-                None => (model, Effect::None),
-            }
-        }
-        Message::ContentSearchCursorLeft => {
-            move_query_cursor(model.content_search.as_mut(), false);
-            (model, Effect::None)
-        }
-        Message::ContentSearchCursorRight => {
-            move_query_cursor(model.content_search.as_mut(), true);
-            (model, Effect::None)
-        }
+        Message::Edit(_, op) => match edit_result_panel(model.content_search.as_mut(), op) {
+            Some((root, query, mask)) => (model, Effect::StartContentSearch { root, query, mask }),
+            None => (model, Effect::None),
+        },
         Message::ContentSearchToggleFocus => {
             if let Some(cs) = &mut model.content_search {
                 cs.input_focused = !cs.input_focused;
@@ -761,26 +738,10 @@ fn update_file_find(mut model: Model, msg: Message) -> (Model, Effect) {
             // Index up front so the first keystroke searches a ready index.
             (model, Effect::PrepareFileFind { root })
         }
-        Message::FileFindChar(c) => {
-            match edit_query_panel(model.file_find.as_mut(), |field| field.insert(c)) {
-                Some((root, query, mask)) => (model, Effect::StartFileFind { root, query, mask }),
-                None => (model, Effect::None),
-            }
-        }
-        Message::FileFindBackspace => {
-            match edit_query_panel(model.file_find.as_mut(), input_box::Model::backspace) {
-                Some((root, query, mask)) => (model, Effect::StartFileFind { root, query, mask }),
-                None => (model, Effect::None),
-            }
-        }
-        Message::FileFindCursorLeft => {
-            move_query_cursor(model.file_find.as_mut(), false);
-            (model, Effect::None)
-        }
-        Message::FileFindCursorRight => {
-            move_query_cursor(model.file_find.as_mut(), true);
-            (model, Effect::None)
-        }
+        Message::Edit(_, op) => match edit_result_panel(model.file_find.as_mut(), op) {
+            Some((root, query, mask)) => (model, Effect::StartFileFind { root, query, mask }),
+            None => (model, Effect::None),
+        },
         Message::FileFindToggleFocus => {
             if let Some(ff) = &mut model.file_find {
                 ff.input_focused = !ff.input_focused;
@@ -880,27 +841,9 @@ fn update_command(mut model: Model, msg: Message) -> (Model, Effect) {
             (model, Effect::None)
         }
         Message::CommandPickerConfirm => update_command_picker_confirm(model),
-        Message::CommandInputChar(c) => {
+        Message::Edit(_, op) => {
             if let Some(input) = command_input_mut(&mut model) {
-                input.insert(c);
-            }
-            (model, Effect::None)
-        }
-        Message::CommandInputBackspace => {
-            if let Some(input) = command_input_mut(&mut model) {
-                input.backspace();
-            }
-            (model, Effect::None)
-        }
-        Message::CommandInputCursorLeft => {
-            if let Some(input) = command_input_mut(&mut model) {
-                input.move_left();
-            }
-            (model, Effect::None)
-        }
-        Message::CommandInputCursorRight => {
-            if let Some(input) = command_input_mut(&mut model) {
-                input.move_right();
+                input_box::apply(input, op);
             }
             (model, Effect::None)
         }

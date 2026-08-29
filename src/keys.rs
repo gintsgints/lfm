@@ -9,7 +9,7 @@ use ratatui::crossterm::event::{
 
 #[cfg(feature = "debug")]
 use crate::debug_log;
-use crate::message::Message;
+use crate::message::{EditOp, Field, Message};
 use crate::model::{ActivePanel, Model};
 
 /// Enable the Kitty keyboard protocol and report whether it is actually active.
@@ -243,6 +243,19 @@ pub fn to_message(event: &Event, active_panel: ActivePanel, mode: &InputMode) ->
     normal_key(key, active_panel)
 }
 
+/// The keys every text field answers alike. Esc and Enter are left to the
+/// caller — those mean something different in each field.
+fn edit_key(key: &KeyEvent, field: Field) -> Option<Message> {
+    let op = match key.code {
+        KeyCode::Backspace => EditOp::Backspace,
+        KeyCode::Left => EditOp::CursorLeft,
+        KeyCode::Right => EditOp::CursorRight,
+        KeyCode::Char(c) => EditOp::Char(c),
+        _ => return None,
+    };
+    Some(Message::Edit(field, op))
+}
+
 fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -> ModeIntercept {
     match mode {
         InputMode::Help => ModeIntercept::Consumed(match key.code {
@@ -264,28 +277,18 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
         InputMode::NewPath => ModeIntercept::Consumed(match key.code {
             KeyCode::Esc => Some(Message::NewPathCancel),
             KeyCode::Enter => Some(Message::NewPathConfirm),
-            KeyCode::Backspace => Some(Message::NewPathBackspace),
-            KeyCode::Left => Some(Message::NewPathCursorLeft),
-            KeyCode::Right => Some(Message::NewPathCursorRight),
-            KeyCode::Char(c) => Some(Message::NewPathChar(c)),
-            _ => None,
+            _ => edit_key(key, Field::NewPath),
         }),
         InputMode::GotoPath => ModeIntercept::Consumed(match key.code {
             KeyCode::Esc => Some(Message::GotoPathCancel),
             KeyCode::Enter => Some(Message::GotoPathConfirm),
-            KeyCode::Backspace => Some(Message::GotoPathBackspace),
-            KeyCode::Left => Some(Message::GotoPathCursorLeft),
-            KeyCode::Right => Some(Message::GotoPathCursorRight),
-            KeyCode::Char(c) => Some(Message::GotoPathChar(c)),
-            _ => None,
+            _ => edit_key(key, Field::GotoPath),
         }),
         InputMode::Filter => ModeIntercept::Consumed(match key.code {
             KeyCode::Esc => Some(Message::ExitFilter),
             KeyCode::Enter | KeyCode::Tab => Some(Message::ConfirmFilter),
-            KeyCode::Backspace => Some(Message::FilterBackspace),
             KeyCode::Down => Some(Message::FilterBarDown),
-            KeyCode::Char(c) => Some(Message::FilterChar(c)),
-            _ => None,
+            _ => edit_key(key, Field::Filter),
         }),
         InputMode::Copy => {
             if key.code == KeyCode::Esc {
@@ -308,11 +311,7 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
         InputMode::Rename => ModeIntercept::Consumed(match key.code {
             KeyCode::Esc => Some(Message::CancelRename),
             KeyCode::Enter => Some(Message::ConfirmRename),
-            KeyCode::Backspace => Some(Message::RenameBackspace),
-            KeyCode::Left => Some(Message::RenameCursorLeft),
-            KeyCode::Right => Some(Message::RenameCursorRight),
-            KeyCode::Char(c) => Some(Message::RenameChar(c)),
-            _ => None,
+            _ => edit_key(key, Field::Rename),
         }),
         InputMode::FilteredNormal => match key.code {
             KeyCode::Esc => ModeIntercept::Consumed(Some(Message::ExitFilter)),
@@ -374,11 +373,7 @@ fn intercept_command_mode(key: &KeyEvent, mode: &InputMode) -> ModeIntercept {
         InputMode::CommandInput => match key.code {
             KeyCode::Esc => Some(Message::CommandInputCancel),
             KeyCode::Enter => Some(Message::CommandInputConfirm),
-            KeyCode::Backspace => Some(Message::CommandInputBackspace),
-            KeyCode::Left => Some(Message::CommandInputCursorLeft),
-            KeyCode::Right => Some(Message::CommandInputCursorRight),
-            KeyCode::Char(c) => Some(Message::CommandInputChar(c)),
-            _ => None,
+            _ => edit_key(key, Field::CommandInput),
         },
         InputMode::CaptureView => match key.code {
             KeyCode::Esc | KeyCode::Enter => Some(Message::CaptureViewClose),
@@ -402,11 +397,7 @@ fn intercept_search_mode(key: &KeyEvent, mode: &InputMode) -> ModeIntercept {
             KeyCode::Tab | KeyCode::BackTab | KeyCode::Down => {
                 Some(Message::ContentSearchToggleFocus)
             }
-            KeyCode::Backspace => Some(Message::ContentSearchBackspace),
-            KeyCode::Left => Some(Message::ContentSearchCursorLeft),
-            KeyCode::Right => Some(Message::ContentSearchCursorRight),
-            KeyCode::Char(c) => Some(Message::ContentSearchChar(c)),
-            _ => None,
+            _ => edit_key(key, Field::SearchQuery),
         },
         InputMode::ContentSearchResults => match key.code {
             KeyCode::Esc => Some(Message::ContentSearchCancel),
@@ -420,11 +411,7 @@ fn intercept_search_mode(key: &KeyEvent, mode: &InputMode) -> ModeIntercept {
             KeyCode::Esc => Some(Message::FileFindCancel),
             KeyCode::Enter => Some(Message::FileFindConfirm),
             KeyCode::Tab | KeyCode::BackTab | KeyCode::Down => Some(Message::FileFindToggleFocus),
-            KeyCode::Backspace => Some(Message::FileFindBackspace),
-            KeyCode::Left => Some(Message::FileFindCursorLeft),
-            KeyCode::Right => Some(Message::FileFindCursorRight),
-            KeyCode::Char(c) => Some(Message::FileFindChar(c)),
-            _ => None,
+            _ => edit_key(key, Field::FindQuery),
         },
         InputMode::FileFindResults => match key.code {
             KeyCode::Esc => Some(Message::FileFindCancel),

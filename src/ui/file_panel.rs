@@ -17,7 +17,7 @@ use crate::archive;
 #[cfg(feature = "debug")]
 use crate::debug_log;
 use crate::icons;
-use crate::message::Message;
+use crate::message::{EditOp, Field, Message};
 use crate::theme;
 use crate::ui::{input_box, search_box};
 
@@ -203,13 +203,11 @@ fn update_filter(field: &mut input_box::Model, msg: Message) -> bool {
             field.cursor_end();
             false
         }
-        Message::FilterChar(c) => {
-            field.insert(c);
-            true
-        }
-        Message::FilterBackspace => {
-            field.backspace();
-            true
+        // Only edits that change the text change which entries are visible;
+        // moving the cursor leaves the list alone.
+        Message::Edit(_, op) => {
+            input_box::apply(field, op);
+            matches!(op, EditOp::Char(_) | EditOp::Backspace)
         }
         Message::ConfirmFilter | Message::FilterBarDown => {
             field.active = false;
@@ -226,8 +224,7 @@ fn update_filter(field: &mut input_box::Model, msg: Message) -> bool {
 pub fn update(mut model: Model, msg: Message) -> (Model, Option<String>) {
     match msg {
         Message::EnterFilter
-        | Message::FilterChar(_)
-        | Message::FilterBackspace
+        | Message::Edit(Field::Filter, _)
         | Message::ConfirmFilter
         | Message::ExitFilter => {
             let raw_idx = model.visible_entries().nth(model.selection).map(|(i, _)| i);
@@ -247,15 +244,13 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Option<String>) {
             }
         }
         Message::NewPath
-        | Message::NewPathChar(_)
-        | Message::NewPathBackspace
+        | Message::Edit(Field::NewPath, _)
         | Message::NewPathCancel
         | Message::NewPathConfirm => {
             return update_new_path(model, msg);
         }
         Message::GotoPath
-        | Message::GotoPathChar(_)
-        | Message::GotoPathBackspace
+        | Message::Edit(Field::GotoPath, _)
         | Message::GotoPathCancel
         | Message::GotoPathConfirm => {
             model = update_goto(model, msg);
@@ -329,17 +324,8 @@ fn update_new_path(mut model: Model, msg: Message) -> (Model, Option<String>) {
         Message::NewPath => {
             model.new_path_input.open();
         }
-        Message::NewPathChar(c) => {
-            model.new_path_input.insert(c);
-        }
-        Message::NewPathBackspace => {
-            model.new_path_input.backspace();
-        }
-        Message::NewPathCursorLeft => {
-            model.new_path_input.move_left();
-        }
-        Message::NewPathCursorRight => {
-            model.new_path_input.move_right();
+        Message::Edit(_, op) => {
+            input_box::apply(&mut model.new_path_input, op);
         }
         Message::NewPathCancel => {
             model.new_path_input.close();
@@ -376,17 +362,8 @@ fn update_goto(mut model: Model, msg: Message) -> Model {
         Message::GotoPath => {
             model.goto_input.open();
         }
-        Message::GotoPathChar(c) => {
-            model.goto_input.insert(c);
-        }
-        Message::GotoPathBackspace => {
-            model.goto_input.backspace();
-        }
-        Message::GotoPathCursorLeft => {
-            model.goto_input.move_left();
-        }
-        Message::GotoPathCursorRight => {
-            model.goto_input.move_right();
+        Message::Edit(_, op) => {
+            input_box::apply(&mut model.goto_input, op);
         }
         Message::GotoPathCancel => {
             model.goto_input.close();

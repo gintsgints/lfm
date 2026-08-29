@@ -1,6 +1,42 @@
+/// A text field somewhere in the UI. Every one of them is an
+/// `input_box::Model`, so they all answer the same `EditOp`s; the field only
+/// says which one the edit lands in.
+#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Field {
+    /// The filter bar above a file panel.
+    Filter,
+    /// The "create file or directory" dialog.
+    NewPath,
+    /// The "jump to path" dialog.
+    GotoPath,
+    /// The rename dialog, shared by rename-in-place and copy/move-with-rename.
+    Rename,
+    /// The `{input}` step of a preset command.
+    CommandInput,
+    /// The content-search popup's query row, which holds both the query and
+    /// the file mask; the panel tracks which of the two has the cursor.
+    SearchQuery,
+    /// The file-find popup's query row, same two fields.
+    FindQuery,
+}
+
+/// One editing keystroke, independent of which field receives it.
+#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum EditOp {
+    Char(char),
+    Backspace,
+    CursorLeft,
+    CursorRight,
+}
+
 #[cfg_attr(feature = "debug", derive(Debug))]
 #[derive(Clone, Copy)]
 pub enum Message {
+    /// One editing keystroke in one text field. `keys.rs` picks the field from
+    /// the current input mode, so every field shares this single variant.
+    Edit(Field, EditOp),
     Quit,
     NextPanel,
     PrevPanel,
@@ -16,16 +52,10 @@ pub enum Message {
     SelectPinnedDir,
     DeletePinnedDir,
     EnterFilter,
-    FilterChar(char),
-    FilterBackspace,
     ConfirmFilter,
     ExitFilter,
     FilterBarDown,
     NewPath,
-    NewPathChar(char),
-    NewPathBackspace,
-    NewPathCursorLeft,
-    NewPathCursorRight,
     NewPathConfirm,
     NewPathCancel,
     DeleteFiles,
@@ -40,10 +70,6 @@ pub enum Message {
     StartCopyRename,
     StartMoveRename,
     RenameInPlace,
-    RenameChar(char),
-    RenameBackspace,
-    RenameCursorLeft,
-    RenameCursorRight,
     ConfirmRename,
     CancelRename,
     ToggleHelp,
@@ -55,10 +81,6 @@ pub enum Message {
     ZipFiles,
     UnzipFile,
     GotoPath,
-    GotoPathChar(char),
-    GotoPathBackspace,
-    GotoPathCursorLeft,
-    GotoPathCursorRight,
     GotoPathConfirm,
     GotoPathCancel,
     ProgressTick {
@@ -70,20 +92,12 @@ pub enum Message {
     OverwriteCancel,
     DismissError,
     ContentSearch,
-    ContentSearchChar(char),
-    ContentSearchBackspace,
-    ContentSearchCursorLeft,
-    ContentSearchCursorRight,
     ContentSearchToggleFocus,
     ContentSearchCancel,
     ContentSearchUp,
     ContentSearchDown,
     ContentSearchConfirm,
     FileFind,
-    FileFindChar(char),
-    FileFindBackspace,
-    FileFindCursorLeft,
-    FileFindCursorRight,
     FileFindToggleFocus,
     FileFindCancel,
     FileFindUp,
@@ -96,10 +110,6 @@ pub enum Message {
     CommandPickerDown,
     CommandPickerConfirm,
     CommandPickerCancel,
-    CommandInputChar(char),
-    CommandInputBackspace,
-    CommandInputCursorLeft,
-    CommandInputCursorRight,
     CommandInputConfirm,
     CommandInputCancel,
     CaptureViewScrollUp,
