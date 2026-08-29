@@ -442,7 +442,9 @@ fn content_search_hint(input_focused: bool) -> Line<'static> {
     }
 }
 
-fn normal_hint_spans() -> Vec<Span<'static>> {
+/// The unshifted command set shown in the hint bar. `pub(crate)` so a test
+/// can check every key it advertises is actually bound.
+pub(crate) fn normal_hint_spans() -> Vec<Span<'static>> {
     vec![
         key(" q"),
         desc(" quit  "),
@@ -471,12 +473,14 @@ fn normal_hint_spans() -> Vec<Span<'static>> {
         key("x"),
         desc(" run  "),
         key("s"),
-        desc(" sort"),
+        desc(" search  "),
+        key("f"),
+        desc(" find"),
     ]
 }
 
 /// The shifted command set, shown while Shift is held (see [`hint_spans`]).
-fn shifted_hint_spans() -> Vec<Span<'static>> {
+pub(crate) fn shifted_hint_spans() -> Vec<Span<'static>> {
     vec![
         key(" J"),
         desc(" mark ↓  "),
@@ -487,9 +491,7 @@ fn shifted_hint_spans() -> Vec<Span<'static>> {
         key("M"),
         desc(" move+rename  "),
         key("S"),
-        desc(" search  "),
-        key("F"),
-        desc(" find"),
+        desc(" sort"),
     ]
 }
 

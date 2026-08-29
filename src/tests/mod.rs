@@ -8,6 +8,7 @@ mod file_mask;
 mod file_view;
 mod filter;
 mod help_panel;
+mod hint_bar;
 mod icons;
 mod keys;
 mod nav;
