@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::file_find::FileFindResult;
-use crate::message::{Message, SearchKind};
+use crate::message::{Message, NavOp, SearchKind, Surface};
 use crate::model::{ActivePanel, Model};
 use crate::search::SearchResult;
 use crate::state::PersistedState;
@@ -130,11 +130,20 @@ fn the_focus_and_the_cursor_walk_the_results() {
         // Two results, so the second Down has nowhere left to go.
         let (model, _) = send(
             model,
-            &[Message::SearchDown(kind), Message::SearchDown(kind)],
+            &[
+                Message::Nav(Surface::Search(kind), NavOp::Down),
+                Message::Nav(Surface::Search(kind), NavOp::Down),
+            ],
         );
         assert_eq!(focus_and_selection(&model, kind), Some((false, 1)));
 
-        let (model, _) = send(model, &[Message::SearchUp(kind), Message::SearchUp(kind)]);
+        let (model, _) = send(
+            model,
+            &[
+                Message::Nav(Surface::Search(kind), NavOp::Up),
+                Message::Nav(Surface::Search(kind), NavOp::Up),
+            ],
+        );
         assert_eq!(focus_and_selection(&model, kind), Some((true, 0)));
     }
 }
@@ -151,7 +160,10 @@ fn confirming_reveals_the_result_in_the_left_panel() {
 
         let (model, _) = send(
             model,
-            &[Message::SearchToggleFocus(kind), Message::SearchDown(kind)],
+            &[
+                Message::SearchToggleFocus(kind),
+                Message::Nav(Surface::Search(kind), NavOp::Down),
+            ],
         );
         let (model, effect) = update(model, Message::SearchConfirm(kind));
 

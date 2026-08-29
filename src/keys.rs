@@ -9,7 +9,7 @@ use ratatui::crossterm::event::{
 
 #[cfg(feature = "debug")]
 use crate::debug_log;
-use crate::message::{EditOp, Field, Message, SearchKind};
+use crate::message::{EditOp, Field, Message, NavOp, SearchKind, Surface};
 use crate::model::{ActivePanel, Model};
 
 /// Enable the Kitty keyboard protocol and report whether it is actually active.
@@ -256,13 +256,24 @@ fn edit_key(key: &KeyEvent, field: Field) -> Option<Message> {
     Some(Message::Edit(field, op))
 }
 
+/// The keys every scrollable surface answers alike. A surface with no paging
+/// simply ignores the page ops, which is what those keys did there before.
+fn nav_key(key: &KeyEvent, surface: Surface) -> Option<Message> {
+    let op = match key.code {
+        KeyCode::Up | KeyCode::Char('k') => NavOp::Up,
+        KeyCode::Down | KeyCode::Char('j') => NavOp::Down,
+        KeyCode::PageUp => NavOp::PageUp,
+        KeyCode::PageDown => NavOp::PageDown,
+        _ => return None,
+    };
+    Some(Message::Nav(surface, op))
+}
+
 fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -> ModeIntercept {
     match mode {
         InputMode::Help => ModeIntercept::Consumed(match key.code {
             KeyCode::Esc | KeyCode::Char('?' | 'q') => Some(Message::ToggleHelp),
-            KeyCode::Char('j') | KeyCode::Down => Some(Message::HelpScrollDown),
-            KeyCode::Char('k') | KeyCode::Up => Some(Message::HelpScrollUp),
-            _ => None,
+            _ => nav_key(key, Surface::Help),
         }),
         InputMode::DeleteConfirm => ModeIntercept::Consumed(match key.code {
             KeyCode::Enter => Some(Message::DeleteConfirm),
@@ -351,11 +362,7 @@ fn file_view_key(key: &KeyEvent) -> Option<Message> {
         KeyCode::Tab => Some(Message::NextPanel),
         KeyCode::BackTab => Some(Message::PrevPanel),
         KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q' | 'v') => Some(Message::FileViewClose),
-        KeyCode::Up | KeyCode::Char('k') => Some(Message::FileViewScrollUp),
-        KeyCode::Down | KeyCode::Char('j') => Some(Message::FileViewScrollDown),
-        KeyCode::PageUp => Some(Message::FileViewPageUp),
-        KeyCode::PageDown => Some(Message::FileViewPageDown),
-        _ => None,
+        _ => nav_key(key, Surface::FileView),
     }
 }
 
@@ -366,9 +373,7 @@ fn intercept_command_mode(key: &KeyEvent, mode: &InputMode) -> ModeIntercept {
         InputMode::CommandPicker => match key.code {
             KeyCode::Esc => Some(Message::CommandPickerCancel),
             KeyCode::Enter => Some(Message::CommandPickerConfirm),
-            KeyCode::Up | KeyCode::Char('k') => Some(Message::CommandPickerUp),
-            KeyCode::Down | KeyCode::Char('j') => Some(Message::CommandPickerDown),
-            _ => None,
+            _ => nav_key(key, Surface::CommandPicker),
         },
         InputMode::CommandInput => match key.code {
             KeyCode::Esc => Some(Message::CommandInputCancel),
@@ -377,11 +382,7 @@ fn intercept_command_mode(key: &KeyEvent, mode: &InputMode) -> ModeIntercept {
         },
         InputMode::CaptureView => match key.code {
             KeyCode::Esc | KeyCode::Enter => Some(Message::CaptureViewClose),
-            KeyCode::Up | KeyCode::Char('k') => Some(Message::CaptureViewScrollUp),
-            KeyCode::Down | KeyCode::Char('j') => Some(Message::CaptureViewScrollDown),
-            KeyCode::PageUp => Some(Message::CaptureViewPageUp),
-            KeyCode::PageDown => Some(Message::CaptureViewPageDown),
-            _ => None,
+            _ => nav_key(key, Surface::Capture),
         },
         _ => None,
     })
@@ -415,9 +416,7 @@ fn intercept_search_mode(key: &KeyEvent, mode: &InputMode) -> ModeIntercept {
         KeyCode::Esc => Some(Message::SearchCancel(kind)),
         KeyCode::Enter => Some(Message::SearchConfirm(kind)),
         KeyCode::Tab | KeyCode::BackTab => Some(Message::SearchToggleFocus(kind)),
-        KeyCode::Up | KeyCode::Char('k') => Some(Message::SearchUp(kind)),
-        KeyCode::Down | KeyCode::Char('j') => Some(Message::SearchDown(kind)),
-        _ => None,
+        _ => nav_key(key, Surface::Search(kind)),
     })
 }
 
@@ -428,14 +427,17 @@ fn normal_key(key: &KeyEvent, active_panel: ActivePanel) -> Option<Message> {
         KeyCode::Char('q') => Some(Message::Quit),
         KeyCode::Tab => Some(Message::NextPanel),
         KeyCode::BackTab => Some(Message::PrevPanel),
-        KeyCode::Up if key.modifiers.contains(KeyModifiers::SHIFT) => Some(Message::MarkSelectUp),
-        KeyCode::Down if key.modifiers.contains(KeyModifiers::SHIFT) => {
-            Some(Message::MarkSelectDown)
+        KeyCode::Up if key.modifiers.contains(KeyModifiers::SHIFT) => {
+            Some(Message::Nav(Surface::Panel, NavOp::MarkUp))
         }
-        KeyCode::Char('K') => Some(Message::MarkSelectUp),
-        KeyCode::Char('J') => Some(Message::MarkSelectDown),
-        KeyCode::Up | KeyCode::Char('k') => Some(Message::SelectUp),
-        KeyCode::Down | KeyCode::Char('j') => Some(Message::SelectDown),
+        KeyCode::Down if key.modifiers.contains(KeyModifiers::SHIFT) => {
+            Some(Message::Nav(Surface::Panel, NavOp::MarkDown))
+        }
+        KeyCode::Char('K') => Some(Message::Nav(Surface::Panel, NavOp::MarkUp)),
+        KeyCode::Char('J') => Some(Message::Nav(Surface::Panel, NavOp::MarkDown)),
+        // The file list has no paging, so it takes Up and Down alone.
+        KeyCode::Up | KeyCode::Char('k') => Some(Message::Nav(Surface::Panel, NavOp::Up)),
+        KeyCode::Down | KeyCode::Char('j') => Some(Message::Nav(Surface::Panel, NavOp::Down)),
         KeyCode::Left | KeyCode::Char('h') => Some(Message::DirUp),
         KeyCode::Right | KeyCode::Char('l') => Some(Message::DirEnter),
         KeyCode::Char('/') => Some(Message::EnterFilter),

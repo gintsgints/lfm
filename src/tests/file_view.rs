@@ -9,7 +9,7 @@ use tui_view::ViewRegistry;
 
 use crate::image_view::{self, ImageView};
 use crate::keys::{input_mode, to_message};
-use crate::message::Message;
+use crate::message::{Message, NavOp, Surface};
 use crate::model::{Model, ViewContent};
 use crate::state::PersistedState;
 use crate::ui::file_panel;
@@ -155,7 +155,7 @@ fn moving_in_the_file_list_updates_the_viewer() {
     let (model, _) = update(model, Message::ViewFile);
     assert_eq!(model.file_view.as_ref().unwrap().name, "a.txt");
 
-    let (model, _) = update(model, Message::SelectDown);
+    let (model, _) = update(model, Message::Nav(Surface::Panel, NavOp::Down));
     assert_eq!(model.file_view.as_ref().unwrap().name, "b.txt");
 }
 
@@ -242,8 +242,8 @@ fn image_file_without_a_picker_falls_back_to_hex() {
 fn scrolling_an_image_leaves_it_open() {
     let model = model_with_an_image();
     let (model, _) = update(model, Message::ViewFile);
-    let (model, _) = update(model, Message::FileViewScrollDown);
-    let (model, _) = update(model, Message::FileViewPageDown);
+    let (model, _) = update(model, Message::Nav(Surface::FileView, NavOp::Down));
+    let (model, _) = update(model, Message::Nav(Surface::FileView, NavOp::PageDown));
     let view = model
         .file_view
         .as_ref()
@@ -272,7 +272,7 @@ fn other_keys_still_reach_the_file_list_with_the_viewer_open() {
     let model = model_with_two_files();
     let (model, _) = update(model, Message::ViewFile);
     let msg = key_message(&model, KeyCode::Char('j')).expect("j should move the cursor");
-    assert!(matches!(msg, Message::SelectDown));
+    assert!(matches!(msg, Message::Nav(Surface::Panel, NavOp::Down)));
 }
 
 /// Closing the viewer also drops its focus, so the file list keeps the keys.

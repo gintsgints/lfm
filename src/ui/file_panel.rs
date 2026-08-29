@@ -17,7 +17,7 @@ use crate::archive;
 #[cfg(feature = "debug")]
 use crate::debug_log;
 use crate::icons;
-use crate::message::{EditOp, Field, Message};
+use crate::message::{EditOp, Field, Message, NavOp};
 use crate::theme;
 use crate::ui::{input_box, search_box};
 
@@ -258,24 +258,23 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Option<String>) {
         Message::DeleteFiles | Message::DeleteCancel | Message::DeleteConfirm => {
             model = update_delete(model, msg);
         }
-        Message::SelectUp => {
-            model.selection = model.selection.saturating_sub(1);
-        }
-        Message::SelectDown => {
-            let count = model.entry_count();
-            if count > 0 {
-                model.selection = (model.selection + 1).min(count - 1);
+        Message::Nav(_, op) => {
+            // Marking toggles the entry the cursor leaves, then moves as usual.
+            if matches!(op, NavOp::MarkUp | NavOp::MarkDown) {
+                model.toggle_selected(model.selection);
             }
-        }
-        Message::MarkSelectUp => {
-            model.toggle_selected(model.selection);
-            model.selection = model.selection.saturating_sub(1);
-        }
-        Message::MarkSelectDown => {
-            model.toggle_selected(model.selection);
-            let count = model.entry_count();
-            if count > 0 {
-                model.selection = (model.selection + 1).min(count - 1);
+            match op {
+                NavOp::Up | NavOp::MarkUp => {
+                    model.selection = model.selection.saturating_sub(1);
+                }
+                NavOp::Down | NavOp::MarkDown => {
+                    let count = model.entry_count();
+                    if count > 0 {
+                        model.selection = (model.selection + 1).min(count - 1);
+                    }
+                }
+                // The file list does not page.
+                NavOp::PageUp | NavOp::PageDown => {}
             }
         }
         Message::ClearSelection => {

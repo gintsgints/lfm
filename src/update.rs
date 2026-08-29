@@ -7,7 +7,7 @@ use tui_view::{FormatView, ViewState, plugins::plaintext::PlainTextView};
 #[cfg(feature = "debug")]
 use crate::debug_log;
 use crate::image_view;
-use crate::message::{EditOp, Field, Message, SearchKind};
+use crate::message::{EditOp, Field, Message, NavOp, SearchKind, Surface};
 use crate::model::{
     ActivePanel, CommandPicker, FileView, InputField, Located, Model, PendingKind,
     PendingOverwrite, ResultPanel, TransferMode, TransferOp, TransferProgress, ViewContent,
@@ -103,8 +103,7 @@ fn update_message(mut model: Model, msg: Message) -> (Model, Effect) {
             model.help_selection = 0;
             (model, Effect::None)
         }
-        Message::HelpScrollUp => update_help_scroll(model, help_panel::prev_selectable),
-        Message::HelpScrollDown => update_help_scroll(model, help_panel::next_selectable),
+        Message::Nav(Surface::Help, op) => update_help_scroll(model, op),
         Message::SetShiftHeld(held) => {
             model.shift_held = held;
             (model, Effect::None)
@@ -151,29 +150,21 @@ fn update_message(mut model: Model, msg: Message) -> (Model, Effect) {
         Message::SearchOpen(kind)
         | Message::SearchToggleFocus(kind)
         | Message::SearchCancel(kind)
-        | Message::SearchUp(kind)
-        | Message::SearchDown(kind)
         | Message::SearchConfirm(kind)
-        | Message::Edit(Field::SearchQuery(kind), _) => update_search(model, kind, msg),
+        | Message::Edit(Field::SearchQuery(kind), _)
+        | Message::Nav(Surface::Search(kind), _) => update_search(model, kind, msg),
         Message::OpenCommandPicker
-        | Message::CommandPickerUp
-        | Message::CommandPickerDown
+        | Message::Nav(Surface::CommandPicker, _)
         | Message::CommandPickerCancel
         | Message::CommandPickerConfirm
         | Message::Edit(Field::CommandInput, _)
         | Message::CommandInputCancel
         | Message::CommandInputConfirm => update_command(model, msg),
-        Message::CaptureViewScrollUp
-        | Message::CaptureViewScrollDown
-        | Message::CaptureViewPageUp
-        | Message::CaptureViewPageDown
-        | Message::CaptureViewClose => update_capture_view(model, msg),
+        Message::CaptureViewClose | Message::Nav(Surface::Capture, _) => {
+            update_capture_view(model, msg)
+        }
         Message::ViewFile => update_view_file(model),
-        Message::FileViewScrollUp
-        | Message::FileViewScrollDown
-        | Message::FileViewPageUp
-        | Message::FileViewPageDown
-        | Message::FileViewClose => update_file_view(model, msg),
+        Message::FileViewClose | Message::Nav(Surface::FileView, _) => update_file_view(model, msg),
         msg => {
             let (mut m, err) = dispatch_to_panel(model, msg);
             if let Some(e) = err {
@@ -203,8 +194,13 @@ fn dispatch_to_panel(mut model: Model, msg: Message) -> (Model, Option<String>) 
     }
 }
 
-fn update_help_scroll(mut model: Model, step: fn(usize) -> usize) -> (Model, Effect) {
-    model.help_selection = step(model.help_selection);
+fn update_help_scroll(mut model: Model, op: NavOp) -> (Model, Effect) {
+    match op {
+        NavOp::Up => model.help_selection = help_panel::prev_selectable(model.help_selection),
+        NavOp::Down => model.help_selection = help_panel::next_selectable(model.help_selection),
+        // The help list neither pages nor marks.
+        _ => {}
+    }
     (model, Effect::None)
 }
 
@@ -663,18 +659,21 @@ fn step_search_panel<T: Located>(slot: Option<&mut ResultPanel<T>>, msg: Message
             panel.input_focused = !panel.input_focused;
             PanelOutcome::Nothing
         }
-        // Up off the first result returns the keys to the query row.
-        Message::SearchUp(_) => {
-            if panel.selection == 0 {
-                panel.input_focused = true;
-            } else {
-                panel.selection -= 1;
-            }
-            PanelOutcome::Nothing
-        }
-        Message::SearchDown(_) => {
-            if !panel.results.is_empty() {
-                panel.selection = (panel.selection + 1).min(panel.results.len() - 1);
+        Message::Nav(_, op) => {
+            match op {
+                // Up off the first result returns the keys to the query row.
+                NavOp::Up => {
+                    if panel.selection == 0 {
+                        panel.input_focused = true;
+                    } else {
+                        panel.selection -= 1;
+                    }
+                }
+                NavOp::Down if !panel.results.is_empty() => {
+                    panel.selection = (panel.selection + 1).min(panel.results.len() - 1);
+                }
+                // The results list neither pages nor marks.
+                _ => {}
             }
             PanelOutcome::Nothing
         }
@@ -787,8 +786,7 @@ fn active_selection(model: &Model) -> Option<(Vec<String>, Vec<PathBuf>)> {
 fn update_command(mut model: Model, msg: Message) -> (Model, Effect) {
     match msg {
         Message::OpenCommandPicker => update_open_command_picker(model),
-        Message::CommandPickerUp => update_command_picker_move(model, true),
-        Message::CommandPickerDown => update_command_picker_move(model, false),
+        Message::Nav(_, op) => update_command_picker_move(model, op),
         Message::CommandPickerCancel => {
             model.command_picker = None;
             (model, Effect::None)
@@ -825,17 +823,15 @@ fn update_capture_view(mut model: Model, msg: Message) -> (Model, Effect) {
     let max = capture_view::max_scroll(p);
     let page = capture_view::page_step(p);
     match msg {
-        Message::CaptureViewScrollUp => {
-            p.scroll = p.scroll.saturating_sub(1);
-        }
-        Message::CaptureViewScrollDown => {
-            p.scroll = p.scroll.saturating_add(1).min(max);
-        }
-        Message::CaptureViewPageUp => {
-            p.scroll = p.scroll.saturating_sub(page);
-        }
-        Message::CaptureViewPageDown => {
-            p.scroll = p.scroll.saturating_add(page).min(max);
+        Message::Nav(_, op) => {
+            p.scroll = match op {
+                NavOp::Up => p.scroll.saturating_sub(1),
+                NavOp::Down => p.scroll.saturating_add(1).min(max),
+                NavOp::PageUp => p.scroll.saturating_sub(page),
+                NavOp::PageDown => p.scroll.saturating_add(page).min(max),
+                // Captured output has nothing to mark.
+                NavOp::MarkUp | NavOp::MarkDown => p.scroll,
+            };
         }
         Message::CaptureViewClose => {
             model.capture_view = None;
@@ -967,10 +963,14 @@ fn update_file_view(mut model: Model, msg: Message) -> (Model, Effect) {
         ViewContent::Image(_) => None,
     };
     match (msg, text) {
-        (Message::FileViewScrollUp, Some(state)) => state.scroll_up(1),
-        (Message::FileViewScrollDown, Some(state)) => state.scroll_down(1),
-        (Message::FileViewPageUp, Some(state)) => state.page_up(),
-        (Message::FileViewPageDown, Some(state)) => state.page_down(),
+        (Message::Nav(_, op), Some(state)) => match op {
+            NavOp::Up => state.scroll_up(1),
+            NavOp::Down => state.scroll_down(1),
+            NavOp::PageUp => state.page_up(),
+            NavOp::PageDown => state.page_down(),
+            // A viewed file has nothing to mark.
+            NavOp::MarkUp | NavOp::MarkDown => {}
+        },
         (Message::FileViewClose, _) => {
             close_file_view(&mut model);
         }
@@ -994,15 +994,16 @@ fn update_open_command_picker(mut model: Model) -> (Model, Effect) {
     (model, Effect::None)
 }
 
-fn update_command_picker_move(mut model: Model, up: bool) -> (Model, Effect) {
+fn update_command_picker_move(mut model: Model, op: NavOp) -> (Model, Effect) {
     if let Some(cp) = &mut model.command_picker
         && cp.input.is_none()
         && !cp.presets.is_empty()
     {
-        if up {
-            cp.selection = cp.selection.saturating_sub(1);
-        } else {
-            cp.selection = (cp.selection + 1).min(cp.presets.len() - 1);
+        match op {
+            NavOp::Up => cp.selection = cp.selection.saturating_sub(1),
+            NavOp::Down => cp.selection = (cp.selection + 1).min(cp.presets.len() - 1),
+            // The preset list neither pages nor marks.
+            _ => {}
         }
     }
     (model, Effect::None)

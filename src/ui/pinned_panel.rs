@@ -10,7 +10,7 @@ use ratatui::{
 
 use crate::theme;
 
-use crate::message::Message;
+use crate::message::{Message, NavOp};
 
 pub struct Model {
     pub pins: Vec<PathBuf>,
@@ -29,10 +29,11 @@ impl Model {
 
 pub fn update(mut model: Model, msg: Message) -> Model {
     match msg {
-        Message::SelectUp => {
+        // The pinned list neither pages nor marks, so it takes Up and Down alone.
+        Message::Nav(_, NavOp::Up) => {
             model.selection = model.selection.saturating_sub(1);
         }
-        Message::SelectDown => {
+        Message::Nav(_, NavOp::Down) => {
             let count = model.pin_count();
             if count > 0 {
                 model.selection = (model.selection + 1).min(count - 1);

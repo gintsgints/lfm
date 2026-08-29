@@ -9,6 +9,36 @@ pub enum SearchKind {
     Files,
 }
 
+/// A scrollable or selectable surface. Says where a `Nav` lands. The two file
+/// panels and the pinned panel share one variant, since whichever has the
+/// focus already picks between them.
+#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Surface {
+    /// Whichever file panel — or the pinned panel — holds the focus.
+    Panel,
+    Help,
+    Search(SearchKind),
+    CommandPicker,
+    Capture,
+    FileView,
+}
+
+/// A move within a surface, independent of which surface receives it. A
+/// surface that cannot page, or has nothing to mark, ignores those ops.
+#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum NavOp {
+    Up,
+    Down,
+    PageUp,
+    PageDown,
+    /// Up that also toggles the entry it leaves, to mark a run of files.
+    MarkUp,
+    /// Down that also toggles the entry it leaves.
+    MarkDown,
+}
+
 /// A text field somewhere in the UI. Every one of them is an
 /// `input_box::Model`, so they all answer the same `EditOp`s; the field only
 /// says which one the edit lands in.
@@ -46,15 +76,14 @@ pub enum Message {
     /// One editing keystroke in one text field. `keys.rs` picks the field from
     /// the current input mode, so every field shares this single variant.
     Edit(Field, EditOp),
+    /// One move within one surface. `keys.rs` picks the surface from the
+    /// current input mode, so every list and viewer shares this variant.
+    Nav(Surface, NavOp),
     Quit,
     NextPanel,
     PrevPanel,
-    SelectUp,
-    SelectDown,
     DirUp,
     DirEnter,
-    MarkSelectUp,
-    MarkSelectDown,
     ClearSelection,
     TogglePinnedPanel,
     PinCurrentDir,
@@ -82,8 +111,6 @@ pub enum Message {
     ConfirmRename,
     CancelRename,
     ToggleHelp,
-    HelpScrollUp,
-    HelpScrollDown,
     OpenEditor,
     OpenDefault,
     CycleSort,
@@ -105,28 +132,16 @@ pub enum Message {
     /// Hand the keys between a search popup's query row and its results.
     SearchToggleFocus(SearchKind),
     SearchCancel(SearchKind),
-    SearchUp(SearchKind),
-    SearchDown(SearchKind),
     SearchConfirm(SearchKind),
     /// Shift was pressed (`true`) or released (`false`); updates the hint bar.
     SetShiftHeld(bool),
     OpenCommandPicker,
-    CommandPickerUp,
-    CommandPickerDown,
     CommandPickerConfirm,
     CommandPickerCancel,
     CommandInputConfirm,
     CommandInputCancel,
-    CaptureViewScrollUp,
-    CaptureViewScrollDown,
-    CaptureViewPageUp,
-    CaptureViewPageDown,
     CaptureViewClose,
     ViewFile,
-    FileViewScrollUp,
-    FileViewScrollDown,
-    FileViewPageUp,
-    FileViewPageDown,
     FileViewClose,
     #[cfg(feature = "debug")]
     ToggleDebug,
