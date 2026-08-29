@@ -22,6 +22,17 @@ Elm-style **MVU** (Model-View-Update):
 
 Entry point: `src/main.rs`
 
+## Development Workflow
+
+- Development is iterative — make small, focused changes.
+- Before committing, every change must pass all three checks in order:
+  ```bash
+  cargo fmt       # Format code
+  cargo clippy -- -D warnings -W clippy::pedantic   # Lint — fix all warnings before proceeding
+  cargo test      # All tests must pass
+  ```
+- Each functional change must end with its own git commit. Do not bundle unrelated changes into a single commit.
+
 ## Requirements
 
 - **Nerd Font required** — icons render as placeholder boxes without it
@@ -34,4 +45,3 @@ Pinned directories saved to `~/.config/lfm/state.json`
 ## Reference
 
 - Full keybindings, features, and architecture in `README.md`
-- Dev workflow documented in `CLAUDE.md`
