@@ -17,8 +17,9 @@ A fast, keyboard-driven TUI file manager built in Rust, inspired by two-panel fi
 - Open items in `$EDITOR` or with the default application
 - Sort by name, date modified, extension, or size
 - Zip selected items; extract `.zip` and `.tar.gz` archives
-- Recursive content search (`S`) with live streaming results
-- Fuzzy-find files by name (`F`)
+- Recursive content search (`s`) with live streaming results
+- Fuzzy-find files by name (`f`)
+- File mask beside the search query (`*.rs`, `src/**/*.rs`) to limit what either search looks at
 - User-defined preset commands (`x`) — run any shell command on the selection, with optional `{input}` prompt
 - Error popup for failed file operations
 - Nerd Font icons in the file list
@@ -102,18 +103,20 @@ lfm() {
 | `e` | Open selected item in `$EDITOR` |
 | `o` | Open with default application |
 | `x` | Run a preset command on the selection (see [Preset commands](#preset-commands)) |
-| `s` | Cycle sort order: name → date → ext → size |
+| `S` | Cycle sort order: name → date → ext → size |
 | `z` | Zip selected or current item(s) |
 | `u` | Extract `.zip` or `.tar.gz` archive |
-| `S` | Search file contents recursively in current directory |
-| `F` | Fuzzy-find files by name in current directory |
+| `s` | Search file contents recursively in current directory |
+| `f` | Fuzzy-find files by name in current directory |
 
 ### Filter
 
 | Key | Action |
 |-----|--------|
 | `/` | Enter filter mode |
+| `←` / `→` | Move the cursor within the filter |
 | `↓` / `Enter` / `Tab` | Lock filter and move to file list |
+| `Tab` (filter locked) | Re-enter the filter to keep editing it |
 | `Esc` | Clear filter |
 
 ### Pinned directories
@@ -167,16 +170,40 @@ Markdown and JSON keep their dedicated views. Image decoding and
 encoding happen off the UI thread, so browsing a directory of large images stays
 responsive.
 
-### Content search
+### Content search and file find
+
+`s` greps file contents; `f` ranks file names. Both open the same overlay — a
+query row on top, results below — and share one background index of the
+directory, so switching between them costs nothing.
 
 | Key | Action |
 |-----|--------|
-| `S` | Open content search overlay |
-| `Tab` | Switch focus between query input and results list |
+| `s` | Search file contents recursively in the current directory |
+| `f` | Fuzzy-find files by name in the current directory |
+| `Tab` / `Shift+Tab` | Move between the query row and the results list |
+| `↓` (in query row) | Move to the results list |
+| `←` / `→` | Move the cursor; running off the end of the query enters the mask field |
 | `j` / `↓` | Move down in results |
 | `k` / `↑` | Move up in results |
+| `↑` (on first result) | Return to the query row |
 | `Enter` | Navigate to the selected file |
-| `Esc` | Cancel search |
+| `Esc` | Close the overlay |
+
+#### File mask
+
+Beside the query sits a **mask** field limiting which files the query looks at.
+It takes a comma-separated list of glob patterns, and matches when any one of
+them does. An empty mask looks at everything.
+
+| Pattern | Matches |
+|---------|---------|
+| `*.rs` | File name only, so every Rust file at any depth |
+| `*.rs, *.toml` | Either — patterns are comma-separated |
+| `src/**/*.rs` | Contains `/`, so it matches the path relative to the search root |
+| `src/*.rs` | Only directly inside `src`; `*` does not cross a `/` |
+
+A pattern that does not compile yet is skipped rather than rejected, so the
+results do not blank out while you are still typing one.
 
 ### Other
 
@@ -306,4 +333,4 @@ view()                          spawn thread / open editor /
 
 Background file transfers run in a dedicated OS thread and send `ProgressMsg` values over an `mpsc` channel. The main loop drains this channel each iteration and fires `Message::ProgressTick` / `Message::ProgressDone` into `update` so the progress bar stays live without blocking input.
 
-Content search works the same way: a background thread walks the directory tree and sends `SearchMsg::Hit` results over a channel. Dropping the receiver cancels the thread. Results stream into the UI on each loop iteration with no keypress required.
+Search works the same way, on top of one shared index. A background thread indexes the directory — pre-warmed once the cursor settles, so the first keystroke queries a ready index — and answers each query with an `EngineMsg::Content` or `EngineMsg::Files` batch. Every batch carries the `generation` of the query that produced it, so a batch for a query the user has already typed past is dropped rather than drawn. The content search and the file find share that one index, which is why switching between them costs nothing.
