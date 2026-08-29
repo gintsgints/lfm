@@ -70,6 +70,25 @@ fn source_file_opens_in_the_tree_sitter_view() {
     assert_eq!(view_name(&model), "Rust");
 }
 
+/// A ZIP archive lists its entries instead of falling back to the hex view,
+/// even though its bytes are binary.
+#[test]
+fn zip_archive_opens_in_the_zip_view() {
+    let dir = temp_dir();
+    let inner = dir.join("payload.txt");
+    fs::write(&inner, b"alpha").unwrap();
+    let archive = dir.join("bundle.zip");
+    crate::archive::zip_paths(&[inner], &archive).unwrap();
+
+    let mut model = Model::init(PersistedState::default()).unwrap();
+    model.left_files = file_panel::Model::init(dir).unwrap();
+    model.left_files.selection = 0;
+
+    let (model, _) = update(model, Message::ViewFile);
+    assert_eq!(model.file_view.as_ref().unwrap().name, "bundle.zip");
+    assert_eq!(view_name(&model), "Zip");
+}
+
 /// The registry picks a per-format view by extension.
 #[test]
 fn registry_picks_view_by_extension() {

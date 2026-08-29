@@ -19,6 +19,8 @@ fff-search = "0.10.5"
 globset = "0.4"
 # `languages` turns on every bundled Tree-sitter grammar, so source files get
 # syntax highlighting in the viewer instead of falling back to plain text.
-tui-view = { git = "https://github.com/gintsgints/tui-view.git", features = ["languages"] }
+# `zip` adds the archive listing, so a `.zip` previews as its first level
+# instead of as hex.
+tui-view = { git = "https://github.com/gintsgints/tui-view.git", features = ["languages", "zip"] }
 ratatui-image = { version = "11.0.6", default-features = false, features = ["crossterm", "image-defaults"] }
 image = "0.25"

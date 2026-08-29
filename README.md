@@ -13,7 +13,7 @@ A fast, keyboard-driven TUI file manager built in Rust, inspired by two-panel fi
 - Navigate to any path instantly with `g` (supports `~` expansion)
 - Create files and directories with full path support (`test/a/b.txt`)
 - Delete files and directories with confirmation
-- Toggleable viewer panel (`v`) that follows the file list — syntax-aware text, inline image rendering, and a hex view for binary files
+- Toggleable viewer panel (`v`) that follows the file list — syntax-aware text, inline image rendering, ZIP archive listings, and a hex view for binary files
 - Open items in `$EDITOR` or with the default application
 - Sort by name, date modified, extension, or size
 - Zip selected items; extract `.zip` and `.tar.gz` archives
@@ -166,7 +166,11 @@ While the viewer is open it follows the file-list cursor. Text files render thro
 `ratatui-image`, and anything binary falls back to a hex view. Source files are
 syntax-highlighted by their own Tree-sitter grammar — Rust, Python, JavaScript,
 TypeScript (with JSX/TSX), Go, C, Bash, TOML, YAML, HTML, and CSS — while
-Markdown and JSON keep their dedicated views. Image decoding and
+Markdown and JSON keep their dedicated views. ZIP archives (`.zip`, `.jar`,
+`.whl`, and friends) list their first level — the files and directories under
+the archive root, each directory folded into one row with its item count and
+size — read from the central directory alone, so nothing is decompressed.
+Image decoding and
 encoding happen off the UI thread, so browsing a directory of large images stays
 responsive.
 
