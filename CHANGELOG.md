@@ -1,10 +1,41 @@
 # Changelog
 
-## v0.10.0
+## v0.11.0
 
 ### New features
 
 - **Preset shortcut keys** — a preset in `commands.json` may declare `"key": "f"`, which runs it straight from the picker; the key is shown in a `[k]` column next to the label
+- **ZIP archive preview** — the viewer panel lists a `.zip`'s entries instead of treating it as binary
+- **File mask** — content search (`s`) and file find (`f`) take a mask beside the query (`*.rs`, `src/**/*.rs`) limiting what they look at
+- **Syntax highlighting** — source files are highlighted in the viewer panel
+- **Capture output screen** — a `capture` preset's output now gets its own scrollable full-screen view
+- **Esc closes the viewer** — from the file list, not just from the viewer itself
+- **Shift+Tab on the filter bar** — moves between the filter and the file list, and back into a locked filter
+- **Copy/move target panel** — lists directories only, and reports a target that is already the source folder
+
+### Fixes
+
+- Archives are exempt from the viewer's size limit, so a large `.zip` still lists
+- Preset command output no longer corrupts the screen
+- Capture scrolling is clamped to the wrapped row count
+- The focus stays in the panel a delete ran in
+- The cursor keeps its entry after a copy or move
+- The destination picker stays open when the target is the source folder
+- Shift+Tab returns to the search query row
+- The hint bar shows the real search, find and sort keys
+
+### Other
+
+- Search, find and sort moved to `s`, `f` and `Shift+S`
+- Messages collapsed into `Nav`, `Edit`, `Open` and `Close` variants; the filter bar is backed by `input_box::Model`
+- Dependencies and `tui-view` updated for table support (#14)
+- GitHub Actions bumped to v5
+- `CLAUDE.md` replaced by `AGENTS.md`
+
+## v0.10.0
+
+### New features
+
 - **Viewer panel** (`v`) — the file viewer is now a toggleable right-hand panel that follows the file-list cursor instead of a modal popup; `Tab` switches focus between the list and the viewer
 - **tui-view rendering** — text files render through the `tui-view` widget
 - **Inline images** — image files are rendered in the viewer panel with `ratatui-image`
