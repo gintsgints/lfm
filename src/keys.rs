@@ -377,6 +377,10 @@ fn intercept_command_mode(key: &KeyEvent, mode: &InputMode) -> ModeIntercept {
         InputMode::CommandPicker => match key.code {
             KeyCode::Esc => Some(Message::Close(Surface::CommandPicker)),
             KeyCode::Enter => Some(Message::CommandPickerConfirm),
+            // Which characters are bound depends on the loaded presets, so the
+            // whole character goes to `update`, which runs a bound preset or
+            // else treats `j`/`k` as navigation.
+            KeyCode::Char(c) => Some(Message::CommandPickerShortcut(c)),
             _ => nav_key(key, Surface::CommandPicker),
         },
         InputMode::CommandInput => match key.code {

@@ -137,6 +137,9 @@ pub enum Message {
     SetShiftHeld(bool),
     OpenCommandPicker,
     CommandPickerConfirm,
+    /// A character typed in the preset picker: runs the preset bound to it, or
+    /// falls back to the picker's `j`/`k` navigation when nothing is bound.
+    CommandPickerShortcut(char),
     CommandInputConfirm,
     ViewFile,
     #[cfg(feature = "debug")]

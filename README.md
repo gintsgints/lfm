@@ -20,7 +20,7 @@ A fast, keyboard-driven TUI file manager built in Rust, inspired by two-panel fi
 - Recursive content search (`s`) with live streaming results
 - Fuzzy-find files by name (`f`)
 - File mask beside the search query (`*.rs`, `src/**/*.rs`) to limit what either search looks at
-- User-defined preset commands (`x`) — run any shell command on the selection, with optional `{input}` prompt
+- User-defined preset commands (`x`) — run any shell command on the selection, with optional `{input}` prompt and an optional shortcut key per preset
 - Error popup for failed file operations
 - Nerd Font icons in the file list
 - Catppuccin Mocha colour theme by default, customisable via `~/.config/lfm/colors.json`
@@ -227,6 +227,7 @@ Press `x` in a file panel to open the **preset picker** — a list of user-defin
 | `j` / `↓` | Move down |
 | `k` / `↑` | Move up |
 | `Enter` | Run the selected preset (prompts for `{input}` first if the template needs it) |
+| *preset key* | Run the preset bound to that character straight away (see `key` below) |
 | `Esc` | Close picker / back out of input step |
 
 ### Config format
@@ -236,9 +237,9 @@ Each entry in `commands.json` is a JSON object:
 ```json
 {
   "presets": [
-    { "label": "file (show type)",   "command": ["file", "{paths}"],          "output": "capture" },
-    { "label": "wc (count lines)",   "command": ["wc", "-l", "{paths}"],      "output": "capture" },
-    { "label": "grep for {input}",   "command": "grep -rn {input} {files}",   "output": "capture" },
+    { "label": "file (show type)",   "command": ["file", "{paths}"],          "output": "capture", "key": "f" },
+    { "label": "wc (count lines)",   "command": ["wc", "-l", "{paths}"],      "output": "capture", "key": "w" },
+    { "label": "grep for {input}",   "command": "grep -rn {input} {files}",   "output": "capture", "key": "g" },
     { "label": "open in VS Code",    "command": ["code", "{paths}"] }
   ]
 }
@@ -247,6 +248,7 @@ Each entry in `commands.json` is a JSON object:
 - **`label`** — shown in the picker.
 - **`command`** — an **array** runs the program directly (no shell, no quoting pitfalls); a **string** runs via `sh -c`, so pipes, redirects, and `&&` work.
 - **`output`** *(optional)* — `background` (default), `block`, or `capture`. See below.
+- **`key`** *(optional)* — a single character that runs this preset from the picker without selecting it first. Shown in a `[k]` column next to the label. Matching is case sensitive, so `"r"` and `"R"` are different bindings. A key bound here wins over the picker's own `j`/`k` navigation — the arrow keys always move regardless. If two presets share a key, the first one in the list runs.
 
 ### Placeholders
 

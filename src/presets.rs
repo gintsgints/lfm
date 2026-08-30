@@ -42,6 +42,11 @@ pub struct Preset {
     pub command: CommandTemplate,
     #[serde(default)]
     pub output: OutputMode,
+    /// Optional single character that runs this preset straight from the
+    /// picker, without moving the selection first. A letter bound here wins
+    /// over the picker's own `j`/`k` navigation.
+    #[serde(default)]
+    pub key: Option<char>,
 }
 
 #[derive(Default, Deserialize, Serialize)]
@@ -240,17 +245,20 @@ const STARTER_JSON: &str = r#"{
     {
       "label": "file (show type)",
       "command": ["file", "{paths}"],
-      "output": "capture"
+      "output": "capture",
+      "key": "f"
     },
     {
       "label": "wc (count lines)",
       "command": ["wc", "-l", "{paths}"],
-      "output": "capture"
+      "output": "capture",
+      "key": "w"
     },
     {
       "label": "grep (search inside selection for {input})",
       "command": "grep -rn {input} {files}",
-      "output": "capture"
+      "output": "capture",
+      "key": "g"
     }
   ]
 }
@@ -277,6 +285,7 @@ mod tests {
             label: "t".into(),
             command: CommandTemplate::Argv(names(parts)),
             output: OutputMode::Block,
+            key: None,
         }
     }
 
@@ -285,6 +294,7 @@ mod tests {
             label: "t".into(),
             command: CommandTemplate::Shell(s.into()),
             output: OutputMode::Block,
+            key: None,
         }
     }
 
@@ -404,6 +414,33 @@ mod tests {
         let dir = Path::new("/path with space");
         let got = expect_shell(p.expand(&[], &[], dir, "").unwrap());
         assert_eq!(got, "ls '/path with space'");
+    }
+
+    #[test]
+    fn key_is_optional_and_parses_as_a_single_char() {
+        let cfg: Config = serde_json::from_str(
+            r#"{"presets":[
+                 {"label":"a","command":["true"],"key":"a"},
+                 {"label":"b","command":["true"]}
+               ]}"#,
+        )
+        .unwrap();
+        assert_eq!(cfg.presets[0].key, Some('a'));
+        assert_eq!(cfg.presets[1].key, None);
+    }
+
+    #[test]
+    fn multi_char_key_is_a_parse_error() {
+        let err = serde_json::from_str::<Config>(
+            r#"{"presets":[{"label":"a","command":["true"],"key":"ab"}]}"#,
+        );
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn starter_config_parses() {
+        let cfg: Config = serde_json::from_str(STARTER_JSON).unwrap();
+        assert!(cfg.presets.iter().all(|p| p.key.is_some()));
     }
 
     #[test]

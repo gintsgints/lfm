@@ -4,6 +4,7 @@
 
 ### New features
 
+- **Preset shortcut keys** — a preset in `commands.json` may declare `"key": "f"`, which runs it straight from the picker; the key is shown in a `[k]` column next to the label
 - **Viewer panel** (`v`) — the file viewer is now a toggleable right-hand panel that follows the file-list cursor instead of a modal popup; `Tab` switches focus between the list and the viewer
 - **tui-view rendering** — text files render through the `tui-view` widget
 - **Inline images** — image files are rendered in the viewer panel with `ratatui-image`

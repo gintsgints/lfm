@@ -157,6 +157,7 @@ fn update_message(mut model: Model, msg: Message) -> (Model, Effect) {
         | Message::Nav(Surface::CommandPicker, _)
         | Message::Close(Surface::CommandPicker)
         | Message::CommandPickerConfirm
+        | Message::CommandPickerShortcut(_)
         | Message::Edit(Field::CommandInput, _)
         | Message::Cancel(Field::CommandInput)
         | Message::CommandInputConfirm => update_command(model, msg),
@@ -794,6 +795,7 @@ fn update_command(mut model: Model, msg: Message) -> (Model, Effect) {
             (model, Effect::None)
         }
         Message::CommandPickerConfirm => update_command_picker_confirm(model),
+        Message::CommandPickerShortcut(c) => update_command_picker_shortcut(model, c),
         Message::Edit(_, op) => {
             if let Some(input) = command_input_mut(&mut model) {
                 input_box::apply(input, op);
@@ -1013,6 +1015,25 @@ fn update_command_picker_move(mut model: Model, op: NavOp) -> (Model, Effect) {
         }
     }
     (model, Effect::None)
+}
+
+/// A character typed with the preset list up. A preset bound to it runs
+/// straight away — an explicit binding outranks the built-in `j`/`k`, which
+/// stay available on the arrow keys. Unbound characters fall back to
+/// navigation, so `j`/`k` keep working when nothing claims them.
+fn update_command_picker_shortcut(mut model: Model, c: char) -> (Model, Effect) {
+    let Some(cp) = &mut model.command_picker else {
+        return (model, Effect::None);
+    };
+    if let Some(index) = cp.shortcut_index(c) {
+        cp.selection = index;
+        return update_command_picker_confirm(model);
+    }
+    match c {
+        'j' => update_command_picker_move(model, NavOp::Down),
+        'k' => update_command_picker_move(model, NavOp::Up),
+        _ => (model, Effect::None),
+    }
 }
 
 fn update_command_picker_confirm(mut model: Model) -> (Model, Effect) {

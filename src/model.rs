@@ -228,6 +228,18 @@ impl CommandPicker {
             input: None,
         }
     }
+
+    /// Index of the first preset whose configured shortcut is `c`. Matching is
+    /// case sensitive, so `r` and `R` can be bound to different presets.
+    pub fn shortcut_index(&self, c: char) -> Option<usize> {
+        self.presets.iter().position(|p| p.key == Some(c))
+    }
+
+    /// Whether any preset has a shortcut, so the picker knows to show the key
+    /// column and its hint.
+    pub fn has_shortcuts(&self) -> bool {
+        self.presets.iter().any(|p| p.key.is_some())
+    }
 }
 
 /// What the viewer panel is showing: either text rendered by `tui-view`, or a

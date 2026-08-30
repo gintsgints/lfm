@@ -30,14 +30,13 @@ pub fn render(frame: &mut Frame, area: Rect, picker: &CommandPicker) {
             dim(" back "),
         ])
     } else {
-        Line::from(vec![
-            key("[Enter]"),
-            dim(" select  "),
-            key("[j/k]"),
-            dim(" move  "),
-            key("[Esc]"),
-            dim(" close "),
-        ])
+        let mut spans = vec![key("[Enter]"), dim(" select  ")];
+        if picker.has_shortcuts() {
+            spans.push(key("[key]"));
+            spans.push(dim(" run  "));
+        }
+        spans.extend([key("[j/k]"), dim(" move  "), key("[Esc]"), dim(" close ")]);
+        Line::from(spans)
     };
 
     let block = Block::default()
@@ -71,9 +70,15 @@ fn render_list(frame: &mut Frame, area: Rect, picker: &CommandPicker) {
         return;
     }
 
+    // A `[k] ` column, only when some preset actually has a shortcut.
+    let key_width = if picker.has_shortcuts() { 4 } else { 0 };
     // Reserve roughly a third of the width for the dim command preview.
     let preview_width = area.width.saturating_sub(2) / 3;
-    let label_width = area.width.saturating_sub(preview_width).saturating_sub(4) as usize;
+    let label_width = area
+        .width
+        .saturating_sub(preview_width)
+        .saturating_sub(4)
+        .saturating_sub(key_width) as usize;
 
     let items: Vec<ListItem> = picker
         .presets
@@ -81,9 +86,15 @@ fn render_list(frame: &mut Frame, area: Rect, picker: &CommandPicker) {
         .map(|p| {
             let label = truncate(&p.label, label_width.max(1));
             let preview = truncate(&p.command_preview(), preview_width as usize);
+            let shortcut = match p.key {
+                Some(k) if key_width > 0 => format!("[{k}] "),
+                _ => " ".repeat(key_width as usize),
+            };
             ListItem::new(Line::from(vec![
+                Span::styled("  ", Style::default().fg(theme::text())),
+                Span::styled(shortcut, Style::default().fg(theme::active_border())),
                 Span::styled(
-                    format!("  {label:<label_width$}  "),
+                    format!("{label:<label_width$}  "),
                     Style::default().fg(theme::text()),
                 ),
                 Span::styled(preview, Style::default().fg(theme::inactive_border())),
