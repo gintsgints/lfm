@@ -53,6 +53,51 @@ fn text_file_with_unknown_extension_opens_as_plain_text() {
     assert_eq!(view_name(&model), "Plain text");
 }
 
+/// Text in a legacy single-byte encoding is still text: a Windows-1257 `.txt`
+/// is not valid UTF-8, and must not be sniffed into the hex view for it.
+#[test]
+fn non_utf8_text_file_opens_as_plain_text() {
+    let model = model_with_file("notes.txt", b"Latvie\xf0u valoda\r\n");
+    let (model, _) = update(model, Message::ViewFile);
+    assert_eq!(view_name(&model), "Plain text");
+}
+
+/// A `.cmd` script — an extension no view claims — falls back to plain text,
+/// whatever code page it was written in.
+#[test]
+fn non_utf8_cmd_script_opens_as_plain_text() {
+    let model = model_with_file("build.cmd", b"@echo off\r\nREM \xe8\xe9\r\n");
+    let (model, _) = update(model, Message::ViewFile);
+    assert_eq!(view_name(&model), "Plain text");
+}
+
+/// UTF-16 is text too. Its NUL bytes would otherwise read as binary, so the
+/// viewer re-encodes it before deciding.
+#[test]
+fn utf16_text_file_opens_as_plain_text() {
+    let mut bytes = vec![0xff, 0xfe];
+    bytes.extend("hi\r\n".encode_utf16().flat_map(u16::to_le_bytes));
+    let model = model_with_file("wide.txt", &bytes);
+    let (model, _) = update(model, Message::ViewFile);
+    assert_eq!(view_name(&model), "Plain text");
+    let ViewContent::Text(state) = &model.file_view.as_ref().unwrap().content else {
+        panic!("expected a text view");
+    };
+    assert_eq!(state.bytes(), b"hi\r\n");
+}
+
+/// A byte-order mark is not content: dropping it keeps a stray glyph off the
+/// first line.
+#[test]
+fn utf8_bom_is_stripped() {
+    let model = model_with_file("bom.txt", b"\xef\xbb\xbfhello\n");
+    let (model, _) = update(model, Message::ViewFile);
+    let ViewContent::Text(state) = &model.file_view.as_ref().unwrap().content else {
+        panic!("expected a text view");
+    };
+    assert_eq!(state.bytes(), b"hello\n");
+}
+
 /// Extension still decides among text formats.
 #[test]
 fn markdown_file_opens_in_the_markdown_view() {

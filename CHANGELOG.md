@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- Text files that are not UTF-8 no longer open as hex — a `.txt`, `.cmd` or any other text file written in a legacy Windows code page is viewed as text, and a UTF-16 file is re-encoded before it is shown; a byte-order mark is dropped instead of rendering as a stray glyph
+
 ## v0.11.0
 
 ### New features

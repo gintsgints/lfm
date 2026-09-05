@@ -883,14 +883,9 @@ fn load_file_view(model: &Model, path: PathBuf, name: String, is_dir: bool) -> F
         read_file(&path)
     };
     let state = match bytes {
-        // The registry picks by content first, so a binary file lands in the hex
-        // view whatever it is named. Nothing matching at all — a text file with
-        // an unknown extension — still gets the plain-text view.
         Ok(bytes) => {
-            let view = model
-                .view_registry
-                .find_for(&path, &bytes)
-                .unwrap_or_else(|| Arc::new(PlainTextView::new()));
+            let bytes = decode_text(bytes);
+            let view = pick_view(model, &path, &bytes);
             ViewState::from_bytes(bytes, view)
         }
         Err(reason) => ViewState::new(
@@ -903,6 +898,89 @@ fn load_file_view(model: &Model, path: PathBuf, name: String, is_dir: bool) -> F
         path,
         content: ViewContent::Text(state),
     }
+}
+
+/// The view to render `bytes` with.
+///
+/// Binary content decides for itself: it goes to whichever view claims it — the
+/// hex view, or the archive listing — whatever the file is named, so a JPEG
+/// called `photo.json` still opens instead of showing replacement characters.
+/// Everything else is text, and there the extension decides: a `.txt` or `.cmd`
+/// written on Windows is text even though its bytes are not valid UTF-8, so it
+/// must not be sniffed into the hex view. An extension no view claims — `.cmd`
+/// among them — falls back to plain text.
+fn pick_view(model: &Model, path: &Path, bytes: &[u8]) -> Arc<dyn FormatView> {
+    if is_binary(bytes)
+        && let Some(view) = model.view_registry.find_for(path, bytes)
+    {
+        return view;
+    }
+    model
+        .view_registry
+        .find(path)
+        .unwrap_or_else(|| Arc::new(PlainTextView::new()))
+}
+
+/// How much of the head of a file the binary and encoding sniffs look at.
+const SNIFF_LEN: usize = 8192;
+
+/// Percentage of control bytes above which the head of a file reads as binary.
+const MAX_CONTROL_PERCENT: usize = 10;
+
+/// Whether `bytes` are binary rather than text in some encoding.
+///
+/// A NUL byte settles it, as it does for `git`. Failing that it is the share of
+/// control bytes that separates the two: legacy single-byte encodings — a
+/// Windows-1257 `.txt`, a `.cmd` written in an OEM code page — are full of
+/// bytes above 0x7f and invalid as UTF-8, but they are text and belong in a
+/// text view. Binary formats without a NUL in their head are what the ratio
+/// catches.
+fn is_binary(bytes: &[u8]) -> bool {
+    let head = &bytes[..bytes.len().min(SNIFF_LEN)];
+    if head.is_empty() {
+        return false;
+    }
+    if head.contains(&0) {
+        return true;
+    }
+    let control = head.iter().filter(|b| is_control(**b)).count();
+    control * 100 > head.len() * MAX_CONTROL_PERCENT
+}
+
+/// Whether `b` is a control byte that text does not normally carry. Tab, the
+/// line endings, form feed and escape are excluded: plain text, DOS text and
+/// coloured log output all use them.
+fn is_control(b: u8) -> bool {
+    (b < 0x20 && !matches!(b, b'\t' | b'\n' | b'\r' | 0x0b | 0x0c | 0x1b)) || b == 0x7f
+}
+
+/// Re-encode `bytes` as UTF-8 when a byte-order mark says they are not.
+///
+/// UTF-16 is text, but every ASCII character in it carries a NUL byte, so left
+/// alone it sniffs as binary and renders as dumped pairs. A UTF-8 mark is
+/// dropped instead: it is not content, and it shows up as a stray glyph on the
+/// first line. Anything without a mark — including UTF-8 itself — is returned
+/// untouched, so no other format is disturbed.
+fn decode_text(bytes: Vec<u8>) -> Vec<u8> {
+    match bytes.as_slice() {
+        [0xef, 0xbb, 0xbf, rest @ ..] => rest.to_vec(),
+        [0xff, 0xfe, rest @ ..] => from_utf16(rest, u16::from_le_bytes).unwrap_or(bytes),
+        [0xfe, 0xff, rest @ ..] => from_utf16(rest, u16::from_be_bytes).unwrap_or(bytes),
+        _ => bytes,
+    }
+}
+
+/// Decode `bytes` as UTF-16 code units read by `unit`, or `None` when they are
+/// not valid UTF-16 after all — an odd length, or an unpaired surrogate.
+fn from_utf16(bytes: &[u8], unit: fn([u8; 2]) -> u16) -> Option<Vec<u8>> {
+    if !bytes.len().is_multiple_of(2) {
+        return None;
+    }
+    let units: Vec<u16> = bytes
+        .chunks_exact(2)
+        .map(|pair| unit([pair[0], pair[1]]))
+        .collect();
+    String::from_utf16(&units).ok().map(String::into_bytes)
 }
 
 /// Start decoding `path` as an image, or return `None` when it is not one the
