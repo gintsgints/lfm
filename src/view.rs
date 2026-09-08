@@ -52,6 +52,18 @@ pub fn view(model: &mut Model, frame: &mut Frame) {
         return;
     }
 
+    // The shell panel takes a strip off the bottom of whatever the file area
+    // would otherwise have been, so the panels above it just get shorter.
+    let (main_area, terminal_area) = if model.terminal.is_some() {
+        let rows = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(3), Constraint::Percentage(40)])
+            .split(main_area);
+        (rows[0], Some(rows[1]))
+    } else {
+        (main_area, None)
+    };
+
     if (model.transfer_mode.is_copy() || model.transfer_mode.is_move())
         && !model.rename_input.active
     {
@@ -91,6 +103,13 @@ pub fn view(model: &mut Model, frame: &mut Frame) {
         }
     } else {
         ui::file_panel::render(frame, main_area, &model.left_files, true, false, false);
+    }
+
+    if let Some(area) = terminal_area
+        && let Some(panel) = &mut model.terminal
+    {
+        let focused = panel.focused;
+        ui::terminal_panel::render(frame, area, panel, focused);
     }
 
     let hint = hint_line(model);
@@ -301,7 +320,18 @@ fn pinned_panel_hint() -> Line<'static> {
     ])
 }
 
+fn terminal_hint() -> Line<'static> {
+    Line::from(vec![
+        key(" Ctrl+O"),
+        desc(" back to files  "),
+        desc("every other key goes to the shell"),
+    ])
+}
+
 fn hint_line(model: &Model) -> Line<'static> {
+    if crate::terminal::is_focused(model) {
+        return terminal_hint();
+    }
     if model.file_view.is_some() && model.file_view_focused {
         return file_view_hint();
     }
@@ -472,6 +502,8 @@ pub(crate) fn normal_hint_spans() -> Vec<Span<'static>> {
         desc(" pins  "),
         key("v"),
         desc(" view  "),
+        key("t"),
+        desc(" shell  "),
         key("e"),
         desc(" editor  "),
         key("x"),
@@ -495,7 +527,9 @@ pub(crate) fn shifted_hint_spans() -> Vec<Span<'static>> {
         key("M"),
         desc(" move+rename  "),
         key("S"),
-        desc(" sort"),
+        desc(" sort  "),
+        key("T"),
+        desc(" close shell"),
     ]
 }
 

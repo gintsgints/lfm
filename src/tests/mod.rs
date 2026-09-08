@@ -17,6 +17,7 @@ mod path_input;
 mod pending_overwrite;
 mod search;
 mod search_panel;
+mod terminal;
 mod theme;
 mod transfer;
 mod transfer_selection;

@@ -12,6 +12,7 @@ use ratatui_image::picker::Picker;
 use tui_view::{ViewRegistry, ViewState};
 
 use crate::image_view::ImageView;
+use crate::terminal::TerminalPanel;
 
 /// State of a query popup backed by a background search engine: the content
 /// search (`ContentSearch`) and the file find (`FileFind`) differ only in what
@@ -327,6 +328,9 @@ pub struct Model {
     /// `None` until then — and in tests, where there is no terminal to query —
     /// which makes the viewer fall back to its text path for image files.
     pub picker: Option<Picker>,
+    /// The shell panel at the bottom of the screen, while one is open. It
+    /// tracks its own focus, since that only means anything while it is up.
+    pub terminal: Option<TerminalPanel>,
 }
 
 impl Model {
@@ -367,6 +371,7 @@ impl Model {
             file_view_focused: false,
             view_registry: ViewRegistry::with_defaults(),
             picker: None,
+            terminal: None,
         })
     }
 

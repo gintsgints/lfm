@@ -160,6 +160,9 @@ pub enum InputMode {
     /// Viewer panel open but not focused: only Esc is claimed (to close it),
     /// every other key falls through to the file list.
     FileViewUnfocused,
+    /// The shell panel has the keys: everything but the one key that hands them
+    /// back goes to the child process.
+    Terminal,
 }
 
 pub fn input_mode(model: &Model) -> InputMode {
@@ -178,6 +181,8 @@ pub fn input_mode(model: &Model) -> InputMode {
         InputMode::Error
     } else if model.pending_overwrite.is_some() {
         InputMode::OverwriteConfirm
+    } else if crate::terminal::is_focused(model) {
+        InputMode::Terminal
     } else if model.file_view.is_some() && model.file_view_focused {
         InputMode::FileView
     } else if model.capture_view.is_some() {
@@ -345,6 +350,15 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
         InputMode::CommandPicker | InputMode::CommandInput | InputMode::CaptureView => {
             intercept_command_mode(key, mode)
         }
+        // Everything the shell could possibly want goes to it, so only the one
+        // key that hands the focus back is claimed here.
+        InputMode::Terminal => ModeIntercept::Consumed(Some(
+            if key.code == KeyCode::Char('o') && key.modifiers.contains(KeyModifiers::CONTROL) {
+                Message::UnfocusTerminal
+            } else {
+                Message::TerminalKey(*key)
+            },
+        )),
         InputMode::FileView => ModeIntercept::Consumed(file_view_key(key)),
         // Esc closes the viewer from the file list too, except while the pinned
         // panel is up — there Esc still closes that panel first.
@@ -465,6 +479,10 @@ fn normal_key(key: &KeyEvent, active_panel: ActivePanel) -> Option<Message> {
         KeyCode::Char('u') if active_panel != ActivePanel::Pinned => Some(Message::UnzipFile),
         KeyCode::Char('e') if active_panel != ActivePanel::Pinned => Some(Message::OpenEditor),
         KeyCode::Char('v') if active_panel != ActivePanel::Pinned => Some(Message::ViewFile),
+        KeyCode::Char('t') if active_panel != ActivePanel::Pinned => Some(Message::OpenTerminal),
+        KeyCode::Char('T') if active_panel != ActivePanel::Pinned => {
+            Some(Message::Close(Surface::Terminal))
+        }
         KeyCode::Char('x') if active_panel != ActivePanel::Pinned => {
             Some(Message::OpenCommandPicker)
         }

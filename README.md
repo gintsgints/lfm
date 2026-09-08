@@ -20,6 +20,7 @@ A fast, keyboard-driven TUI file manager built in Rust, inspired by two-panel fi
 - Create files and directories with full path support (`test/a/b.txt`)
 - Delete files and directories with confirmation
 - Toggleable viewer panel (`v`) that follows the file list — syntax-aware text, inline image rendering, ZIP archive listings, and a hex view for binary files
+- Embedded shell panel (`t`) at the bottom of the window, started in the directory being browsed
 - Open items in `$EDITOR` or with the default application
 - Sort by name, date modified, extension, or size
 - Zip selected items; extract `.zip` and `.tar.gz` archives
@@ -106,6 +107,7 @@ lfm() {
 | `c` | Copy selected or current item — opens destination panel, `C` with rename before |
 | `m` | Move selected or current item — opens destination panel, `M` with rename before |
 | `v` | Toggle the viewer panel on the right (see [Viewer panel](#viewer-panel)) |
+| `t` | Open a shell panel at the bottom (see [Terminal panel](#terminal-panel)) |
 | `e` | Open selected item in `$EDITOR` |
 | `o` | Open with default application |
 | `x` | Run a preset command on the selection (see [Preset commands](#preset-commands)) |
@@ -179,6 +181,28 @@ size — read from the central directory alone, so nothing is decompressed.
 Image decoding and
 encoding happen off the UI thread, so browsing a directory of large images stays
 responsive.
+
+### Terminal panel
+
+`t` opens a shell across the bottom of the window, started in the directory the
+active panel is showing. The file panels above it get shorter — nothing is
+covered up — and the shell keeps running while you browse.
+
+| Key | Action |
+|-----|--------|
+| `t` | Open the shell panel, or give it the keys back when it is already open |
+| `Ctrl+O` | Leave the shell, back to the file list — the shell keeps running |
+| `Shift+T` | Close the shell panel and end the shell |
+
+While the shell has the keys, every key goes to it — `q`, `Esc`, `Tab` and the
+rest are the shell's, not lfm's. `Ctrl+O` is the one exception, and it is the way
+back out. Exiting the shell itself (`exit`, `Ctrl+D`) closes the panel.
+
+Whichever way the panel closes, both file panels are reloaded, so anything the
+shell created or deleted shows up straight away.
+
+The shell is `$SHELL` (`%COMSPEC%` on Windows), run on a real pty, so
+full-screen programs — `vim`, `htop`, `less` — work inside the panel.
 
 ### Content search and file find
 

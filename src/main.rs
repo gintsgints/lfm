@@ -26,6 +26,7 @@ mod model;
 mod presets;
 mod search;
 mod state;
+mod terminal;
 #[cfg(test)]
 mod tests;
 mod theme;
@@ -205,6 +206,9 @@ fn run(
         // Pick up whatever the open image's worker has decoded or re-encoded.
         let got_image = image_view::drain(&mut model);
 
+        // Pick up whatever the shell has written since the last frame.
+        let got_shell = terminal::drain(&mut model);
+
         // Start pre-warming the directory being browsed once it settles. Not
         // while a panel is open — replacing the index under an open panel would
         // strand the query it is waiting on — and not during a transfer, whose
@@ -224,9 +228,13 @@ fn run(
         // it owes an answer instead of blocking on the keyboard.
         let image_pending = image_view::pending(&model);
 
-        let timeout = if got_progress || got_results || got_image {
+        // An open shell writes whenever it likes, so the loop must come back for
+        // its output rather than sit on the keyboard.
+        let shell_pending = terminal::pending(&model);
+
+        let timeout = if got_progress || got_results || got_image || got_shell {
             Some(Duration::ZERO)
-        } else if progress_rx.is_some() || search_pending || image_pending {
+        } else if progress_rx.is_some() || search_pending || image_pending || shell_pending {
             Some(POLL_INTERVAL)
         } else {
             index.debounce_remaining()
@@ -260,63 +268,85 @@ fn run(
             index.stale |= msg.mutates_filesystem();
             let (next_model, effect) = update(model, msg);
             model = next_model;
-            match effect {
-                Effect::Quit => {
-                    let _ = state::save(&model.to_persisted());
-                    return Ok(model.left_files.current_dir.clone());
-                }
-                Effect::OpenEditor(path) => open_in_editor(&mut terminal, &path),
-                Effect::OpenDefault(path) => open_with_default_app(&path),
-                Effect::StartCopy(sources, dst) => {
-                    let (tx, rx) = mpsc::channel();
-                    progress_rx = Some(rx);
-                    std::thread::spawn(move || transfer::run_copy(&sources, &dst, &tx));
-                }
-                Effect::StartMove(sources, dst) => {
-                    let (tx, rx) = mpsc::channel();
-                    progress_rx = Some(rx);
-                    std::thread::spawn(move || transfer::run_move(&sources, &dst, &tx));
-                }
-                Effect::StartCopyRename(src, dst) => {
-                    let (tx, rx) = mpsc::channel();
-                    progress_rx = Some(rx);
-                    std::thread::spawn(move || transfer::run_copy_rename(&src, &dst, &tx));
-                }
-                Effect::StartMoveRename(src, dst) => {
-                    let (tx, rx) = mpsc::channel();
-                    progress_rx = Some(rx);
-                    std::thread::spawn(move || transfer::run_move_rename(&src, &dst, &tx));
-                }
-                Effect::StartDelete(sources) => {
-                    let (tx, rx) = mpsc::channel();
-                    progress_rx = Some(rx);
-                    std::thread::spawn(move || transfer::run_delete(&sources, &tx));
-                }
-                Effect::PrepareContentSearch { root } => {
-                    sync_indexing(model.content_search.as_mut(), index.of(root));
-                }
-                Effect::StartContentSearch { root, query, mask } => {
-                    let engine = index.of(root);
-                    engine.search(Kind::Content, query, mask);
-                    sync_indexing(model.content_search.as_mut(), engine);
-                }
-                Effect::RunCommand { spec } => {
-                    // The command may write anywhere, so assume it did.
-                    index.stale = true;
-                    model = run_preset_command(&mut terminal, model, spec);
-                }
-                Effect::PrepareFileFind { root } => {
-                    sync_indexing(model.file_find.as_mut(), index.of(root));
-                }
-                Effect::StartFileFind { root, query, mask } => {
-                    let engine = index.of(root);
-                    engine.search(Kind::Files, query, mask);
-                    sync_indexing(model.file_find.as_mut(), engine);
-                }
-                Effect::None => {}
+            if matches!(effect, Effect::Quit) {
+                let _ = state::save(&model.to_persisted());
+                return Ok(model.left_files.current_dir.clone());
             }
+            model = apply_effect(effect, model, &mut terminal, &mut progress_rx, &mut index);
         }
     }
+}
+
+/// Carry out the side effect `update` asked for. [`Effect::Quit`] is the one the
+/// caller keeps, since only it knows how to leave the loop.
+fn apply_effect(
+    effect: Effect,
+    mut model: Model,
+    term: &mut DefaultTerminal,
+    progress_rx: &mut Option<mpsc::Receiver<transfer::ProgressMsg>>,
+    index: &mut Index,
+) -> Model {
+    match effect {
+        Effect::OpenEditor(path) => open_in_editor(term, &path),
+        Effect::OpenDefault(path) => open_with_default_app(&path),
+        Effect::StartCopy(sources, dst) => {
+            let (tx, rx) = mpsc::channel();
+            *progress_rx = Some(rx);
+            std::thread::spawn(move || transfer::run_copy(&sources, &dst, &tx));
+        }
+        Effect::StartMove(sources, dst) => {
+            let (tx, rx) = mpsc::channel();
+            *progress_rx = Some(rx);
+            std::thread::spawn(move || transfer::run_move(&sources, &dst, &tx));
+        }
+        Effect::StartCopyRename(src, dst) => {
+            let (tx, rx) = mpsc::channel();
+            *progress_rx = Some(rx);
+            std::thread::spawn(move || transfer::run_copy_rename(&src, &dst, &tx));
+        }
+        Effect::StartMoveRename(src, dst) => {
+            let (tx, rx) = mpsc::channel();
+            *progress_rx = Some(rx);
+            std::thread::spawn(move || transfer::run_move_rename(&src, &dst, &tx));
+        }
+        Effect::StartDelete(sources) => {
+            let (tx, rx) = mpsc::channel();
+            *progress_rx = Some(rx);
+            std::thread::spawn(move || transfer::run_delete(&sources, &tx));
+        }
+        Effect::PrepareContentSearch { root } => {
+            sync_indexing(model.content_search.as_mut(), index.of(root));
+        }
+        Effect::StartContentSearch { root, query, mask } => {
+            let engine = index.of(root);
+            engine.search(Kind::Content, query, mask);
+            sync_indexing(model.content_search.as_mut(), engine);
+        }
+        Effect::RunCommand { spec } => {
+            // The command may write anywhere, so assume it did.
+            index.stale = true;
+            model = run_preset_command(term, model, spec);
+        }
+        Effect::PrepareFileFind { root } => {
+            sync_indexing(model.file_find.as_mut(), index.of(root));
+        }
+        Effect::StartFileFind { root, query, mask } => {
+            let engine = index.of(root);
+            engine.search(Kind::Files, query, mask);
+            sync_indexing(model.file_find.as_mut(), engine);
+        }
+        Effect::OpenTerminal { cwd } => match terminal::open(&cwd) {
+            Ok(panel) => model.terminal = Some(panel),
+            Err(e) => model.error_message = Some(e),
+        },
+        Effect::TerminalInput(key) => {
+            if let Some(panel) = model.terminal.as_mut() {
+                panel.send_key(key);
+            }
+        }
+        Effect::Quit | Effect::None => {}
+    }
+    model
 }
 
 fn drain_progress(

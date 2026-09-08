@@ -24,3 +24,10 @@ globset = "0.4"
 tui-view = { git = "https://github.com/gintsgints/tui-view.git", features = ["languages", "zip"] }
 ratatui-image = { version = "11.0.6", default-features = false, features = ["crossterm", "image-defaults"] }
 image = "0.25"
+# The embedded terminal panel: `tui-term` draws a vt100 screen as a ratatui
+# widget, `vt100` is the parser feeding it, and `portable-pty` opens the pty the
+# shell runs on. The `vt100` version must stay in step with `tui-term`'s, since
+# the widget takes its `Screen` type directly.
+tui-term = "0.3.4"
+vt100 = "0.16.2"
+portable-pty = "0.9"

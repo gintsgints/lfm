@@ -1,3 +1,5 @@
+use ratatui::crossterm::event::KeyEvent;
+
 /// Which of the two search popups a message is for. They share a layout, a
 /// key map and a handler; only the kind of result they collect differs.
 #[cfg_attr(feature = "debug", derive(Debug))]
@@ -22,6 +24,8 @@ pub enum Surface {
     CommandPicker,
     Capture,
     FileView,
+    /// The shell panel at the bottom of the screen.
+    Terminal,
 }
 
 /// A move within a surface, independent of which surface receives it. A
@@ -142,6 +146,14 @@ pub enum Message {
     CommandPickerShortcut(char),
     CommandInputConfirm,
     ViewFile,
+    /// Open the shell panel over the active panel's directory, or — when one is
+    /// already open — hand it the keys.
+    OpenTerminal,
+    /// Hand the keys back from the shell panel to the file list, leaving the
+    /// shell running.
+    UnfocusTerminal,
+    /// A keystroke destined for the open shell rather than for lfm.
+    TerminalKey(KeyEvent),
     #[cfg(feature = "debug")]
     ToggleDebug,
 }
@@ -153,7 +165,9 @@ impl Message {
     pub fn mutates_filesystem(self) -> bool {
         matches!(
             self,
-            Self::NewPathConfirm | Self::ZipFiles | Self::UnzipFile
+            // What a shell keystroke does is unknowable from here, so every one
+            // of them counts as a write.
+            Self::NewPathConfirm | Self::ZipFiles | Self::UnzipFile | Self::TerminalKey(_)
         )
     }
 }

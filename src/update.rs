@@ -2,6 +2,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use ratatui::crossterm::event::KeyEvent;
 use tui_view::{FormatView, ViewState, plugins::plaintext::PlainTextView, plugins::zip::ZipView};
 
 #[cfg(feature = "debug")]
@@ -13,6 +14,7 @@ use crate::model::{
     PendingOverwrite, ResultPanel, TransferMode, TransferOp, TransferProgress, ViewContent,
 };
 use crate::presets::{self, ExecSpec, OutputMode};
+use crate::terminal;
 use crate::ui::{capture_view, file_panel, help_panel, input_box, pinned_panel};
 
 pub enum Effect {
@@ -50,6 +52,12 @@ pub enum Effect {
     RunCommand {
         spec: RunSpec,
     },
+    /// Start a shell in `cwd` for the terminal panel.
+    OpenTerminal {
+        cwd: PathBuf,
+    },
+    /// Write one keystroke to the open shell.
+    TerminalInput(KeyEvent),
 }
 
 pub struct RunSpec {
@@ -168,6 +176,22 @@ fn update_message(mut model: Model, msg: Message) -> (Model, Effect) {
         Message::Close(Surface::FileView) | Message::Nav(Surface::FileView, _) => {
             update_file_view(model, msg)
         }
+        Message::OpenTerminal => update_open_terminal(model),
+        Message::UnfocusTerminal => {
+            if let Some(panel) = &mut model.terminal {
+                panel.focused = false;
+            }
+            (model, Effect::None)
+        }
+        Message::Close(Surface::Terminal) => {
+            if model.terminal.is_some() {
+                terminal::close(&mut model);
+            }
+            (model, Effect::None)
+        }
+        // The shell owns the keystroke; writing it to the pty is a side effect,
+        // so it goes out as one rather than happening here.
+        Message::TerminalKey(key) => (model, Effect::TerminalInput(key)),
         msg => {
             let (mut m, err) = dispatch_to_panel(model, msg);
             if let Some(e) = err {
@@ -1063,6 +1087,20 @@ fn update_file_view(mut model: Model, msg: Message) -> (Model, Effect) {
         _ => {}
     }
     (model, Effect::None)
+}
+
+/// `t`: open the shell panel, or — when one is already down there — give it the
+/// keys back rather than starting a second shell.
+fn update_open_terminal(mut model: Model) -> (Model, Effect) {
+    if model.active_panel == ActivePanel::Pinned {
+        return (model, Effect::None);
+    }
+    if let Some(panel) = &mut model.terminal {
+        panel.focused = true;
+        return (model, Effect::None);
+    }
+    let cwd = model.active_dir().to_path_buf();
+    (model, Effect::OpenTerminal { cwd })
 }
 
 fn update_open_command_picker(mut model: Model) -> (Model, Effect) {

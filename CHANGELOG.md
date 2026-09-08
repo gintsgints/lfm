@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### New features
+
+- **Terminal panel** — `t` opens a shell on a real pty across the bottom of the window, started in the directory being browsed; `Ctrl+O` hands the keys back to the file list without stopping it, `Shift+T` closes it, and both file panels reload when it goes
+
 ### Fixes
 
 - Text files that are not UTF-8 no longer open as hex — a `.txt`, `.cmd` or any other text file written in a legacy Windows code page is viewed as text, and a UTF-16 file is re-encoded before it is shown; a byte-order mark is dropped instead of rendering as a stray glyph
