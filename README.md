@@ -1,3 +1,9 @@
+![Build](https://github.com/gintsgints/lfm/actions/workflows/rust.yml/badge.svg)
+![License](https://img.shields.io/github/license/gintsgints/lfm)
+![Version](https://img.shields.io/github/v/release/gintsgints/lfm)
+[![Built With Ratatui](https://img.shields.io/badge/Built_With_Ratatui-000?logo=ratatui&logoColor=fff)](https://ratatui.rs/)
+![Stars](https://img.shields.io/github/stars/gintsgints/lfm)
+
 # lfm — Lazy File Manager
 
 A fast, keyboard-driven TUI file manager built in Rust, inspired by two-panel file managers like Midnight Commander.
