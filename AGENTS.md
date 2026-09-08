@@ -33,6 +33,11 @@ Entry point: `src/main.rs`
   ```
 - Each functional change must end with its own git commit. Do not bundle unrelated changes into a single commit.
 
+## Helper code
+
+- Helper code — scripts, tooling, one-off utilities, generators — must be written in **JavaScript (Node)** or **bash**. No Python or other languages.
+- The application itself stays Rust; this rule applies only to code around the crate.
+
 ## Requirements
 
 - **Nerd Font required** — icons render as placeholder boxes without it
