@@ -9,8 +9,8 @@ use tui_view::ViewRegistry;
 
 use crate::image_view::{self, ImageView};
 use crate::keys::{input_mode, to_message};
-use crate::message::{Message, NavOp, Surface};
-use crate::model::{Model, ViewContent};
+use crate::message::{Message, NavOp, SearchKind, Surface};
+use crate::model::{Model, ViewContent, ViewerFocus};
 use crate::state::PersistedState;
 use crate::ui::file_panel;
 use crate::update::update;
@@ -223,7 +223,7 @@ fn view_key_toggles_the_panel() {
     let view = model.file_view.as_ref().expect("viewer should be open");
     assert_eq!(view.name, "a.txt");
     assert!(
-        !model.file_view_focused,
+        !model.file_view_focus.has_keys(),
         "focus stays on the file list when the viewer opens"
     );
 
@@ -239,10 +239,10 @@ fn tab_moves_focus_between_file_list_and_viewer() {
     let (model, _) = update(model, Message::ViewFile);
 
     let (model, _) = update(model, Message::NextPanel);
-    assert!(model.file_view_focused);
+    assert!(model.file_view_focus.has_keys());
 
     let (model, _) = update(model, Message::NextPanel);
-    assert!(!model.file_view_focused);
+    assert!(!model.file_view_focus.has_keys());
 }
 
 /// Moving the cursor in the file list reloads the viewer for the new file.
@@ -354,7 +354,7 @@ fn scrolling_an_image_leaves_it_open() {
 fn esc_from_the_file_list_closes_the_viewer() {
     let model = model_with_two_files();
     let (model, _) = update(model, Message::ViewFile);
-    assert!(!model.file_view_focused, "viewer opens unfocused");
+    assert!(!model.file_view_focus.has_keys(), "viewer opens unfocused");
 
     let msg = key_message(&model, KeyCode::Esc).expect("Esc should close the viewer");
     assert!(matches!(msg, Message::Close(Surface::FileView)));
@@ -372,6 +372,71 @@ fn other_keys_still_reach_the_file_list_with_the_viewer_open() {
     assert!(matches!(msg, Message::Nav(Surface::Panel, NavOp::Down)));
 }
 
+/// `f` in the focused viewer grows it to the whole file area, and `f` again
+/// puts it back on its half.
+#[test]
+fn f_toggles_fullscreen_in_the_focused_viewer() {
+    let model = model_with_two_files();
+    let (model, _) = update(model, Message::ViewFile);
+    let (model, _) = update(model, Message::NextPanel);
+    assert!(model.file_view_focus.has_keys());
+
+    let msg = key_message(&model, KeyCode::Char('f')).expect("f should toggle fullscreen");
+    assert!(matches!(msg, Message::ToggleFileViewFullscreen));
+    let (model, _) = update(model, msg);
+    assert_eq!(model.file_view_focus, ViewerFocus::Fullscreen);
+
+    let (model, _) = update(model, Message::ToggleFileViewFullscreen);
+    assert_eq!(model.file_view_focus, ViewerFocus::Viewer);
+}
+
+/// With the file list focused, `f` still opens the fuzzy finder: the viewer
+/// only claims the key while it holds the keys itself.
+#[test]
+fn f_still_finds_files_while_the_file_list_has_the_focus() {
+    let model = model_with_two_files();
+    let (model, _) = update(model, Message::ViewFile);
+    assert!(!model.file_view_focus.has_keys());
+
+    let msg = key_message(&model, KeyCode::Char('f')).expect("f should open the finder");
+    assert!(matches!(msg, Message::SearchOpen(SearchKind::Files)));
+
+    let (model, _) = update(model, Message::ToggleFileViewFullscreen);
+    assert_eq!(
+        model.file_view_focus,
+        ViewerFocus::FileList,
+        "fullscreen needs the viewer to hold the keys"
+    );
+}
+
+/// Tab hands the keys back to the file list, which a fullscreen viewer hides —
+/// so it also drops the viewer back to its half.
+#[test]
+fn tab_out_of_a_fullscreen_viewer_restores_the_file_list() {
+    let model = model_with_two_files();
+    let (model, _) = update(model, Message::ViewFile);
+    let (model, _) = update(model, Message::NextPanel);
+    let (model, _) = update(model, Message::ToggleFileViewFullscreen);
+    assert_eq!(model.file_view_focus, ViewerFocus::Fullscreen);
+
+    let (model, _) = update(model, Message::NextPanel);
+    assert_eq!(model.file_view_focus, ViewerFocus::FileList);
+}
+
+/// Closing a fullscreen viewer leaves nothing behind: reopening it starts back
+/// on its half of the screen.
+#[test]
+fn closing_a_fullscreen_viewer_clears_fullscreen() {
+    let model = model_with_two_files();
+    let (model, _) = update(model, Message::ViewFile);
+    let (model, _) = update(model, Message::NextPanel);
+    let (model, _) = update(model, Message::ToggleFileViewFullscreen);
+
+    let (model, _) = update(model, Message::Close(Surface::FileView));
+    assert!(model.file_view.is_none());
+    assert_eq!(model.file_view_focus, ViewerFocus::FileList);
+}
+
 /// Closing the viewer also drops its focus, so the file list keeps the keys.
 #[test]
 fn closing_the_viewer_returns_focus_to_the_file_list() {
@@ -380,5 +445,5 @@ fn closing_the_viewer_returns_focus_to_the_file_list() {
     let (model, _) = update(model, Message::NextPanel);
     let (model, _) = update(model, Message::Close(Surface::FileView));
     assert!(model.file_view.is_none());
-    assert!(!model.file_view_focused);
+    assert!(!model.file_view_focus.has_keys());
 }

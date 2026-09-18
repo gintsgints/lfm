@@ -4,6 +4,7 @@
 
 ### New features
 
+- **Fullscreen viewer** — `f` in the focused viewer panel grows it to the whole file area, and `f` again puts it back on its half; `Tab` back to the file list restores it too
 - **Terminal panel** — `t` opens a shell on a real pty across the bottom of the window, started in the directory being browsed; `Ctrl+O` hands the keys back to the file list without stopping it, `Shift+T` closes it, and both file panels reload when it goes
 
 ### Fixes

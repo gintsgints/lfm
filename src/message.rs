@@ -146,6 +146,9 @@ pub enum Message {
     CommandPickerShortcut(char),
     CommandInputConfirm,
     ViewFile,
+    /// Grow the open viewer panel to the whole file area, or shrink it back to
+    /// its half. Only reaches `update` while the viewer holds the focus.
+    ToggleFileViewFullscreen,
     /// Open the shell panel over the active panel's directory, or — when one is
     /// already open — hand it the keys.
     OpenTerminal,

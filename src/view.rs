@@ -7,6 +7,7 @@ use ratatui::{
 };
 
 use crate::model::{ActivePanel, Model};
+
 use crate::theme;
 use crate::ui;
 
@@ -88,6 +89,12 @@ pub fn view(model: &mut Model, frame: &mut Frame) {
             model.transfer_mode.is_copy(),
             model.transfer_mode.is_move(),
         );
+    } else if model.file_view.is_some() && model.file_view_focus.is_fullscreen() {
+        // Fullscreen: the viewer takes the whole file area and the file list is
+        // not drawn at all. Only reachable while the viewer holds the focus.
+        if let Some(fv) = &mut model.file_view {
+            ui::file_view::render(frame, main_area, fv, true);
+        }
     } else if model.file_view.is_some() {
         // The viewer takes the right half and mirrors whatever the file list
         // has highlighted.
@@ -95,7 +102,7 @@ pub fn view(model: &mut Model, frame: &mut Frame) {
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(main_area);
-        let focused = model.file_view_focused;
+        let focused = model.file_view_focus.has_keys();
 
         ui::file_panel::render(frame, panels[0], &model.left_files, !focused, false, false);
         if let Some(fv) = &mut model.file_view {
@@ -288,12 +295,18 @@ fn active_panel_hints(model: &Model) -> Option<Line<'static>> {
     }
 }
 
-fn file_view_hint() -> Line<'static> {
+fn file_view_hint(fullscreen: bool) -> Line<'static> {
     Line::from(vec![
         key(" ↑/↓ j/k"),
         desc(" scroll  "),
         key("PgUp/PgDn"),
         desc(" page  "),
+        key("f"),
+        if fullscreen {
+            desc(" leave fullscreen  ")
+        } else {
+            desc(" fullscreen  ")
+        },
         key("Tab"),
         desc(" file list  "),
         key("v"),
@@ -332,8 +345,8 @@ fn hint_line(model: &Model) -> Line<'static> {
     if crate::terminal::is_focused(model) {
         return terminal_hint();
     }
-    if model.file_view.is_some() && model.file_view_focused {
-        return file_view_hint();
+    if model.file_view.is_some() && model.file_view_focus.has_keys() {
+        return file_view_hint(model.file_view_focus.is_fullscreen());
     }
     if model.capture_view.is_some() {
         return Line::from(vec![

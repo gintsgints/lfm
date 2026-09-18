@@ -164,10 +164,15 @@ lfm() {
 | `j` / `↓` | Scroll down |
 | `k` / `↑` | Scroll up |
 | `PgUp` / `PgDn` | Page up / down |
+| `f` | Toggle fullscreen — the viewer takes the whole file area |
 | `Esc` / `Enter` / `q` / `v` | Close the viewer |
 
 `Esc` also closes the viewer while the file list holds the focus (except in the
 pinned panel, where `Esc` closes that panel first).
+
+`f` only works while the viewer holds the focus. A fullscreen viewer hides the
+file list, so `Tab` — which hands the keys back to it — drops the viewer back to
+its half of the screen.
 
 While the viewer is open it follows the file-list cursor. Text files render through
 [tui-view](https://github.com/gintsgints/tui-view), images render inline with

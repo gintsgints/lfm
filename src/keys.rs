@@ -183,7 +183,7 @@ pub fn input_mode(model: &Model) -> InputMode {
         InputMode::OverwriteConfirm
     } else if crate::terminal::is_focused(model) {
         InputMode::Terminal
-    } else if model.file_view.is_some() && model.file_view_focused {
+    } else if model.file_view.is_some() && model.file_view_focus.has_keys() {
         InputMode::FileView
     } else if model.capture_view.is_some() {
         InputMode::CaptureView
@@ -372,11 +372,13 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
 }
 
 /// Key handling for the viewer panel while it holds the focus. Tab hands the
-/// focus back to the file list; `v`, `q` and Esc close the panel.
+/// focus back to the file list; `f` grows the panel to the whole file area;
+/// `v`, `q` and Esc close the panel.
 fn file_view_key(key: &KeyEvent) -> Option<Message> {
     match key.code {
         KeyCode::Tab => Some(Message::NextPanel),
         KeyCode::BackTab => Some(Message::PrevPanel),
+        KeyCode::Char('f' | 'F') => Some(Message::ToggleFileViewFullscreen),
         KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q' | 'v') => {
             Some(Message::Close(Surface::FileView))
         }

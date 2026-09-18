@@ -12,6 +12,7 @@ use crate::message::{EditOp, Field, Message, NavOp, SearchKind, Surface};
 use crate::model::{
     ActivePanel, CommandPicker, FileView, InputField, Located, Model, PendingKind,
     PendingOverwrite, ResultPanel, TransferMode, TransferOp, TransferProgress, ViewContent,
+    ViewerFocus,
 };
 use crate::presets::{self, ExecSpec, OutputMode};
 use crate::terminal;
@@ -86,7 +87,13 @@ fn update_message(mut model: Model, msg: Message) -> (Model, Effect) {
             // While the viewer panel occupies the right half, Tab moves between
             // the file list and the viewer instead of between the two lists.
             if model.file_view.is_some() && model.transfer_mode == TransferMode::None {
-                model.file_view_focused = !model.file_view_focused;
+                // A fullscreen viewer hides the file list, so handing the keys
+                // back to it also hands back its half of the screen.
+                model.file_view_focus = if model.file_view_focus.has_keys() {
+                    ViewerFocus::FileList
+                } else {
+                    ViewerFocus::Viewer
+                };
             } else if matches!(msg, Message::NextPanel) {
                 model.active_panel = model.active_panel.next();
             } else {
@@ -173,6 +180,18 @@ fn update_message(mut model: Model, msg: Message) -> (Model, Effect) {
             update_capture_view(model, msg)
         }
         Message::ViewFile => update_view_file(model),
+        Message::ToggleFileViewFullscreen => {
+            // Ignored unless the viewer has the keys: growing it over the file
+            // list that is still answering them would leave that list invisible.
+            if model.file_view.is_some() {
+                model.file_view_focus = match model.file_view_focus {
+                    ViewerFocus::Viewer => ViewerFocus::Fullscreen,
+                    ViewerFocus::Fullscreen => ViewerFocus::Viewer,
+                    ViewerFocus::FileList => ViewerFocus::FileList,
+                };
+            }
+            (model, Effect::None)
+        }
         Message::Close(Surface::FileView) | Message::Nav(Surface::FileView, _) => {
             update_file_view(model, msg)
         }
@@ -1033,7 +1052,7 @@ fn update_view_file(mut model: Model) -> (Model, Effect) {
 
 fn close_file_view(model: &mut Model) {
     model.file_view = None;
-    model.file_view_focused = false;
+    model.file_view_focus = ViewerFocus::FileList;
 }
 
 /// Reload the open viewer when the file list has moved to a different entry.

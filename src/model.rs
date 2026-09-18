@@ -267,6 +267,32 @@ impl ViewContent {
     }
 }
 
+/// Where the keys go while the viewer panel is open, and how much of the file
+/// area it takes. One value rather than two flags because fullscreen implies
+/// the viewer has the keys: the file list it hides must never be the one
+/// answering them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ViewerFocus {
+    /// Keys go to the file list; the viewer shows the highlighted file on the
+    /// right half.
+    FileList,
+    /// Keys go to the viewer, which still sits on the right half.
+    Viewer,
+    /// Keys go to the viewer, which takes the whole file area.
+    Fullscreen,
+}
+
+impl ViewerFocus {
+    /// Whether the viewer — rather than the file list — has the keys.
+    pub fn has_keys(self) -> bool {
+        matches!(self, Self::Viewer | Self::Fullscreen)
+    }
+
+    pub fn is_fullscreen(self) -> bool {
+        matches!(self, Self::Fullscreen)
+    }
+}
+
 /// Contents of a file, displayed in the viewer panel on the right.
 ///
 /// `path` is the entry the contents were read from; it is what tells the viewer
@@ -319,9 +345,9 @@ pub struct Model {
     pub command_picker: Option<CommandPicker>,
     pub capture_view: Option<CaptureView>,
     pub file_view: Option<FileView>,
-    /// Whether keys go to the viewer panel rather than the file list. Only
-    /// meaningful while `file_view` is open; Tab flips it.
-    pub file_view_focused: bool,
+    /// Who has the keys while the viewer is up, and how big it is. Only
+    /// meaningful while `file_view` is open; Tab moves the keys, `f` the size.
+    pub file_view_focus: ViewerFocus,
     /// Per-format views the file viewer picks from, by file extension.
     pub view_registry: ViewRegistry,
     /// Terminal graphics capabilities and font size, queried once at startup.
@@ -368,7 +394,7 @@ impl Model {
             command_picker: None,
             capture_view: None,
             file_view: None,
-            file_view_focused: false,
+            file_view_focus: ViewerFocus::FileList,
             view_registry: ViewRegistry::with_defaults(),
             picker: None,
             terminal: None,
