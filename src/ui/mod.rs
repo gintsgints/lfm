@@ -12,4 +12,5 @@ pub mod pinned_panel;
 pub mod progress_bar;
 pub mod query_row;
 pub mod search_box;
+pub mod target_bar;
 pub mod terminal_panel;

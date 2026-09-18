@@ -68,27 +68,7 @@ pub fn view(model: &mut Model, frame: &mut Frame) {
     if (model.transfer_mode.is_copy() || model.transfer_mode.is_move())
         && !model.rename_input.active
     {
-        let panels = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-            .split(main_area);
-
-        ui::file_panel::render(
-            frame,
-            panels[0],
-            &model.left_files,
-            model.active_panel == ActivePanel::LeftFiles,
-            false,
-            false,
-        );
-        ui::file_panel::render(
-            frame,
-            panels[1],
-            &model.right_files,
-            model.active_panel == ActivePanel::RightFiles,
-            model.transfer_mode.is_copy(),
-            model.transfer_mode.is_move(),
-        );
+        render_transfer_panels(model, frame, main_area);
     } else if model.file_view.is_some() && model.file_view_focus.is_fullscreen() {
         // Fullscreen: the viewer takes the whole file area and the file list is
         // not drawn at all. Only reachable while the viewer holds the focus.
@@ -128,6 +108,48 @@ pub fn view(model: &mut Model, frame: &mut Frame) {
     }
 
     render_overlays(model, frame, area);
+}
+
+/// Source panel on the left, destination picker on the right. The destination
+/// gives up its top rows to a bar spelling out the folder the transfer will
+/// land in, which the panel title can only show cut short.
+fn render_transfer_panels(model: &Model, frame: &mut Frame, area: ratatui::layout::Rect) {
+    let panels = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(area);
+
+    ui::file_panel::render(
+        frame,
+        panels[0],
+        &model.left_files,
+        model.active_panel == ActivePanel::LeftFiles,
+        false,
+        false,
+    );
+
+    let right = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(ui::target_bar::HEIGHT),
+            Constraint::Min(0),
+        ])
+        .split(panels[1]);
+
+    ui::target_bar::render(
+        frame,
+        right[0],
+        model.transfer_mode,
+        &model.right_files.current_dir,
+    );
+    ui::file_panel::render(
+        frame,
+        right[1],
+        &model.right_files,
+        model.active_panel == ActivePanel::RightFiles,
+        model.transfer_mode.is_copy(),
+        model.transfer_mode.is_move(),
+    );
 }
 
 fn render_overlays(model: &mut Model, frame: &mut Frame, area: ratatui::layout::Rect) {

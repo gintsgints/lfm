@@ -139,6 +139,9 @@ lfm() {
 
 ### Copy mode
 
+A bar above the destination panel spells out the target path the transfer will
+land in; a path too long for the panel keeps its tail.
+
 | Key | Action |
 |-----|--------|
 | `c` | Start copy — right panel opens at current directory |
@@ -147,6 +150,8 @@ lfm() {
 | `Esc` | Cancel copy |
 
 ### Move mode
+
+The destination panel carries the same target-path bar as copy mode.
 
 | Key | Action |
 |-----|--------|
