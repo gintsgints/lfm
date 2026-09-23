@@ -2,10 +2,44 @@
 name = "lfm"
 version = "0.11.0"
 edition = "2024"
+# Let-chains, used throughout, are stable from 1.88 in edition 2024.
+rust-version = "1.88"
 license = "GPL-3.0-or-later"
+description = "Keyboard-driven TUI file manager with a file viewer, shell panel and content search"
+repository = "https://github.com/gintsgints/lfm"
+homepage = "https://github.com/gintsgints/lfm"
+documentation = "https://github.com/gintsgints/lfm#readme"
+readme = "README.md"
+keywords = ["tui", "file-manager", "ratatui", "terminal", "cli"]
+categories = ["command-line-utilities", "filesystem"]
+# Everything the binary does not need to build, kept out of the published crate.
+exclude = [
+    "/.github",
+    "/.claude",
+    "/docs",
+    "/assets",
+    "/AGENTS.md",
+    "/CLAUDE.md",
+    "/REFACTOR.md",
+]
 
 [features]
 debug = []
+
+# Release binaries are for distribution, so they carry no debug symbols.
+[profile.release]
+strip = true
+
+# Where `cargo binstall lfm` looks for a prebuilt binary: the archives the
+# release workflow attaches, named by version and target triple.
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/lfm-{ version }-{ target }{ archive-suffix }"
+# Archives are flat: the binary sits at the root next to README and LICENSE.
+bin-dir = "{ bin }{ binary-ext }"
+pkg-fmt = "tgz"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-fmt = "zip"
 
 [dependencies]
 ratatui = "0.30.2"

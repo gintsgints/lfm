@@ -6,23 +6,30 @@ on:
 
 jobs:
   build:
-    name: Build (${{ matrix.artifact }})
+    name: Build (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
+          # Native x86_64 Linux, glibc — the usual desktop build.
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact: lfm-linux-x86_64
-            binary: lfm
+          # Statically linked against musl, so the one tarball runs on any
+          # distribution whatever its glibc.
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          # Native arm64 Linux runner, so nothing is cross-compiled.
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
           - os: macos-latest
             target: aarch64-apple-darwin
-            artifact: lfm-macos-aarch64
-            binary: lfm
+          # Apple's toolchain builds both architectures, so the arm runner
+          # covers Intel Macs too.
+          - os: macos-latest
+            target: x86_64-apple-darwin
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact: lfm-windows-x86_64.exe
-            binary: lfm.exe
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -31,14 +38,39 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
-      - run: cargo build --release --target ${{ matrix.target }}
-      - name: Rename binary
+      # The musl target needs its own C toolchain: the bundled Tree-sitter
+      # grammars are C, and the `cc` crate reaches for `musl-gcc` to build them.
+      - name: Install musl toolchain
+        if: endsWith(matrix.target, '-musl')
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y musl-tools
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+      # One archive per target, named by version and target triple so a
+      # formula, manifest or `cargo binstall` can work the URL out from the
+      # release tag alone. The binary sits at the archive root.
+      - name: Package
+        id: package
         shell: bash
-        run: mv target/${{ matrix.target }}/release/${{ matrix.binary }} ${{ matrix.artifact }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          stem="lfm-${version}-${{ matrix.target }}"
+          staging="$(mktemp -d)"
+          cp README.md LICENSE CHANGELOG.md "$staging/"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp "target/${{ matrix.target }}/release/lfm.exe" "$staging/"
+            archive="${stem}.zip"
+            (cd "$staging" && 7z a -tzip "$archive" lfm.exe README.md LICENSE CHANGELOG.md) >/dev/null
+            mv "$staging/$archive" .
+          else
+            cp "target/${{ matrix.target }}/release/lfm" "$staging/"
+            archive="${stem}.tar.gz"
+            tar czf "$archive" -C "$staging" lfm README.md LICENSE CHANGELOG.md
+          fi
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}
+          name: ${{ steps.package.outputs.archive }}
+          path: ${{ steps.package.outputs.archive }}
 
   release:
     needs: build
@@ -49,10 +81,14 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           merge-multiple: true
+      # One checksum file over every archive: what Homebrew, winget, Scoop and
+      # AUR all need to pin the download they are about to install.
+      - name: Checksums
+        run: sha256sum lfm-* | tee checksums.txt
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           files: |
-            lfm-linux-x86_64
-            lfm-macos-aarch64
-            lfm-windows-x86_64.exe
+            lfm-*.tar.gz
+            lfm-*.zip
+            checksums.txt

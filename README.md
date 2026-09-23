@@ -54,10 +54,45 @@ lfm uses [Nerd Font](https://www.nerdfonts.com/) icons in the file list. Your te
 
 ## Installation
 
+### Prebuilt binaries
+
+Every tagged release attaches an archive per platform, plus a `checksums.txt`
+covering all of them:
+
+| Platform | Archive |
+|----------|---------|
+| Linux x86_64 (glibc) | `lfm-<version>-x86_64-unknown-linux-gnu.tar.gz` |
+| Linux x86_64 (static, any distro) | `lfm-<version>-x86_64-unknown-linux-musl.tar.gz` |
+| Linux arm64 | `lfm-<version>-aarch64-unknown-linux-gnu.tar.gz` |
+| macOS Apple silicon | `lfm-<version>-aarch64-apple-darwin.tar.gz` |
+| macOS Intel | `lfm-<version>-x86_64-apple-darwin.tar.gz` |
+| Windows x86_64 | `lfm-<version>-x86_64-pc-windows-msvc.zip` |
+
+```bash
+version=0.11.0
+target=x86_64-unknown-linux-gnu
+base="https://github.com/gintsgints/lfm/releases/download/v$version"
+curl -LO "$base/lfm-$version-$target.tar.gz"
+curl -LO "$base/checksums.txt"
+sha256sum --ignore-missing -c checksums.txt
+tar xzf "lfm-$version-$target.tar.gz"
+install -m755 lfm ~/.local/bin/lfm   # or anywhere on your $PATH
+```
+
+### From source
+
+```bash
+cargo install --git https://github.com/gintsgints/lfm --locked
+```
+
+or build the checkout directly:
+
 ```bash
 cargo build --release
 # copy target/release/lfm somewhere on your $PATH
 ```
+
+Building needs Rust 1.88 or newer.
 
 ## Shell integration (cd on exit)
 
