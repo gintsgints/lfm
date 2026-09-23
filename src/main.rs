@@ -34,6 +34,7 @@ mod transfer;
 mod ui;
 mod update;
 mod view;
+mod view_search;
 
 use engine::{EngineMsg, Kind, SearchEngine};
 use keys::{

@@ -317,12 +317,32 @@ fn active_panel_hints(model: &Model) -> Option<Line<'static>> {
     }
 }
 
-fn file_view_hint(fullscreen: bool) -> Line<'static> {
-    Line::from(vec![
+fn file_view_hint(view: &crate::model::FileView, fullscreen: bool) -> Line<'static> {
+    if view.search.input.active {
+        return Line::from(vec![
+            key(" Enter"),
+            desc(" find  "),
+            key("Esc"),
+            desc(" cancel search"),
+        ]);
+    }
+    let mut spans = vec![
         key(" ↑/↓ j/k"),
         desc(" scroll  "),
         key("PgUp/PgDn"),
         desc(" page  "),
+        key("/"),
+        desc(" search  "),
+    ];
+    if !view.search.query.is_empty() {
+        spans.extend([
+            key("n"),
+            desc(" / "),
+            key("Shift+N"),
+            desc(" next/prev match  "),
+        ]);
+    }
+    spans.extend([
         key("f"),
         if fullscreen {
             desc(" leave fullscreen  ")
@@ -335,7 +355,8 @@ fn file_view_hint(fullscreen: bool) -> Line<'static> {
         desc(" / "),
         key("Esc"),
         desc(" close viewer"),
-    ])
+    ]);
+    Line::from(spans)
 }
 
 fn pinned_panel_hint() -> Line<'static> {
@@ -367,8 +388,10 @@ fn hint_line(model: &Model) -> Line<'static> {
     if crate::terminal::is_focused(model) {
         return terminal_hint();
     }
-    if model.file_view.is_some() && model.file_view_focus.has_keys() {
-        return file_view_hint(model.file_view_focus.is_fullscreen());
+    if let Some(view) = &model.file_view
+        && model.file_view_focus.has_keys()
+    {
+        return file_view_hint(view, model.file_view_focus.is_fullscreen());
     }
     if model.capture_view.is_some() {
         return Line::from(vec![

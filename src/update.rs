@@ -17,6 +17,7 @@ use crate::model::{
 use crate::presets::{self, ExecSpec, OutputMode};
 use crate::terminal;
 use crate::ui::{capture_view, file_panel, help_panel, input_box, pinned_panel};
+use crate::view_search;
 
 pub enum Effect {
     None,
@@ -195,6 +196,12 @@ fn update_message(mut model: Model, msg: Message) -> (Model, Effect) {
         Message::Close(Surface::FileView) | Message::Nav(Surface::FileView, _) => {
             update_file_view(model, msg)
         }
+        Message::Open(Field::ViewSearch)
+        | Message::Cancel(Field::ViewSearch)
+        | Message::Edit(Field::ViewSearch, _)
+        | Message::ViewSearchConfirm
+        | Message::ViewSearchNext
+        | Message::ViewSearchPrev => update_view_search(model, msg),
         Message::OpenTerminal => update_open_terminal(model),
         Message::UnfocusTerminal => {
             if let Some(panel) = &mut model.terminal {
@@ -914,11 +921,7 @@ fn view_target(model: &Model) -> Option<(PathBuf, String, bool)> {
 /// a problem at all: the registry hands it to the hex view.
 fn load_file_view(model: &Model, path: PathBuf, name: String, is_dir: bool) -> FileView {
     if !is_dir && let Some(content) = load_image_view(model, &path) {
-        return FileView {
-            name,
-            path,
-            content,
-        };
+        return FileView::new(name, path, content);
     }
     let bytes = if is_dir {
         Err("directory".to_owned())
@@ -936,11 +939,7 @@ fn load_file_view(model: &Model, path: PathBuf, name: String, is_dir: bool) -> F
             Arc::new(PlainTextView::new()) as Arc<dyn FormatView>,
         ),
     };
-    FileView {
-        name,
-        path,
-        content: ViewContent::Text(state),
-    }
+    FileView::new(name, path, ViewContent::Text(state))
 }
 
 /// The view to render `bytes` with.
@@ -1106,6 +1105,71 @@ fn update_file_view(mut model: Model, msg: Message) -> (Model, Effect) {
         _ => {}
     }
     (model, Effect::None)
+}
+
+/// The viewer's `/` search: opening the query row, editing it, running it, and
+/// stepping through what it found.
+fn update_view_search(mut model: Model, msg: Message) -> (Model, Effect) {
+    let Some(view) = &mut model.file_view else {
+        return (model, Effect::None);
+    };
+    match msg {
+        // An image has no text to look through, so `/` does nothing there.
+        Message::Open(_) => {
+            if matches!(view.content, ViewContent::Text(_)) {
+                view.search.open();
+            }
+        }
+        Message::Edit(_, op) => input_box::apply(&mut view.search.input, op),
+        Message::Cancel(_) => view.search.clear(),
+        Message::ViewSearchConfirm => confirm_view_search(view),
+        Message::ViewSearchNext | Message::ViewSearchPrev => {
+            if matches!(msg, Message::ViewSearchNext) {
+                view.search.select_next();
+            } else {
+                view.search.select_prev();
+            }
+            scroll_to_match(view);
+        }
+        _ => {}
+    }
+    (model, Effect::None)
+}
+
+/// Run what was typed: find every match at the panel's current width and go to
+/// the first one at or after where the viewer is scrolled to, so confirming a
+/// query reads on from where the user is rather than from the top of the file.
+fn confirm_view_search(view: &mut FileView) {
+    let query = view.search.input.text.clone();
+    view.search.input.close();
+    if query.is_empty() {
+        view.search.clear();
+        return;
+    }
+    view.search.query = query;
+    let width = view.viewport_width;
+    view_search::recompute(&mut view.search, &view.content, width);
+    let scroll = match &view.content {
+        ViewContent::Text(state) => state.scroll(),
+        ViewContent::Image(_) => 0,
+    };
+    view.search.select_from_row(scroll);
+    scroll_to_match(view);
+}
+
+/// Scroll the current match onto the screen, leaving the view where it is when
+/// the match is already on it. `scroll_to_top` then `scroll_down` is the only
+/// absolute scroll [`ViewState`] offers.
+fn scroll_to_match(view: &mut FileView) {
+    let height = view.viewport_height as usize;
+    let ViewContent::Text(state) = &mut view.content else {
+        return;
+    };
+    let Some(target) = view.search.scroll_target(state.scroll(), height) else {
+        return;
+    };
+    state.scroll_to_top();
+    state.scroll_down(target);
 }
 
 /// `t`: open the shell panel, or — when one is already down there — give it the

@@ -62,6 +62,8 @@ pub enum Field {
     /// A search popup's query row, which holds both the query and the file
     /// mask; the panel tracks which of the two has the cursor.
     SearchQuery(SearchKind),
+    /// The `/` query row at the bottom of the viewer panel.
+    ViewSearch,
 }
 
 /// One editing keystroke, independent of which field receives it.
@@ -149,6 +151,13 @@ pub enum Message {
     /// Grow the open viewer panel to the whole file area, or shrink it back to
     /// its half. Only reaches `update` while the viewer holds the focus.
     ToggleFileViewFullscreen,
+    /// Run what was typed in the viewer's `/` row, and go to the first match at
+    /// or after where the viewer is scrolled to.
+    ViewSearchConfirm,
+    /// Go to the next match of the viewer's standing query, wrapping at the end.
+    ViewSearchNext,
+    /// Go to the previous match, wrapping at the start.
+    ViewSearchPrev,
     /// Open the shell panel over the active panel's directory, or — when one is
     /// already open — hand it the keys.
     OpenTerminal,

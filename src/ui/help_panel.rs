@@ -34,6 +34,8 @@ const KEYBINDINGS: &[(&str, &str)] = &[
     ("v", "Toggle viewer panel (follows the file list)"),
     ("Tab (viewer open)", "Switch between file list and viewer"),
     ("f (in viewer)", "Toggle fullscreen viewer"),
+    ("/ (in viewer)", "Search the viewed text"),
+    ("n / Shift+N (in viewer)", "Next / previous match"),
     ("Esc (viewer open)", "Close viewer panel"),
     ("e", "Open selected item in $EDITOR"),
     ("o", "Open with default application"),

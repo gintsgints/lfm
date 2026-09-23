@@ -157,6 +157,9 @@ pub enum InputMode {
     CommandInput,
     CaptureView,
     FileView,
+    /// The viewer's `/` query row has the keys: everything typed lands in it
+    /// rather than scrolling the file.
+    FileViewSearch,
     /// Viewer panel open but not focused: only Esc is claimed (to close it),
     /// every other key falls through to the file list.
     FileViewUnfocused,
@@ -183,8 +186,14 @@ pub fn input_mode(model: &Model) -> InputMode {
         InputMode::OverwriteConfirm
     } else if crate::terminal::is_focused(model) {
         InputMode::Terminal
-    } else if model.file_view.is_some() && model.file_view_focus.has_keys() {
-        InputMode::FileView
+    } else if let Some(fv) = &model.file_view
+        && model.file_view_focus.has_keys()
+    {
+        if fv.search.input.active {
+            InputMode::FileViewSearch
+        } else {
+            InputMode::FileView
+        }
     } else if model.capture_view.is_some() {
         InputMode::CaptureView
     } else if let Some(cp) = &model.command_picker {
@@ -360,6 +369,11 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
             },
         )),
         InputMode::FileView => ModeIntercept::Consumed(file_view_key(key)),
+        InputMode::FileViewSearch => ModeIntercept::Consumed(match key.code {
+            KeyCode::Esc => Some(Message::Cancel(Field::ViewSearch)),
+            KeyCode::Enter => Some(Message::ViewSearchConfirm),
+            _ => edit_key(key, Field::ViewSearch),
+        }),
         // Esc closes the viewer from the file list too, except while the pinned
         // panel is up — there Esc still closes that panel first.
         InputMode::FileViewUnfocused => match key.code {
@@ -373,12 +387,16 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
 
 /// Key handling for the viewer panel while it holds the focus. Tab hands the
 /// focus back to the file list; `f` grows the panel to the whole file area;
-/// `v`, `q` and Esc close the panel.
+/// `/` searches the text and `n`/`N` step through what it found; `v`, `q` and
+/// Esc close the panel.
 fn file_view_key(key: &KeyEvent) -> Option<Message> {
     match key.code {
         KeyCode::Tab => Some(Message::NextPanel),
         KeyCode::BackTab => Some(Message::PrevPanel),
         KeyCode::Char('f' | 'F') => Some(Message::ToggleFileViewFullscreen),
+        KeyCode::Char('/') => Some(Message::Open(Field::ViewSearch)),
+        KeyCode::Char('n') => Some(Message::ViewSearchNext),
+        KeyCode::Char('N') => Some(Message::ViewSearchPrev),
         KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q' | 'v') => {
             Some(Message::Close(Surface::FileView))
         }

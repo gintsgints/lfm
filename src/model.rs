@@ -13,6 +13,7 @@ use tui_view::{ViewRegistry, ViewState};
 
 use crate::image_view::ImageView;
 use crate::terminal::TerminalPanel;
+use crate::view_search::ViewSearch;
 
 /// State of a query popup backed by a background search engine: the content
 /// search (`ContentSearch`) and the file find (`FileFind`) differ only in what
@@ -301,6 +302,26 @@ pub struct FileView {
     pub name: String,
     pub path: PathBuf,
     pub content: ViewContent,
+    /// The `/` text search over the rendered contents.
+    pub search: ViewSearch,
+    /// Body size of the last render. Both are 0 until the panel has been drawn
+    /// once; the search needs the width to place its matches, and the height to
+    /// tell whether one is already on screen.
+    pub viewport_width: u16,
+    pub viewport_height: u16,
+}
+
+impl FileView {
+    pub fn new(name: String, path: PathBuf, content: ViewContent) -> Self {
+        Self {
+            name,
+            path,
+            content,
+            search: ViewSearch::new(),
+            viewport_width: 0,
+            viewport_height: 0,
+        }
+    }
 }
 
 /// Output of a `capture`-mode preset, displayed on its own full screen.

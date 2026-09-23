@@ -170,10 +170,19 @@ The destination panel carries the same target-path bar as copy mode.
 | `k` / `↑` | Scroll up |
 | `PgUp` / `PgDn` | Page up / down |
 | `f` | Toggle fullscreen — the viewer takes the whole file area |
+| `/` | Search the viewed text — `Enter` runs the query, `Esc` cancels it |
+| `n` / `Shift+N` | Go to the next / previous match |
 | `Esc` / `Enter` / `q` / `v` | Close the viewer |
 
 `Esc` also closes the viewer while the file list holds the focus (except in the
 pinned panel, where `Esc` closes that panel first).
+
+`/` searches what the viewer draws, not the raw bytes, so a match in a Markdown,
+hex or archive listing lands on the row it is actually shown on. Matching is
+literal and case-insensitive. The panel gives up its bottom row to the query and
+a `3/12` match counter, every match on screen is marked, and the current one is
+highlighted; `n` and `Shift+N` wrap around the ends. The search belongs to the
+file being viewed — moving the file list to another file drops it.
 
 `f` only works while the viewer holds the focus. A fullscreen viewer hides the
 file list, so `Tab` — which hands the keys back to it — drops the viewer back to
