@@ -65,3 +65,9 @@ image = "0.25"
 tui-term = "0.3.4"
 vt100 = "0.16.2"
 portable-pty = "0.9"
+# Mouse selection: reading text off the drawn screen has to skip the padding
+# cells after a wide character, and the copied text reaches the clipboard over
+# OSC 52. Both crates are already in the tree through ratatui; `osc52` only
+# turns on crossterm's clipboard command.
+unicode-width = "0.2"
+crossterm = { version = "0.29", features = ["osc52"] }
