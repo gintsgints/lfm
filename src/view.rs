@@ -95,14 +95,21 @@ fn draw(model: &mut Model, frame: &mut Frame) {
             .split(main_area);
         let focused = model.file_view_focus.has_keys();
 
-        ui::file_panel::render(frame, panels[0], &model.left_files, !focused, false, false);
+        ui::file_panel::render(
+            frame,
+            panels[0],
+            &mut model.left_files,
+            !focused,
+            false,
+            false,
+        );
         model.mouse.register(panels[0]);
         if let Some(fv) = &mut model.file_view {
             ui::file_view::render(frame, panels[1], fv, focused);
             model.mouse.register(panels[1]);
         }
     } else {
-        ui::file_panel::render(frame, main_area, &model.left_files, true, false, false);
+        ui::file_panel::render(frame, main_area, &mut model.left_files, true, false, false);
         model.mouse.register(main_area);
     }
 
@@ -137,7 +144,7 @@ fn render_transfer_panels(model: &mut Model, frame: &mut Frame, area: ratatui::l
     ui::file_panel::render(
         frame,
         panels[0],
-        &model.left_files,
+        &mut model.left_files,
         model.active_panel == ActivePanel::LeftFiles,
         false,
         false,
@@ -162,7 +169,7 @@ fn render_transfer_panels(model: &mut Model, frame: &mut Frame, area: ratatui::l
     ui::file_panel::render(
         frame,
         right[1],
-        &model.right_files,
+        &mut model.right_files,
         model.active_panel == ActivePanel::RightFiles,
         model.transfer_mode.is_copy(),
         model.transfer_mode.is_move(),
@@ -227,11 +234,11 @@ fn render_overlays(model: &mut Model, frame: &mut Frame, area: ratatui::layout::
         popups.push(ui::progress_bar::render(frame, area, progress));
     }
 
-    if let Some(cs) = &model.content_search {
+    if let Some(cs) = &mut model.content_search {
         popups.push(ui::content_search_panel::render(frame, area, cs));
     }
 
-    if let Some(ff) = &model.file_find {
+    if let Some(ff) = &mut model.file_find {
         popups.push(ui::file_find_panel::render(frame, area, ff));
     }
 

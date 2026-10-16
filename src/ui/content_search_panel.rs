@@ -10,7 +10,7 @@ use crate::model::ContentSearch;
 use crate::theme;
 use crate::ui::query_row;
 
-pub fn render(frame: &mut Frame, area: Rect, state: &ContentSearch) -> Rect {
+pub fn render(frame: &mut Frame, area: Rect, state: &mut ContentSearch) -> Rect {
     let popup = centered_rect(90, 80, area);
 
     let match_label = if state.indexing {
@@ -80,7 +80,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &ContentSearch) -> Rect {
     popup
 }
 
-fn render_results(frame: &mut Frame, area: Rect, state: &ContentSearch) {
+fn render_results(frame: &mut Frame, area: Rect, state: &mut ContentSearch) {
     let items: Vec<ListItem> = state
         .results
         .iter()
@@ -102,12 +102,13 @@ fn render_results(frame: &mut Frame, area: Rect, state: &ContentSearch) {
             .add_modifier(Modifier::BOLD),
     );
 
-    let mut list_state = ListState::default();
+    let mut list_state = ListState::default().with_offset(state.scroll_offset);
     if !state.results.is_empty() && !state.input_focused {
         list_state.select(Some(state.selection));
     }
 
     frame.render_stateful_widget(list, area, &mut list_state);
+    state.scroll_offset = list_state.offset();
 }
 
 fn centered_rect(width_percent: u16, height_percent: u16, area: Rect) -> Rect {

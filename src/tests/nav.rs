@@ -87,3 +87,35 @@ fn the_pinned_list_moves_but_does_not_mark() {
     let model = pinned_panel::update(model, Message::Nav(Surface::Panel, NavOp::MarkUp));
     assert_eq!(model.selection, 1);
 }
+
+/// Moving back up a scrolled listing keeps the view where it was until the
+/// cursor reaches the top edge, instead of pinning the cursor to the bottom.
+#[test]
+fn scrolling_back_up_keeps_the_view_until_the_top_edge() {
+    use ratatui::{Terminal, backend::TestBackend};
+
+    let dir = temp_dir();
+    for n in 0..100 {
+        fs::write(dir.join(format!("f{n:03}")), b"").unwrap();
+    }
+    let mut model = file_panel::Model::init(dir).unwrap();
+    let mut terminal = Terminal::new(TestBackend::new(80, 30)).unwrap();
+    let mut draw = |model: &mut file_panel::Model| {
+        terminal
+            .draw(|frame| file_panel::render(frame, frame.area(), model, true, false, false))
+            .unwrap();
+    };
+
+    model.selection = 60;
+    draw(&mut model);
+    let offset = model.scroll_offset;
+    assert!(offset > 0 && offset <= 60);
+
+    model.selection = 59;
+    draw(&mut model);
+    assert_eq!(model.scroll_offset, offset);
+
+    model.selection = offset - 1;
+    draw(&mut model);
+    assert_eq!(model.scroll_offset, offset - 1);
+}

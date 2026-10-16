@@ -204,3 +204,43 @@ fn cancelling_closes_the_popup() {
         assert!(focus_and_selection(&model, kind).is_none());
     }
 }
+
+/// Moving back up a scrolled result list keeps the view where it was until the
+/// cursor reaches the top edge, instead of pinning the cursor to the bottom.
+#[test]
+fn scrolling_back_up_keeps_the_view_until_the_top_edge() {
+    use ratatui::{Terminal, backend::TestBackend};
+
+    use crate::model::FileFind;
+    use crate::ui::file_find_panel;
+
+    let mut panel = FileFind::new(PathBuf::from("/"));
+    panel.input_focused = false;
+    panel.results = (0..100)
+        .map(|n| FileFindResult {
+            path: PathBuf::from(format!("/f{n}")),
+            rel_path: PathBuf::from(format!("f{n}")),
+        })
+        .collect();
+    let mut terminal = Terminal::new(TestBackend::new(80, 30)).unwrap();
+    let mut draw = |panel: &mut FileFind| {
+        terminal
+            .draw(|frame| {
+                file_find_panel::render(frame, frame.area(), panel);
+            })
+            .unwrap();
+    };
+
+    panel.selection = 60;
+    draw(&mut panel);
+    let offset = panel.scroll_offset;
+    assert!(offset > 0 && offset <= 60);
+
+    panel.selection = 59;
+    draw(&mut panel);
+    assert_eq!(panel.scroll_offset, offset);
+
+    panel.selection = offset - 1;
+    draw(&mut panel);
+    assert_eq!(panel.scroll_offset, offset - 1);
+}

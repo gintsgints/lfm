@@ -644,6 +644,7 @@ fn edit_query_panel<T>(
     }
     panel.results.clear();
     panel.selection = 0;
+    panel.scroll_offset = 0;
     panel.done = panel.query.text.is_empty();
     (!panel.query.text.is_empty()).then(|| {
         (

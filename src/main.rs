@@ -591,6 +591,7 @@ fn apply<T>(panel: &mut Option<ResultPanel<T>>, batch: u64, current: u64, result
     };
     panel.results = results;
     panel.selection = 0;
+    panel.scroll_offset = 0;
     panel.done = true;
     true
 }

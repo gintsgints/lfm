@@ -70,6 +70,9 @@ pub struct Model {
     pub entries: Vec<Entry>,
     pub selection: usize,
     pub selected: BTreeSet<usize>,
+    /// First row shown, kept between frames so moving the cursor back up
+    /// scrolls only once it reaches the top edge.
+    pub scroll_offset: usize,
     pub search: input_box::Model,
     pub new_path_input: input_box::Model,
     pub goto_input: input_box::Model,
@@ -92,6 +95,7 @@ impl Model {
             entries,
             selection: 0,
             selected: BTreeSet::new(),
+            scroll_offset: 0,
             search: input_box::Model::new(),
             new_path_input: input_box::Model::new(),
             goto_input: input_box::Model::new(),
@@ -117,6 +121,7 @@ impl Model {
             self.current_dir = path;
             self.entries = entries;
             self.selection = 0;
+            self.scroll_offset = 0;
             self.selected.clear();
             self.search.close();
             self.new_path_input.close();
@@ -188,6 +193,7 @@ impl Model {
         if self.dirs_only != dirs_only {
             self.dirs_only = dirs_only;
             self.selection = 0;
+            self.scroll_offset = 0;
             self.selected.clear();
         }
     }
@@ -284,6 +290,7 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Option<String>) {
             model.sort_order = model.sort_order.next();
             sort_entries(&mut model.entries, model.sort_order);
             model.selection = 0;
+            model.scroll_offset = 0;
             model.selected.clear();
         }
         Message::ZipFiles | Message::UnzipFile => {
@@ -490,7 +497,7 @@ fn update_archive(mut model: Model, msg: Message) -> (Model, Option<String>) {
 pub fn render(
     frame: &mut Frame,
     area: Rect,
-    model: &Model,
+    model: &mut Model,
     active: bool,
     is_copy_target: bool,
     is_move_target: bool,
@@ -573,12 +580,13 @@ pub fn render(
             .add_modifier(Modifier::BOLD),
     );
 
-    let mut state = ListState::default();
+    let mut state = ListState::default().with_offset(model.scroll_offset);
     if active {
         state.select(Some(model.selection));
     }
 
     frame.render_stateful_widget(list, area, &mut state);
+    model.scroll_offset = state.offset();
 }
 
 fn read_entries(path: &Path) -> io::Result<Vec<Entry>> {

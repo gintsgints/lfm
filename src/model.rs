@@ -27,6 +27,9 @@ pub struct ResultPanel<T> {
     pub mask: input_box::Model,
     pub results: Vec<T>,
     pub selection: usize,
+    /// First result row shown, kept between frames so moving the selection
+    /// back up scrolls only once it reaches the top edge.
+    pub scroll_offset: usize,
     pub done: bool,
     /// The index for `root` is still being built; a query typed now runs as
     /// soon as it is ready.
@@ -57,6 +60,7 @@ impl<T> ResultPanel<T> {
             mask,
             results: Vec::new(),
             selection: 0,
+            scroll_offset: 0,
             done: true,
             indexing: false,
             input_focused: true,
