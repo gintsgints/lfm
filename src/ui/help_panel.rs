@@ -72,6 +72,7 @@ const KEYBINDINGS: &[(&str, &str)] = &[
     ("Other", ""),
     ("?", "Show this help"),
     ("q", "Quit"),
+    ("Mouse drag", "Select text in one panel, copy on release"),
 ];
 
 /// A line is selectable (can hold the highlight cursor) when it carries a key
@@ -97,7 +98,7 @@ pub fn prev_selectable(current: usize) -> usize {
         .unwrap_or(current)
 }
 
-pub fn render(frame: &mut Frame, area: Rect, selection: usize) {
+pub fn render(frame: &mut Frame, area: Rect, selection: usize) -> Rect {
     let popup_area = centered_rect(60, 80, area);
 
     let block = Block::default()
@@ -140,6 +141,7 @@ pub fn render(frame: &mut Frame, area: Rect, selection: usize) {
 
     frame.render_widget(Clear, popup_area);
     frame.render_stateful_widget(list, popup_area, &mut state);
+    popup_area
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {

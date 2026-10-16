@@ -10,7 +10,7 @@ use crate::model::FileFind;
 use crate::theme;
 use crate::ui::query_row;
 
-pub fn render(frame: &mut Frame, area: Rect, state: &FileFind) {
+pub fn render(frame: &mut Frame, area: Rect, state: &FileFind) -> Rect {
     let popup = centered_rect(90, 80, area);
 
     let match_label = if state.indexing {
@@ -77,6 +77,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &FileFind) {
     );
 
     render_results(frame, chunks[2], state);
+    popup
 }
 
 fn render_results(frame: &mut Frame, area: Rect, state: &FileFind) {

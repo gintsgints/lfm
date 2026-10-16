@@ -12,6 +12,14 @@ use crate::theme;
 use crate::ui;
 
 pub fn view(model: &mut Model, frame: &mut Frame) {
+    model.mouse.begin_frame();
+    draw(model, frame);
+    // Last, so the selection is read from — and drawn over — the finished
+    // screen, popups included.
+    model.mouse.paint(frame.buffer_mut());
+}
+
+fn draw(model: &mut Model, frame: &mut Frame) {
     let area = frame.area();
 
     #[cfg(feature = "debug")]
@@ -45,10 +53,12 @@ pub fn view(model: &mut Model, frame: &mut Frame) {
         let hint = hint_line(model);
         if let Some(cv) = &mut model.capture_view {
             ui::capture_view::render(frame, main_area, cv);
+            model.mouse.register(main_area);
         }
         frame.render_widget(Paragraph::new(hint), hint_area);
         if let Some(msg) = &model.error_message {
-            ui::error_box::render(frame, area, msg);
+            let popup = ui::error_box::render(frame, area, msg);
+            model.mouse.register(popup);
         }
         return;
     }
@@ -74,6 +84,7 @@ pub fn view(model: &mut Model, frame: &mut Frame) {
         // not drawn at all. Only reachable while the viewer holds the focus.
         if let Some(fv) = &mut model.file_view {
             ui::file_view::render(frame, main_area, fv, true);
+            model.mouse.register(main_area);
         }
     } else if model.file_view.is_some() {
         // The viewer takes the right half and mirrors whatever the file list
@@ -85,11 +96,14 @@ pub fn view(model: &mut Model, frame: &mut Frame) {
         let focused = model.file_view_focus.has_keys();
 
         ui::file_panel::render(frame, panels[0], &model.left_files, !focused, false, false);
+        model.mouse.register(panels[0]);
         if let Some(fv) = &mut model.file_view {
             ui::file_view::render(frame, panels[1], fv, focused);
+            model.mouse.register(panels[1]);
         }
     } else {
         ui::file_panel::render(frame, main_area, &model.left_files, true, false, false);
+        model.mouse.register(main_area);
     }
 
     if let Some(area) = terminal_area
@@ -97,6 +111,7 @@ pub fn view(model: &mut Model, frame: &mut Frame) {
     {
         let focused = panel.focused;
         ui::terminal_panel::render(frame, area, panel, focused);
+        model.mouse.register(area);
     }
 
     let hint = hint_line(model);
@@ -113,7 +128,7 @@ pub fn view(model: &mut Model, frame: &mut Frame) {
 /// Source panel on the left, destination picker on the right. The destination
 /// gives up its top rows to a bar spelling out the folder the transfer will
 /// land in, which the panel title can only show cut short.
-fn render_transfer_panels(model: &Model, frame: &mut Frame, area: ratatui::layout::Rect) {
+fn render_transfer_panels(model: &mut Model, frame: &mut Frame, area: ratatui::layout::Rect) {
     let panels = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
@@ -127,6 +142,7 @@ fn render_transfer_panels(model: &Model, frame: &mut Frame, area: ratatui::layou
         false,
         false,
     );
+    model.mouse.register(panels[0]);
 
     let right = Layout::default()
         .direction(Direction::Vertical)
@@ -142,6 +158,7 @@ fn render_transfer_panels(model: &Model, frame: &mut Frame, area: ratatui::layou
         model.transfer_mode,
         &model.right_files.current_dir,
     );
+    model.mouse.register(right[0]);
     ui::file_panel::render(
         frame,
         right[1],
@@ -150,11 +167,13 @@ fn render_transfer_panels(model: &Model, frame: &mut Frame, area: ratatui::layou
         model.transfer_mode.is_copy(),
         model.transfer_mode.is_move(),
     );
+    model.mouse.register(right[1]);
 }
 
 fn render_overlays(model: &mut Model, frame: &mut Frame, area: ratatui::layout::Rect) {
+    let mut popups = Vec::new();
     if model.active_panel == ActivePanel::Pinned {
-        ui::pinned_panel::render(frame, area, &model.pinned_panel);
+        popups.push(ui::pinned_panel::render(frame, area, &model.pinned_panel));
     }
 
     let active_input = match model.active_panel {
@@ -165,7 +184,12 @@ fn render_overlays(model: &mut Model, frame: &mut Frame, area: ratatui::layout::
     if let Some(input) = active_input
         && input.active
     {
-        ui::input_box::render(frame, area, input, "New path (end with / for directory)");
+        popups.push(ui::input_box::render(
+            frame,
+            area,
+            input,
+            "New path (end with / for directory)",
+        ));
     }
 
     let active_goto = match model.active_panel {
@@ -176,7 +200,7 @@ fn render_overlays(model: &mut Model, frame: &mut Frame, area: ratatui::layout::
     if let Some(input) = active_goto
         && input.active
     {
-        ui::input_box::render(frame, area, input, "Go to path");
+        popups.push(ui::input_box::render(frame, area, input, "Go to path"));
     }
 
     if model.rename_input.active {
@@ -187,35 +211,44 @@ fn render_overlays(model: &mut Model, frame: &mut Frame, area: ratatui::layout::
         } else {
             "Rename"
         };
-        ui::input_box::render(frame, area, &model.rename_input, title);
+        popups.push(ui::input_box::render(
+            frame,
+            area,
+            &model.rename_input,
+            title,
+        ));
     }
 
     if model.show_help {
-        ui::help_panel::render(frame, area, model.help_selection);
+        popups.push(ui::help_panel::render(frame, area, model.help_selection));
     }
 
     if let Some(progress) = &model.progress {
-        ui::progress_bar::render(frame, area, progress);
+        popups.push(ui::progress_bar::render(frame, area, progress));
     }
 
     if let Some(cs) = &model.content_search {
-        ui::content_search_panel::render(frame, area, cs);
+        popups.push(ui::content_search_panel::render(frame, area, cs));
     }
 
     if let Some(ff) = &model.file_find {
-        ui::file_find_panel::render(frame, area, ff);
+        popups.push(ui::file_find_panel::render(frame, area, ff));
     }
 
     if let Some(cp) = &model.command_picker {
-        ui::command_picker::render(frame, area, cp);
+        popups.push(ui::command_picker::render(frame, area, cp));
     }
 
     if let Some(pending) = &model.pending_overwrite {
-        ui::confirm_box::render(frame, area, &overwrite_message(&pending.conflicts));
+        popups.push(ui::confirm_box::render(
+            frame,
+            area,
+            &overwrite_message(&pending.conflicts),
+        ));
     }
 
     if let Some(msg) = &model.error_message {
-        ui::error_box::render(frame, area, msg);
+        popups.push(ui::error_box::render(frame, area, msg));
     }
 
     let active_file_panel = match model.active_panel {
@@ -232,7 +265,11 @@ fn render_overlays(model: &mut Model, frame: &mut Frame, area: ratatui::layout::
         } else {
             format!("Delete {count} items?")
         };
-        ui::confirm_box::render(frame, area, &msg);
+        popups.push(ui::confirm_box::render(frame, area, &msg));
+    }
+
+    for popup in popups {
+        model.mouse.register(popup);
     }
 }
 

@@ -300,6 +300,15 @@ results do not blank out while you are still typing one.
 | `?` | Show keybinding help |
 | `q` | Quit and cd to active directory |
 
+### Mouse
+
+Dragging with the left button selects text inside the panel the drag started
+in — it never spills into the panel beside it. On release the text is copied to
+the system clipboard over OSC 52 (supported by iTerm2, kitty, WezTerm, Ghostty,
+Alacritty, foot and others; in tmux set `set -g set-clipboard on`). Hold Shift
+(Option in some macOS terminals) to use the terminal's own screen-wide
+selection instead. The wheel scrolls like `↑` / `↓`.
+
 ## Preset commands
 
 Press `x` in a file panel to open the **preset picker** — a list of user-defined commands loaded from `~/.config/lfm/commands.json`. On first run, lfm writes a starter file with a few examples.

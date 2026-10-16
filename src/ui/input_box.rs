@@ -130,7 +130,7 @@ pub fn apply(field: &mut Model, op: EditOp) {
     }
 }
 
-pub fn render(frame: &mut Frame, area: Rect, model: &Model, label: &str) {
+pub fn render(frame: &mut Frame, area: Rect, model: &Model, label: &str) -> Rect {
     let popup_area = centered_rect(60, area);
 
     let block = Block::default()
@@ -148,6 +148,7 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model, label: &str) {
 
     frame.render_widget(Clear, popup_area);
     frame.render_widget(Paragraph::new(content).block(block), popup_area);
+    popup_area
 }
 
 fn centered_rect(width_percent: u16, area: Rect) -> Rect {

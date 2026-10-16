@@ -44,7 +44,7 @@ pub fn update(mut model: Model, msg: Message) -> Model {
     model
 }
 
-pub fn render(frame: &mut Frame, area: Rect, model: &Model) {
+pub fn render(frame: &mut Frame, area: Rect, model: &Model) -> Rect {
     let popup_area = centered_rect(50, 60, area);
 
     let block = Block::default()
@@ -80,6 +80,7 @@ pub fn render(frame: &mut Frame, area: Rect, model: &Model) {
 
     frame.render_widget(Clear, popup_area);
     frame.render_stateful_widget(list, popup_area, &mut state);
+    popup_area
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {

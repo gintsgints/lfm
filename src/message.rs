@@ -1,4 +1,4 @@
-use ratatui::crossterm::event::KeyEvent;
+use ratatui::{crossterm::event::KeyEvent, layout::Position};
 
 /// Which of the two search popups a message is for. They share a layout, a
 /// key map and a handler; only the kind of result they collect differs.
@@ -166,6 +166,12 @@ pub enum Message {
     UnfocusTerminal,
     /// A keystroke destined for the open shell rather than for lfm.
     TerminalKey(KeyEvent),
+    /// The left mouse button went down: start selecting in the panel under it.
+    MousePress(Position),
+    /// The pointer moved with the left button held.
+    MouseDrag(Position),
+    /// The left button came up: the selection is copied.
+    MouseRelease(Position),
     #[cfg(feature = "debug")]
     ToggleDebug,
 }

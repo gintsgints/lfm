@@ -10,7 +10,7 @@ use crate::model::CommandPicker;
 use crate::theme;
 use crate::ui::input_box;
 
-pub fn render(frame: &mut Frame, area: Rect, picker: &CommandPicker) {
+pub fn render(frame: &mut Frame, area: Rect, picker: &CommandPicker) -> Rect {
     let popup_area = centered_rect(70, 70, area);
 
     let title = if picker.input.is_some() {
@@ -58,6 +58,7 @@ pub fn render(frame: &mut Frame, area: Rect, picker: &CommandPicker) {
     } else {
         render_list(frame, inner, picker);
     }
+    popup_area
 }
 
 fn render_list(frame: &mut Frame, area: Rect, picker: &CommandPicker) {

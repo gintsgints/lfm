@@ -124,6 +124,18 @@ fn update_message(mut model: Model, msg: Message) -> (Model, Effect) {
             model.shift_held = held;
             (model, Effect::None)
         }
+        Message::MousePress(at) => {
+            model.mouse.press(at);
+            (model, Effect::None)
+        }
+        Message::MouseDrag(at) => {
+            model.mouse.drag(at);
+            (model, Effect::None)
+        }
+        Message::MouseRelease(at) => {
+            model.mouse.release(at);
+            (model, Effect::None)
+        }
         #[cfg(feature = "debug")]
         Message::ToggleDebug => {
             model.show_debug = !model.show_debug;

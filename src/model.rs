@@ -12,6 +12,7 @@ use ratatui_image::picker::Picker;
 use tui_view::{ViewRegistry, ViewState};
 
 use crate::image_view::ImageView;
+use crate::mouse_select::MouseSelect;
 use crate::terminal::TerminalPanel;
 use crate::view_search::ViewSearch;
 
@@ -378,6 +379,8 @@ pub struct Model {
     /// The shell panel at the bottom of the screen, while one is open. It
     /// tracks its own focus, since that only means anything while it is up.
     pub terminal: Option<TerminalPanel>,
+    /// Where panels sit on screen and the mouse selection being made in one.
+    pub mouse: MouseSelect,
 }
 
 impl Model {
@@ -419,6 +422,7 @@ impl Model {
             view_registry: ViewRegistry::with_defaults(),
             picker: None,
             terminal: None,
+            mouse: MouseSelect::default(),
         })
     }
 

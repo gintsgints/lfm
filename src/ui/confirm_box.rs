@@ -8,7 +8,7 @@ use ratatui::{
 
 use crate::theme;
 
-pub fn render(frame: &mut Frame, area: Rect, message: &str) {
+pub fn render(frame: &mut Frame, area: Rect, message: &str) -> Rect {
     let popup_area = centered_rect(60, area);
 
     let block = Block::default()
@@ -30,6 +30,7 @@ pub fn render(frame: &mut Frame, area: Rect, message: &str) {
 
     frame.render_widget(Clear, popup_area);
     frame.render_widget(Paragraph::new(line).block(block), popup_area);
+    popup_area
 }
 
 fn centered_rect(width_percent: u16, area: Rect) -> Rect {

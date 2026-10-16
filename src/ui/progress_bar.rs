@@ -11,7 +11,7 @@ use crate::{
     theme,
 };
 
-pub fn render(frame: &mut Frame, area: Rect, progress: &TransferProgress) {
+pub fn render(frame: &mut Frame, area: Rect, progress: &TransferProgress) -> Rect {
     let popup_area = centered_rect(60, area);
 
     #[allow(clippy::cast_precision_loss)]
@@ -46,6 +46,7 @@ pub fn render(frame: &mut Frame, area: Rect, progress: &TransferProgress) {
 
     frame.render_widget(Clear, popup_area);
     frame.render_widget(gauge, popup_area);
+    popup_area
 }
 
 fn centered_rect(width_percent: u16, area: Rect) -> Rect {

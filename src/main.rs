@@ -23,6 +23,7 @@ mod image_view;
 mod keys;
 mod message;
 mod model;
+mod mouse_select;
 mod presets;
 mod search;
 mod state;
@@ -43,6 +44,7 @@ use keys::{
 };
 use message::Message;
 use model::{CaptureView, Model, ResultPanel};
+use mouse_select::MouseInput;
 use presets::OutputMode;
 use update::{Effect, RunSpec, update};
 use view::view;
@@ -65,7 +67,9 @@ fn main() -> io::Result<()> {
     // without images rather than failing.
     let picker = Picker::from_query_stdio().ok();
     let extended_keys = enable_extended_key_reporting();
+    mouse_select::enable_capture();
     let result = run(terminal, extended_keys, picker);
+    mouse_select::disable_capture();
     disable_extended_key_reporting();
     ratatui::restore();
     let dir = result?;
@@ -136,6 +140,7 @@ fn run_preset_command(terminal: &mut DefaultTerminal, mut model: Model, spec: Ru
             model
         }
         OutputMode::Block => {
+            mouse_select::disable_capture();
             disable_extended_key_reporting();
             ratatui::restore();
             let mut cmd = build_command(&spec);
@@ -148,6 +153,7 @@ fn run_preset_command(terminal: &mut DefaultTerminal, mut model: Model, spec: Ru
             let _ = std::io::stdin().read_line(&mut buf);
             *terminal = ratatui::init();
             enable_extended_key_reporting();
+            mouse_select::enable_capture();
             if let Err(e) = status {
                 model.error_message = Some(format!("spawn '{}' failed: {e}", spec.label));
             }
@@ -165,11 +171,13 @@ fn open_in_editor(terminal: &mut DefaultTerminal, path: &std::path::Path) {
     let Some(editor) = std::env::var_os("EDITOR") else {
         return;
     };
+    mouse_select::disable_capture();
     disable_extended_key_reporting();
     ratatui::restore();
     let _ = std::process::Command::new(editor).arg(path).status();
     *terminal = ratatui::init();
     enable_extended_key_reporting();
+    mouse_select::enable_capture();
 }
 
 fn open_with_default_app(path: &std::path::Path) {
@@ -195,6 +203,11 @@ fn run(
 
     loop {
         terminal.draw(|frame| view(&mut model, frame))?;
+
+        // A drag that just ended was read off the screen by that draw.
+        if let Some(text) = model.mouse.take_copied() {
+            mouse_select::copy_to_clipboard(&text);
+        }
 
         // A finished transfer means the tree changed under the index.
         let was_transferring = progress_rx.is_some();
@@ -246,6 +259,24 @@ fn run(
 
         #[cfg(feature = "debug")]
         keys::log_key(&event);
+
+        // Selecting is handled here; the wheel carries on as arrow keys. Any key
+        // puts an old selection away.
+        let event = match event {
+            Event::Mouse(mouse) => match mouse_select::translate(mouse) {
+                MouseInput::Select(msg) => {
+                    model = update(model, msg).0;
+                    continue;
+                }
+                MouseInput::Key(key) => Event::Key(key),
+                MouseInput::Ignore => continue,
+            },
+            Event::Key(_) => {
+                model.mouse.clear();
+                event
+            }
+            other => other,
+        };
 
         let event = normalize_key_event(event, extended_keys);
 
