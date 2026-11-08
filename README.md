@@ -158,7 +158,8 @@ lfm() {
 |-----|--------|
 | `/` | Enter filter mode |
 | `←` / `→` | Move the cursor within the filter |
-| `↓` / `Enter` / `Tab` / `Shift+Tab` | Lock filter and move to file list |
+| `Enter` | Close filter, show full list, keep cursor on the entry |
+| `↓` / `Tab` / `Shift+Tab` | Lock filter and move to file list |
 | `Tab` / `Shift+Tab` (filter locked) | Re-enter the filter to keep editing it |
 | `Esc` | Clear filter |
 

@@ -331,7 +331,7 @@ fn active_panel_hints(model: &Model) -> Option<Line<'static>> {
     } else if in_filter {
         let mut spans = vec![
             key(" Enter"),
-            desc(" / "),
+            desc(" pick  "),
             key("Tab"),
             desc(" / "),
             key("Shift+Tab"),

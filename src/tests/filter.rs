@@ -139,3 +139,21 @@ fn moving_the_cursor_keeps_the_selection() {
     );
     assert_eq!(model.selection, 1);
 }
+
+/// Accepting the filter closes it and shows the whole list again, with the
+/// cursor still on the entry the filter narrowed down to.
+#[test]
+fn accept_clears_the_filter_and_keeps_the_picked_entry() {
+    let model = panel();
+    let model = send(
+        model,
+        &[
+            Message::Open(Field::Filter),
+            typed('g'),
+            Message::AcceptFilter,
+        ],
+    );
+    assert!(!model.is_filtering());
+    assert_eq!(visible(&model), ["alpha", "beta", "gamma"]);
+    assert_eq!(model.selection, 2);
+}

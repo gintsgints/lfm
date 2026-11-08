@@ -219,7 +219,9 @@ fn update_filter(field: &mut input_box::Model, msg: Message) -> bool {
             field.active = false;
             false
         }
-        Message::Cancel(_) => {
+        // Accepting and cancelling both drop the filter; the caller keeps the
+        // cursor on the entry it was on, which is what Enter picked.
+        Message::AcceptFilter | Message::Cancel(_) => {
             field.close();
             true
         }
@@ -232,6 +234,7 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Option<String>) {
         Message::Open(Field::Filter)
         | Message::Edit(Field::Filter, _)
         | Message::ConfirmFilter
+        | Message::AcceptFilter
         | Message::Cancel(Field::Filter) => {
             let raw_idx = model.visible_entries().nth(model.selection).map(|(i, _)| i);
             if update_filter(&mut model.search, msg) {

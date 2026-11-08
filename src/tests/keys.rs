@@ -165,3 +165,12 @@ fn shift_tab_crosses_the_filter_bar_like_tab() {
     );
     assert!(matches!(msg, Some(Message::Open(Field::Filter))));
 }
+
+/// Enter in the filter bar picks the entry rather than locking the filter, so
+/// Tab moves between panels again afterwards instead of re-entering the bar.
+#[test]
+fn enter_in_the_filter_bar_accepts_the_filter() {
+    let enter = Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+    let msg = to_message(&enter, ActivePanel::LeftFiles, &InputMode::Filter);
+    assert!(matches!(msg, Some(Message::AcceptFilter)));
+}

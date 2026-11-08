@@ -311,7 +311,8 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
         }),
         InputMode::Filter => ModeIntercept::Consumed(match key.code {
             KeyCode::Esc => Some(Message::Cancel(Field::Filter)),
-            KeyCode::Enter | KeyCode::Tab | KeyCode::BackTab => Some(Message::ConfirmFilter),
+            KeyCode::Enter => Some(Message::AcceptFilter),
+            KeyCode::Tab | KeyCode::BackTab => Some(Message::ConfirmFilter),
             KeyCode::Down => Some(Message::FilterBarDown),
             _ => edit_key(key, Field::Filter),
         }),
