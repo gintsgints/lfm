@@ -1,15 +1,29 @@
 # Changelog
 
-## Unreleased
+## v0.12.0
 
 ### New features
 
-- **Fullscreen viewer** — `f` in the focused viewer panel grows it to the whole file area, and `f` again puts it back on its half; `Tab` back to the file list restores it too
-- **Terminal panel** — `t` opens a shell on a real pty across the bottom of the window, started in the directory being browsed; `Ctrl+O` hands the keys back to the file list without stopping it, `Shift+T` closes it, and both file panels reload when it goes
+- **Terminal panel** (`t`) — opens a shell on a real pty across the bottom of the window, started in the directory being browsed; `Ctrl+O` hands the keys back to the file list without stopping it, `Shift+T` closes it, and both file panels reload when it goes
+- **Fullscreen viewer** (`f`) — in the focused viewer panel grows it to the whole file area, and `f` again puts it back on its half; `Tab` back to the file list restores it too
+- **Viewer search** (`/`) — searches the text the viewer draws, marks every match on screen, and steps through them with `n` / `Shift+N`
+- **Target path bar** — copy and move show the destination path above the destination panel
+- **Mouse selection** — dragging selects text inside one panel only and copies it to the clipboard over OSC 52
 
 ### Fixes
 
 - Text files that are not UTF-8 no longer open as hex — a `.txt`, `.cmd` or any other text file written in a legacy Windows code page is viewed as text, and a UTF-16 file is re-encoded before it is shown; a byte-order mark is dropped instead of rendering as a stray glyph
+- Content search honours its 2 s time budget on queries with no match, instead of scanning the whole index
+- `Enter` closes the panel filter and keeps the picked entry under the cursor
+- `Tab` out of a panel closes its filter bar
+- The file list keeps its scroll position when moving back up
+
+### Other
+
+- Release archives for Linux, macOS and Windows with checksums, plus crate metadata for `cargo binstall`
+- Content search benchmark against ripgrep (`scripts/search_bench.sh`)
+- Dependencies updated (zip 9, fff-search 0.11)
+- CI moved to newer GitHub runner images
 
 ## v0.11.0
 
