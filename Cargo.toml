@@ -1,6 +1,6 @@
 [package]
 name = "lfm"
-version = "0.11.0"
+version = "0.12.0"
 edition = "2024"
 # Let-chains, used throughout, are stable from 1.88 in edition 2024.
 rust-version = "1.88"
