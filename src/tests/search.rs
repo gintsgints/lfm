@@ -1,5 +1,11 @@
 use super::{root_dir, src_dir, wait_for_content};
+use std::{
+    sync::atomic::{AtomicBool, Ordering},
+    time::{Duration, Instant},
+};
+
 use crate::engine::{Kind, SearchEngine};
+use crate::search::with_deadline;
 
 /// Grep finds the matching line, and the index built for the first query is
 /// reused by the second — the engine only ever indexes once per root.
@@ -110,4 +116,30 @@ fn a_mask_matching_no_file_reports_an_empty_batch() {
 
     engine.search(Kind::Content, "fn".to_owned(), "*.no-such-ext".to_owned());
     assert!(wait_for_content(&engine).is_empty());
+}
+
+/// A search still running at the deadline is aborted, even one that never
+/// finds a match.
+#[test]
+fn deadline_aborts_a_long_search() {
+    let abort = AtomicBool::new(false);
+    let start = Instant::now();
+    with_deadline(&abort, Duration::from_millis(50), || {
+        while !abort.load(Ordering::Relaxed) {
+            assert!(start.elapsed() < Duration::from_secs(5), "never aborted");
+            std::thread::yield_now();
+        }
+    });
+    assert!(start.elapsed() >= Duration::from_millis(50));
+}
+
+/// A search finishing early returns at once and leaves the flag clear.
+#[test]
+fn deadline_leaves_a_quick_search_alone() {
+    let abort = AtomicBool::new(false);
+    let start = Instant::now();
+    let out = with_deadline(&abort, Duration::from_secs(10), || 7);
+    assert_eq!(out, 7);
+    assert!(start.elapsed() < Duration::from_secs(1));
+    assert!(!abort.load(Ordering::Relaxed));
 }

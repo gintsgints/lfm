@@ -14,7 +14,10 @@
 
 use std::{
     path::{Path, PathBuf},
-    sync::{Arc, atomic::AtomicBool},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -143,6 +146,9 @@ fn main() {
     let abort = Arc::new(AtomicBool::new(false));
     for query in &args.queries {
         let (min, med, hits) = time(iters, || {
+            // The engine clears the flag before each query; a run that hit the
+            // deadline leaves it raised.
+            abort.store(false, Ordering::Relaxed);
             search::grep(&picker, &root, query, &mask, &abort).len()
         });
         println!(

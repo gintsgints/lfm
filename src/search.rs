@@ -1,10 +1,12 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{
     path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
+        mpsc::{self, RecvTimeoutError},
     },
+    thread,
 };
 
 use fff_search::file_picker::FilePicker;
@@ -29,7 +31,45 @@ pub struct SearchResult {
 
 /// Grep the indexed files for `query` as literal text, keeping only the files
 /// `mask` admits.
+///
+/// fff-search only applies its own time budget once a page holds matches, so
+/// a query matching nothing would scan the whole index. The deadline raises
+/// `abort` instead, which it checks regardless.
 pub fn grep(
+    picker: &FilePicker,
+    root: &Path,
+    query: &str,
+    mask: &FileMask,
+    abort: &Arc<AtomicBool>,
+) -> Vec<SearchResult> {
+    with_deadline(abort, Duration::from_millis(TIME_BUDGET_MS), || {
+        grep_pages(picker, root, query, mask, abort)
+    })
+}
+
+/// Run `search`, raising `abort` if it is still going after `budget`.
+///
+/// The timer is joined before returning, so it can never fire into a later
+/// query.
+pub(crate) fn with_deadline<T>(
+    abort: &AtomicBool,
+    budget: Duration,
+    search: impl FnOnce() -> T,
+) -> T {
+    let (done, finished) = mpsc::channel::<()>();
+    thread::scope(|scope| {
+        scope.spawn(move || {
+            if finished.recv_timeout(budget) == Err(RecvTimeoutError::Timeout) {
+                abort.store(true, Ordering::Relaxed);
+            }
+        });
+        let out = search();
+        drop(done);
+        out
+    })
+}
+
+fn grep_pages(
     picker: &FilePicker,
     root: &Path,
     query: &str,
