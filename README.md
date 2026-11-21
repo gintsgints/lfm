@@ -20,15 +20,17 @@ A fast, keyboard-driven TUI file manager built in Rust, inspired by two-panel fi
 - Create files and directories with full path support (`test/a/b.txt`)
 - Delete files and directories with confirmation
 - Toggleable viewer panel (`v`) that follows the file list — syntax-aware text, inline image rendering, ZIP archive listings, and a hex view for binary files
+- Search inside the viewer (`/`, then `n` / `Shift+N`) and a fullscreen viewer (`f`)
 - Embedded shell panel (`t`) at the bottom of the window, started in the directory being browsed
 - Open items in `$EDITOR` or with the default application
 - Sort by name, date modified, extension, or size
 - Zip selected items; extract `.zip` and `.tar.gz` archives
-- Recursive content search (`s`) with live streaming results
+- Recursive content search (`s`) with results updating as you type
 - Fuzzy-find files by name (`f`)
 - File mask beside the search query (`*.rs`, `src/**/*.rs`) to limit what either search looks at
 - User-defined preset commands (`x`) — run any shell command on the selection, with optional `{input}` prompt and an optional shortcut key per preset
 - Error popup for failed file operations
+- Mouse drag selects text within one panel and copies it to the clipboard (OSC 52)
 - Nerd Font icons in the file list
 - Catppuccin Mocha colour theme by default, customisable via `~/.config/lfm/colors.json`
 - Persists pinned directories across sessions
@@ -69,7 +71,7 @@ covering all of them:
 | Windows x86_64 | `lfm-<version>-x86_64-pc-windows-msvc.zip` |
 
 ```bash
-version=0.11.0
+version=0.12.0
 target=x86_64-unknown-linux-gnu
 base="https://github.com/gintsgints/lfm/releases/download/v$version"
 curl -LO "$base/lfm-$version-$target.tar.gz"
@@ -400,7 +402,7 @@ With the feature enabled, press `` ` `` (backtick) to toggle a debug panel at th
 
 - The `Message` dispatched for each keypress
 - Directory reads
-- Content search timings — each search logs a summary line on completion, e.g. `search "." for "foo": 12 hit(s) in 340 file(s), 18.421ms`
+- Content search timings — each search logs a summary line on completion, e.g. `grep "/path/to/dir" for "foo": 12 hit(s) in 4 file(s) of 340, 18.421ms`
 
 Emit your own log lines from anywhere in the code with the `debug_log!` macro:
 
