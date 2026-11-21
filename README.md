@@ -159,8 +159,9 @@ lfm() {
 | `/` | Enter filter mode |
 | `←` / `→` | Move the cursor within the filter |
 | `Enter` | Close filter, show full list, keep cursor on the entry |
-| `↓` / `Tab` / `Shift+Tab` | Lock filter and move to file list |
-| `Tab` / `Shift+Tab` (filter locked) | Re-enter the filter to keep editing it |
+| `↓` | Lock filter and move to file list |
+| `/` (filter locked) | Re-enter the filter to keep editing it |
+| `Tab` / `Shift+Tab` | Close filter, keep cursor on the entry, switch panel |
 | `Esc` | Clear filter |
 
 ### Pinned directories

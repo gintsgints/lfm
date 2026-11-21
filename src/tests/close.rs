@@ -74,3 +74,35 @@ fn closing_a_surface_that_is_not_up_does_nothing() {
     assert!(model.command_picker.is_none());
     assert!(model.file_view.is_none());
 }
+
+/// Tabbing out of a panel closes its filter bar and leaves the cursor on the
+/// entry it was on.
+#[test]
+fn switching_panels_closes_the_filter() {
+    use crate::message::{EditOp, Field};
+    use crate::model::ActivePanel;
+
+    let dir = temp_dir();
+    for name in ["alpha", "beta", "gamma"] {
+        fs::write(dir.join(name), b"").unwrap();
+    }
+    let mut model = Model::init(PersistedState::default()).unwrap();
+    model.left_files = file_panel::Model::init(dir).unwrap();
+    model.active_panel = ActivePanel::LeftFiles;
+
+    let model = [
+        Message::Open(Field::Filter),
+        Message::Edit(Field::Filter, EditOp::Char('g')),
+        Message::NextPanel,
+    ]
+    .into_iter()
+    .fold(model, |m, msg| update(m, msg).0);
+
+    assert!(model.active_panel == ActivePanel::RightFiles);
+    assert!(!model.left_files.is_filtering());
+    let picked = model
+        .left_files
+        .visible_entries()
+        .nth(model.left_files.selection);
+    assert_eq!(picked.map(|(_, e)| e.name.as_str()), Some("gamma"));
+}

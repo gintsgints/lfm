@@ -312,7 +312,9 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
         InputMode::Filter => ModeIntercept::Consumed(match key.code {
             KeyCode::Esc => Some(Message::Cancel(Field::Filter)),
             KeyCode::Enter => Some(Message::AcceptFilter),
-            KeyCode::Tab | KeyCode::BackTab => Some(Message::ConfirmFilter),
+            // Leaving the panel drops the filter, as Enter does.
+            KeyCode::Tab => Some(Message::NextPanel),
+            KeyCode::BackTab => Some(Message::PrevPanel),
             KeyCode::Down => Some(Message::FilterBarDown),
             _ => edit_key(key, Field::Filter),
         }),
@@ -341,9 +343,6 @@ fn intercept_mode(key: &KeyEvent, active_panel: ActivePanel, mode: &InputMode) -
         }),
         InputMode::FilteredNormal => match key.code {
             KeyCode::Esc => ModeIntercept::Consumed(Some(Message::Cancel(Field::Filter))),
-            KeyCode::Tab | KeyCode::BackTab => {
-                ModeIntercept::Consumed(Some(Message::Open(Field::Filter)))
-            }
             _ => ModeIntercept::PassThrough,
         },
         InputMode::Normal => ModeIntercept::PassThrough,

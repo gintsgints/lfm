@@ -103,7 +103,6 @@ pub enum Message {
     PinCurrentDir,
     SelectPinnedDir,
     DeletePinnedDir,
-    ConfirmFilter,
     /// Enter in the filter bar: close the filter and show the whole list
     /// again, keeping the cursor on the entry it picked.
     AcceptFilter,

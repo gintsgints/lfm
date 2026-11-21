@@ -215,7 +215,7 @@ fn update_filter(field: &mut input_box::Model, msg: Message) -> bool {
             input_box::apply(field, op);
             matches!(op, EditOp::Char(_) | EditOp::Backspace)
         }
-        Message::ConfirmFilter | Message::FilterBarDown => {
+        Message::FilterBarDown => {
             field.active = false;
             false
         }
@@ -233,7 +233,6 @@ pub fn update(mut model: Model, msg: Message) -> (Model, Option<String>) {
     match msg {
         Message::Open(Field::Filter)
         | Message::Edit(Field::Filter, _)
-        | Message::ConfirmFilter
         | Message::AcceptFilter
         | Message::Cancel(Field::Filter) => {
             let raw_idx = model.visible_entries().nth(model.selection).map(|(i, _)| i);

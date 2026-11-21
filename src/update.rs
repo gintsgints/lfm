@@ -85,6 +85,11 @@ fn update_message(mut model: Model, msg: Message) -> (Model, Effect) {
     match msg {
         Message::Quit => (model, Effect::Quit),
         Message::NextPanel | Message::PrevPanel => {
+            // Switching away closes the filter bar, keeping the cursor on the
+            // entry it was on.
+            if model.active_panel != ActivePanel::Pinned {
+                (model, _) = dispatch_to_panel(model, Message::AcceptFilter);
+            }
             // While the viewer panel occupies the right half, Tab moves between
             // the file list and the viewer instead of between the two lists.
             if model.file_view.is_some() && model.transfer_mode == TransferMode::None {

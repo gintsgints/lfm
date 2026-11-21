@@ -3,7 +3,7 @@ use ratatui::crossterm::event::{
 };
 
 use crate::keys::{InputMode, is_key_release, normalize_key_event, shift_held_change, to_message};
-use crate::message::{Field, Message, SearchKind};
+use crate::message::{Message, SearchKind};
 use crate::model::ActivePanel;
 
 fn shifted(code: KeyCode) -> Event {
@@ -148,22 +148,19 @@ fn shift_tab_toggles_from_the_search_input_too() {
     ));
 }
 
-/// The filter bar has the same two stops as the search panels, so Shift+Tab
-/// crosses between them exactly like Tab: out of the input onto the list, and
-/// from the filtered list back into the input.
+/// Tab and Shift+Tab leave the panel from the filter bar and from a locked
+/// filter alike, instead of crossing between the bar and the list.
 #[test]
-fn shift_tab_crosses_the_filter_bar_like_tab() {
+fn tab_in_the_filter_switches_panels() {
+    let tab = Event::Key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
     let back_tab = Event::Key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT));
 
-    let msg = to_message(&back_tab, ActivePanel::LeftFiles, &InputMode::Filter);
-    assert!(matches!(msg, Some(Message::ConfirmFilter)));
-
-    let msg = to_message(
-        &back_tab,
-        ActivePanel::LeftFiles,
-        &InputMode::FilteredNormal,
-    );
-    assert!(matches!(msg, Some(Message::Open(Field::Filter))));
+    for mode in [InputMode::Filter, InputMode::FilteredNormal] {
+        let msg = to_message(&tab, ActivePanel::LeftFiles, &mode);
+        assert!(matches!(msg, Some(Message::NextPanel)));
+        let msg = to_message(&back_tab, ActivePanel::LeftFiles, &mode);
+        assert!(matches!(msg, Some(Message::PrevPanel)));
+    }
 }
 
 /// Enter in the filter bar picks the entry rather than locking the filter, so

@@ -62,7 +62,7 @@ fn confirm_keeps_the_filter_and_escape_clears_it() {
         &[
             Message::Open(Field::Filter),
             typed('b'),
-            Message::ConfirmFilter,
+            Message::FilterBarDown,
         ],
     );
     assert!(!model.search.active);
@@ -84,7 +84,7 @@ fn re_entering_a_filter_appends_to_it() {
         &[
             Message::Open(Field::Filter),
             typed('a'),
-            Message::ConfirmFilter,
+            Message::FilterBarDown,
             Message::Open(Field::Filter),
             typed('l'),
         ],
