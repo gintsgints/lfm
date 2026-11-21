@@ -162,7 +162,8 @@ fn incompressible(len: usize) -> Vec<u8> {
             state ^= state << 13;
             state ^= state >> 7;
             state ^= state << 17;
-            (state >> 24) as u8
+            // Bits 24..32, the same byte `(state >> 24) as u8` would keep.
+            state.to_le_bytes()[3]
         })
         .collect()
 }
