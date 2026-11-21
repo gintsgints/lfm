@@ -49,7 +49,7 @@ pub fn unzip(src: &Path, dest_dir: &Path) -> io::Result<()> {
     let mut archive = zip::ZipArchive::new(file).map_err(io::Error::other)?;
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i).map_err(io::Error::other)?;
-        let out_path = dest_dir.join(entry.mangled_name());
+        let out_path = dest_dir.join(entry.mangled_name().map_err(io::Error::other)?);
         if entry.is_dir() {
             std::fs::create_dir_all(&out_path)?;
         } else {
